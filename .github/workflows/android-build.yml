@@ -42,7 +42,7 @@ jobs:
 
       - name: Build Debug APK
         working-directory: ./android
-        run: ./gradlew assembleDebug
+        run: ./gradlew build --stacktrace --info
 
       - name: Upload APK as Artifact
         uses: actions/upload-artifact@v4
