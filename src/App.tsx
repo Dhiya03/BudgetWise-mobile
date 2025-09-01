@@ -8,109 +8,55 @@ import { Plus, TrendingUp, Settings, Download, Upload, Trash2, Edit3, List, PieC
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
+import {
+  Transaction,
+  MonthlyBudgets,
+  CustomBudget,
+  BudgetTemplate,
+  BudgetRelationship,
+  BillReminder,
+  TransactionFormData,
+  CustomBudgetFormData,
+  RelationshipFormData,
+} from './types';
 
-// --- Type Definitions for State Management ---
+const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }: {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: (() => void) | null;
+  title: string;
+  message: string;
+}) => {
+  if (!isOpen) return null;
 
-// Describes a single transaction record
-interface Transaction {
-  id: number;
-  category: string;
-  amount: number;
-  description: string;
-  date: string; // YYYY-MM-DD format
-  type: 'expense' | 'income';
-  budgetType: 'monthly' | 'custom' | 'transfer';
-  customBudgetId: number | null;
-  customCategory: string;
-  tags: string[]; // This was missing
-  isRecurring: boolean;
-  recurringFrequency: 'daily' | 'weekly' | 'monthly' | null;
-  timestamp: string; // ISO string
-}
-
-// Describes the structure for monthly budgets
-interface MonthlyBudgets {
-  [category: string]: number;
-}
-
-// Describes a custom, purpose-driven budget
-interface CustomBudget {
-  id: number;
-  name: string;
-  description: string;
-  totalAmount: number;
-  spentAmount: number;
-  remainingAmount: number;
-  deadline: string | null;
-  priority: 'low' | 'medium' | 'high';
-  status: 'active' | 'completed' | 'archived' | 'paused'; // Added 'paused'
-  categories: string[];
-  categoryBudgets: { [category: string]: number };
-  createdAt: string;
-  updatedAt: string;
-}
-
-// New: Describes a budget template
-interface BudgetTemplate {
-  id: number;
-  name: string;
-  description: string;
-  amount: number;
-  priority: 'low' | 'medium' | 'high';
-  categories: string[];
-  categoryBudgets: { [key: string]: number };
-}
-
-// New: Describes a budget relationship for automation
-interface BudgetRelationship {
-  id: number;
-  sourceCategory: string; // e.g., 'Food'
-  destinationBudgetId: number; // custom budget id
-  condition: 'end_of_month_surplus';
-  createdAt: string;
-}
-
-// New: Describes a bill reminder
-interface BillReminder {
-  id: number;
-  name: string;
-  amount: number;
-  dueDate: string;
-}
-
-
-// Describes the data structure for the transaction form
-interface TransactionFormData {
-  category: string;
-  amount: string;
-  description: string;
-  date: string;
-  type: 'expense' | 'income';
-  budgetType: 'monthly' | 'custom' | 'transfer';
-  customBudgetId: number | null;
-  customCategory: string;
-  tags: string; // Comma-separated string
-  isRecurring: boolean;
-  recurringFrequency: 'daily' | 'weekly' | 'monthly' | null;
-}
-
-// Describes the data structure for the custom budget form
-interface CustomBudgetFormData {
-  name: string;
-  amount: string;
-  description: string;
-  deadline: string;
-  priority: 'low' | 'medium' | 'high';
-  categories: string[];
-  categoryBudgets: { [key: string]: string };
-}
-
-// New: Describes the data for the relationship form
-interface RelationshipFormData {
-  sourceCategory: string;
-  destinationBudgetId: string;
-  condition: 'end_of_month_surplus';
-}
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
+        <h2 className="text-xl font-bold text-gray-800 mb-4">{title}</h2>
+        <p className="text-gray-600 mb-6">{message}</p>
+        <div className="flex justify-end space-x-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+          >
+            No
+          </button>
+          <button
+            onClick={() => {
+              if (onConfirm) {
+                onConfirm();
+              }
+              onClose();
+            }}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors"
+          >
+            Yes
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const App = () => {
   const [activeTab, setActiveTab] = useState('add');
@@ -127,6 +73,20 @@ const App = () => {
   const [editingCustomBudget, setEditingCustomBudget] = useState<CustomBudget | null>(null);
 
   // --- New State for Advanced Features ---
+
+  // Confirmation Modal State
+  const [confirmationState, setConfirmationState] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: (() => void) | null;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: null,
+  });
+
 
   // Analytics state
   const [analyticsTimeframe, setAnalyticsTimeframe] = useState('30'); // days
@@ -220,7 +180,50 @@ const App = () => {
   const [transferForm, setTransferForm] = useState({ fromBudgetId: '', toBudgetId: '', transferAmount: '' });
 
 
+  // --- Modal Control Functions ---
+  const showConfirmation = (title: string, message: string, onConfirm: () => void) => {
+    setConfirmationState({
+      isOpen: true,
+      title,
+      message,
+      onConfirm,
+    });
+  };
+
+  const closeConfirmation = () => {
+    setConfirmationState({
+      isOpen: false,
+      title: '',
+      message: '',
+      onConfirm: null,
+    });
+  };
+
   // --- Data Persistence and Security Hooks ---
+
+  const loadAndInitializeData = () => {
+    const savedData = localStorage.getItem('budgetWiseData_v2');
+    if (savedData) {
+        try {
+            // This assumes data is not encrypted if no password was set on startup.
+            const appState = JSON.parse(savedData);
+            if (appState.transactions) {
+                setTransactions(appState.transactions);
+                setBudgets(appState.budgets || {});
+                setCustomBudgets(appState.customBudgets || []);
+                setCategories(appState.categories || ['Food', 'Transport', 'Entertainment', 'Shopping', 'Bills', 'Health']);
+                setBudgetTemplates(appState.budgetTemplates || []);
+                setBudgetRelationships(appState.budgetRelationships || []);
+                setBillReminders(appState.billReminders || []);
+                return; // Exit after successful load
+            }
+        } catch (e) {
+            console.error("Failed to parse stored data, initializing fresh.", e);
+        }
+    }
+    // If no data or parsing failed, initialize sample data
+    initializeSampleData();
+  };
 
   // Load data from localStorage on initial render
   useEffect(() => {
@@ -228,24 +231,20 @@ const App = () => {
     if (savedPassword) {
       setAppPassword(savedPassword);
       setIsLocked(true);
+      // Data will be loaded upon successful unlock
     } else {
       setIsLocked(false); // No password set, unlock the app
-      initializeSampleData(); // Load sample data if no password/data
+      loadAndInitializeData(); // Load existing data or initialize samples
     }
   }, []);
 
   // Encrypt and save data to localStorage whenever it changes
   const saveDataToStorage = () => {
     try {
-      const appState = {
-        transactions,
-        budgets,
-        customBudgets,
-        categories,
-        budgetTemplates,
-        budgetRelationships,
-        billReminders,
-      };
+      // Only save if the app is not locked to prevent saving empty initial state
+      if (isLocked) return;
+      
+      const appState = { transactions, budgets, customBudgets, categories, budgetTemplates, budgetRelationships, billReminders };
       const jsonString = JSON.stringify(appState);
       const encryptedData = appPassword ? btoa(jsonString) : jsonString; // Simple Base64 "encryption"
       localStorage.setItem('budgetWiseData_v2', encryptedData);
@@ -286,11 +285,6 @@ const App = () => {
     alert('Password set successfully. The app will be locked on your next visit.');
     saveDataToStorage(); // Re-save data with new encryption status
   };
-
-  // Initialize with sample data for demonstration
-  useEffect(() => {
-    initializeSampleData();
-  }, []);
 
   const initializeSampleData = () => {
     // Sample transactions with both budget types
@@ -479,12 +473,18 @@ const App = () => {
     recalculateCustomBudgetSpending(updatedTransactions); };
 
   const deleteTransaction = (id: number) => {
-    const transactionToDelete = transactions.find(t => t.id === id);
-    if (!transactionToDelete) return;
+    showConfirmation(
+      'Confirm Deletion',
+      'Are you sure you want to delete this transaction?',
+      () => {
+        const transactionToDelete = transactions.find(t => t.id === id);
+        if (!transactionToDelete) return;
 
-    const newTransactions = transactions.filter((t) => t.id !== id);
-    setTransactions(newTransactions);
-    recalculateCustomBudgetSpending(newTransactions);
+        const newTransactions = transactions.filter((t) => t.id !== id);
+        setTransactions(newTransactions);
+        recalculateCustomBudgetSpending(newTransactions);
+      }
+    );
   };
 
   const editTransaction = (transaction: Transaction) => {
@@ -639,6 +639,16 @@ const App = () => {
     };
     setBillReminders([...billReminders, newReminder]);
     setBillForm({ name: '', amount: '', dueDate: '' });
+  };
+
+  const deleteBillReminder = (id: number) => {
+    showConfirmation(
+      'Confirm Deletion',
+      'Are you sure you want to delete this reminder?',
+      () => {
+        setBillReminders(billReminders.filter(br => br.id !== id));
+      }
+    );
   };
 
 
@@ -796,10 +806,14 @@ const App = () => {
   };
 
   const deleteTemplate = (templateId: number) => {
-    if (window.confirm("Are you sure you want to delete this template?")) {
-      setBudgetTemplates(budgetTemplates.filter(t => t.id !== templateId));
-      alert("Template deleted.");
-    }
+    showConfirmation(
+      'Confirm Deletion',
+      'Are you sure you want to delete this template?',
+      () => {
+        setBudgetTemplates(budgetTemplates.filter(t => t.id !== templateId));
+        alert("Template deleted.");
+      }
+    );
   };
 
   const addRelationship = () => {
@@ -822,58 +836,64 @@ const App = () => {
   };
 
   const deleteRelationship = (id: number) => {
-    if (window.confirm("Are you sure you want to delete this rollover rule?")) {
-      setBudgetRelationships(budgetRelationships.filter(rel => rel.id !== id));
-      alert("Rule deleted.");
-    }
+    showConfirmation(
+      'Confirm Deletion',
+      'Are you sure you want to delete this rollover rule?',
+      () => {
+        setBudgetRelationships(budgetRelationships.filter(rel => rel.id !== id));
+        alert("Rule deleted.");
+      }
+    );
   };
 
   const processEndOfMonthRollovers = () => {
-    if (!window.confirm("This will process all end-of-month rollovers based on current monthly budget surpluses. This action cannot be undone. Proceed?")) {
-      return;
-    }
+    showConfirmation(
+      'Confirm Rollovers',
+      'This will process all end-of-month rollovers based on current monthly budget surpluses. This action cannot be undone. Proceed?',
+      () => {
+        let totalRolledOver = 0;
+        const newTransactions: Transaction[] = [];
+        const now = new Date().toISOString();
+        const date = now.split('T')[0];
 
-    let totalRolledOver = 0;
-    const newTransactions: Transaction[] = [];
-    const now = new Date().toISOString();
-    const date = now.split('T')[0];
+        budgetRelationships.forEach(rel => {
+          const remaining = getRemainingBudget(rel.sourceCategory);
+          if (remaining > 0) {
+            const destinationBudget = customBudgets.find(b => b.id === rel.destinationBudgetId);
+            if (destinationBudget) {
+              totalRolledOver += remaining;
 
-    budgetRelationships.forEach(rel => {
-      const remaining = getRemainingBudget(rel.sourceCategory);
-      if (remaining > 0) {
-        const destinationBudget = customBudgets.find(b => b.id === rel.destinationBudgetId);
-        if (destinationBudget) {
-          totalRolledOver += remaining;
+              // Create an income transaction for the custom budget
+              const incomeTransaction: Transaction = {
+                id: Date.now() + newTransactions.length,
+                category: '',
+                amount: remaining,
+                description: `Rollover from ${rel.sourceCategory}`,
+                date: date,
+                type: 'income',
+                budgetType: 'transfer',
+                customBudgetId: destinationBudget.id,
+                customCategory: 'Rollover Funds', // A specific category for rollovers
+                tags: ['rollover', 'automation'],
+                isRecurring: false,
+                recurringFrequency: null,
+                timestamp: now,
+              };
+              newTransactions.push(incomeTransaction);
+            }
+          }
+        });
 
-          // Create an income transaction for the custom budget
-          const incomeTransaction: Transaction = {
-            id: Date.now() + newTransactions.length,
-            category: '',
-            amount: remaining,
-            description: `Rollover from ${rel.sourceCategory}`,
-            date: date,
-            type: 'income',
-            budgetType: 'transfer',
-            customBudgetId: destinationBudget.id,
-            customCategory: 'Rollover Funds', // A specific category for rollovers
-            tags: ['rollover', 'automation'],
-            isRecurring: false,
-            recurringFrequency: null,
-            timestamp: now,
-          };
-          newTransactions.push(incomeTransaction);
+        if (newTransactions.length > 0) {
+          const allNewTransactions = [...transactions, ...newTransactions];
+          setTransactions(allNewTransactions);
+          recalculateCustomBudgetSpending(allNewTransactions);
+          alert(`Successfully processed rollovers. Total amount transferred: ₹${totalRolledOver.toFixed(2)}`);
+        } else {
+          alert("No monthly surpluses to roll over at this time.");
         }
       }
-    });
-
-    if (newTransactions.length > 0) {
-      const allNewTransactions = [...transactions, ...newTransactions];
-      setTransactions(allNewTransactions);
-      recalculateCustomBudgetSpending(allNewTransactions);
-      alert(`Successfully processed rollovers. Total amount transferred: ₹${totalRolledOver.toFixed(2)}`);
-    } else {
-      alert("No monthly surpluses to roll over at this time.");
-    }
+    );
   };
 
   // Date range validation utilities
@@ -1337,43 +1357,45 @@ const App = () => {
 
   const handleRestore = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
+    const fileInput = event.target;
     if (!file) return;
 
-    if (!window.confirm("Are you sure you want to restore? This will overwrite all current data.")) {
-      // Clear the file input so the same file can be selected again
-      event.target.value = '';
-      return;
-    }
+    showConfirmation(
+      'Confirm Restore',
+      'Are you sure you want to restore? This will overwrite all current data.',
+      () => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const text = e.target?.result;
+            if (typeof text !== 'string') {
+              throw new Error("Failed to read file content.");
+            }
+            const restoredState = JSON.parse(text);
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const text = e.target?.result;
-        if (typeof text !== 'string') {
-          throw new Error("Failed to read file content.");
-        }
-        const restoredState = JSON.parse(text);
-        
-        if (!restoredState.transactions || !restoredState.budgets) {
-            throw new Error("Invalid backup file format.");
-        }
+            if (!restoredState.transactions || !restoredState.budgets) {
+                throw new Error("Invalid backup file format.");
+            }
 
-        setTransactions(restoredState.transactions || []);
-        setBudgets(restoredState.budgets || {});
-        setCustomBudgets(restoredState.customBudgets || []);
-        setCategories(restoredState.categories || ['Food', 'Transport', 'Entertainment', 'Shopping', 'Bills', 'Health']);
-        setBudgetTemplates(restoredState.budgetTemplates || []);
-        setBudgetRelationships(restoredState.budgetRelationships || []);
-        setBillReminders(restoredState.billReminders || []);
-        alert('Data restored successfully!');
-      } catch (error) {
-        console.error("Failed to restore data:", error);
-        alert(`Error restoring data: ${(error as Error).message}. Please ensure you are using a valid backup file.`);
-      } finally {
-        if (event.target) event.target.value = '';
+            setTransactions(restoredState.transactions || []);
+            setBudgets(restoredState.budgets || {});
+            setCustomBudgets(restoredState.customBudgets || []);
+            setCategories(restoredState.categories || ['Food', 'Transport', 'Entertainment', 'Shopping', 'Bills', 'Health']);
+            setBudgetTemplates(restoredState.budgetTemplates || []);
+            setBudgetRelationships(restoredState.budgetRelationships || []);
+            setBillReminders(restoredState.billReminders || []);
+            alert('Data restored successfully!');
+          } catch (error) {
+            console.error("Failed to restore data:", error);
+            alert(`Error restoring data: ${(error as Error).message}. Please ensure you are using a valid backup file.`);
+          }
+        };
+        reader.readAsText(file);
       }
-    };
-    reader.readAsText(file);
+    );
+
+    // Clear the file input so the same file can be selected again if the user cancels and retries.
+    fileInput.value = '';
   };
 
   const exportToExcel = () => {
@@ -1988,13 +2010,15 @@ const renderAnalyticsTab = () => {
             <div>
               <p className="text-gray-600 mb-2">App password is set.</p>
               <button
-                onClick={() => {
-                  if (window.confirm("Are you sure you want to remove the password?")) {
+                onClick={() => showConfirmation(
+                  'Confirm Password Removal',
+                  'Are you sure you want to remove the password?',
+                  () => {
                     setAppPassword(null);
                     localStorage.removeItem('appPassword_v2');
                     alert("Password removed.");
                   }
-                }}
+                )}
                 className="w-full p-3 bg-red-100 text-red-700 rounded-xl hover:bg-red-200 flex items-center justify-center"
               >
                 <Unlock size={18} className="mr-2" />
@@ -2094,7 +2118,7 @@ const renderAnalyticsTab = () => {
               {billReminders.map(r => (
                 <div key={r.id} className="flex justify-between items-center bg-gray-50 p-2 rounded-lg">
                   <span>{r.name} - ₹{r.amount} (Due: {r.dueDate})</span>
-                  <button onClick={() => setBillReminders(billReminders.filter(br => br.id !== r.id))} className="p-1 text-red-500 hover:bg-red-100 rounded-full">
+                  <button onClick={() => deleteBillReminder(r.id)} className="p-1 text-red-500 hover:bg-red-100 rounded-full">
                     <Trash2 size={16} />
                   </button>
                 </div>
@@ -3431,6 +3455,14 @@ const renderAnalyticsTab = () => {
         {/* Settings Tab */}
         {activeTab === 'settings' && renderSettingsTab()}
       </div>
+
+      <ConfirmationModal
+        isOpen={confirmationState.isOpen}
+        onClose={closeConfirmation}
+        onConfirm={confirmationState.onConfirm}
+        title={confirmationState.title}
+        message={confirmationState.message}
+      />
 
       {/* Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t border-gray-200 px-2 py-2">
