@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, TrendingUp, Settings, Download, Upload, Trash2, Edit3, List, PieChart, ArrowUpDown, BarChart3, TrendingDown, AlertCircle, FileText, Pause, Play, Save, Link2, ArrowRight, Repeat, FileSpreadsheet, FileJson, Bell, Unlock } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Plus, TrendingUp, Settings, Download, Upload, Trash2, Edit3, List, PieChart, ArrowUpDown, BarChart3, TrendingDown, AlertCircle, FileText, Pause, Play, Save, Link2, ArrowRight, Repeat, FileSpreadsheet, FileJson, Bell, Unlock, X } from 'lucide-react';
 
 // Add these to your project:
 // npm install xlsx jspdf jspdf-autotable
@@ -150,6 +150,8 @@ const App = () => {
   const [showCustomCategoryInput, setShowCustomCategoryInput] = useState(false);
   const [newCustomCategory, setNewCustomCategory] = useState('');
   const [selectedCustomBudgetForCategory, setSelectedCustomBudgetForCategory] = useState<number | null>(null);
+
+  const customBudgetFormRef = useRef<HTMLDivElement>(null);
 
   const [showCategoryInput, setShowCategoryInput] = useState(false);
   const [newCategory, setNewCategory] = useState('');
@@ -322,7 +324,7 @@ const App = () => {
       categoryBudgets: Object.fromEntries(Object.entries(budget.categoryBudgets || {}).map(([k, v]) => [k, v.toString()]))
     });
     setActiveTab('budget');
-    // Optional: scroll to the custom budget form
+    customBudgetFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   const initializeSampleData = () => {
@@ -2813,7 +2815,7 @@ const renderAnalyticsTab = () => {
             </div>
 
             {/* Custom Budget Section */}
-            <div className="bg-white rounded-2xl p-6 shadow-lg">
+            <div ref={customBudgetFormRef} className="bg-white rounded-2xl p-6 shadow-lg">
               <h2 className="text-xl font-bold text-gray-800 mb-4">Custom Purpose Budget</h2>
               
               <div className="space-y-4">
@@ -3297,7 +3299,7 @@ const renderAnalyticsTab = () => {
                 onClick={() => setShowExportModal(false)}
                 className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg"
               >
-                ✕
+                <X size={20} />
               </button>
             </div>
 
