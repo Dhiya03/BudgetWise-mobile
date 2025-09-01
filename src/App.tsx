@@ -96,7 +96,7 @@ const App = () => {
   const [appPassword, setAppPassword] = useState<string | null>(null);
   const [isLocked, setIsLocked] = useState(true);
   const [passwordInput, setPasswordInput] = useState('');
-  const [, setShowSettingsModal] = useState(false);
+  const [unlockError, setUnlockError] = useState('');
 
   // Bill Reminders
   const [billReminders, setBillReminders] = useState<BillReminder[]>([]);
@@ -261,7 +261,48 @@ const App = () => {
       }, 1000); // Save 1 second after the last change
       return () => clearTimeout(handler);
     }
-  }, [transactions, budgets, customBudgets, categories, budgetTemplates, budgetRelationships, billReminders, isLocked, appPassword]);
+  }, [transactions, budgets, customBudgets, categories, budgetTemplates, budgetRelationships, billReminders]);
+
+  const handleUnlock = () => {
+    if (passwordInput === appPassword) {
+      const savedData = localStorage.getItem('budgetWiseData_v2');
+      if (savedData) {
+        try {
+          // Decrypt data using Base64 decoding (atob)
+          const decryptedJson = atob(savedData);
+          const appState = JSON.parse(decryptedJson);
+
+          // Set all the states from the loaded data
+          setTransactions(appState.transactions || []);
+          setBudgets(appState.budgets || {});
+          setCustomBudgets(appState.customBudgets || []);
+          setCategories(appState.categories || ['Food', 'Transport', 'Entertainment', 'Shopping', 'Bills', 'Health']);
+          setBudgetTemplates(appState.budgetTemplates || []);
+          setBudgetRelationships(appState.budgetRelationships || []);
+          setBillReminders(appState.billReminders || []);
+          
+          // Successfully unlocked and loaded
+          setIsLocked(false);
+          setUnlockError('');
+          setPasswordInput('');
+
+        } catch (error) {
+          console.error("Failed to decrypt or parse data:", error);
+          setUnlockError("Data is corrupt. Could not unlock.");
+        }
+      } else {
+        // Password exists but no data, this is an edge case.
+        // Unlock the app and let it initialize with sample data.
+        setIsLocked(false);
+        setUnlockError('');
+        setPasswordInput('');
+        initializeSampleData();
+      }
+    } else {
+      setUnlockError('Incorrect password. Please try again.');
+      setPasswordInput('');
+    }
+  };
 
   const handleEditCustomBudget = (budget: CustomBudget) => {
     setEditingCustomBudget(budget);
@@ -276,14 +317,6 @@ const App = () => {
     });
     setActiveTab('budget');
     // Optional: scroll to the custom budget form
-  };
-
-
-  const handleSetPassword = (newPassword: string) => {
-    setAppPassword(newPassword);
-    localStorage.setItem('appPassword_v2', newPassword);
-    alert('Password set successfully. The app will be locked on your next visit.');
-    saveDataToStorage(); // Re-save data with new encryption status
   };
 
   const initializeSampleData = () => {
@@ -2015,8 +2048,14 @@ const renderAnalyticsTab = () => {
                   'Confirm Password Removal',
                   'Are you sure you want to remove the password?',
                   () => {
-                    setAppPassword(null);
+                    // Atomically remove password and un-encrypt data
+                    const appState = { transactions, budgets, customBudgets, categories, budgetTemplates, budgetRelationships, billReminders };
+                    const jsonString = JSON.stringify(appState);
+
                     localStorage.removeItem('appPassword_v2');
+                    localStorage.setItem('budgetWiseData_v2', jsonString);
+
+                    setAppPassword(null);
                     alert("Password removed.");
                   }
                 )}
@@ -2038,8 +2077,24 @@ const renderAnalyticsTab = () => {
                   className="flex-1 p-3 border border-gray-300 rounded-xl"
                 />
                 <button
-                  onClick={() => handleSetPassword(passwordInput)}
-                  className="px-4 py-3 bg-purple-600 text-white rounded-xl"
+                  onClick={() => {
+                    if (!passwordInput) {
+                      alert("Password cannot be empty.");
+                      return;
+                    }
+                    // Atomically set password and encrypt data
+                    const appState = { transactions, budgets, customBudgets, categories, budgetTemplates, budgetRelationships, billReminders };
+                    const jsonString = JSON.stringify(appState);
+                    const encryptedData = btoa(jsonString);
+
+                    localStorage.setItem('appPassword_v2', passwordInput);
+                    localStorage.setItem('budgetWiseData_v2', encryptedData);
+
+                    setAppPassword(passwordInput);
+                    setPasswordInput('');
+                    alert('Password set successfully. The app will be locked on your next visit.');
+                  }}
+                  className="px-4 py-3 bg-purple-600 text-white rounded-xl font-semibold hover:bg-purple-700"
                 >
                   Set
                 </button>
@@ -2135,6 +2190,37 @@ const renderAnalyticsTab = () => {
   };
 
   return (
+    isLocked ? (
+      <div className="max-w-md mx-auto bg-gradient-to-br from-purple-50 to-blue-50 min-h-screen flex items-center justify-center p-4">
+        <div className="w-full bg-white rounded-2xl p-8 shadow-lg text-center">
+          <h1 className="text-2xl font-bold text-gray-800 mb-2">BudgetWise</h1>
+          <p className="text-gray-600 mb-6">App is locked. Please enter your password.</p>
+          <div className="space-y-4">
+            <input
+              type="password"
+              value={passwordInput}
+              onChange={(e) => setPasswordInput(e.target.value)}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') {
+                  handleUnlock();
+                }
+              }}
+              placeholder="Password"
+              className="w-full p-3 border border-gray-300 rounded-xl text-center focus:ring-2 focus:ring-purple-500"
+            />
+            {unlockError && (
+              <p className="text-red-500 text-sm">{unlockError}</p>
+            )}
+            <button
+              onClick={handleUnlock}
+              className="w-full p-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-semibold hover:from-purple-700 hover:to-blue-700"
+            >
+              Unlock
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : (
     <div className="max-w-md mx-auto bg-gradient-to-br from-purple-50 to-blue-50 min-h-screen">
       {/* Header */}
       <div className="bg-gradient-to-r from-purple-600 to-blue-600 text-white p-4 pb-6">
@@ -2156,7 +2242,7 @@ const renderAnalyticsTab = () => {
               <Upload size={20} />
             </button>
             <button
-              onClick={() => setShowSettingsModal(true)}
+              onClick={() => setActiveTab('settings')}
               className="p-2 bg-white/20 rounded-lg hover:bg-white/30 transition-colors"
               title="Settings"
             >
@@ -3523,6 +3609,7 @@ const renderAnalyticsTab = () => {
         </div>
       </div>
     </div>
+    )
   );
 };
 
