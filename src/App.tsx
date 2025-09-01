@@ -891,7 +891,7 @@ const App = () => {
         const date = now.split('T')[0];
 
         budgetRelationships.forEach(rel => {
-          const remaining = getRemainingBudget(rel.sourceCategory);
+          const remaining = getRemainingBudget(rel.sourceCategory, currentYear, currentMonth);
           if (remaining > 0) {
             const destinationBudget = customBudgets.find(b => b.id === rel.destinationBudgetId);
             if (destinationBudget) {
@@ -1354,9 +1354,13 @@ const App = () => {
     setTransferForm({ fromBudgetId: '', toBudgetId: '', transferAmount: '' });
     alert('Fund transfer successful!');
   };
-  const getSpentAmount = (category: string) => {
+  const getSpentAmount = (category: string, year: number, month: number) => {
     return transactions
-      .filter(t => t.category === category && t.amount < 0 && (t.budgetType === 'monthly' || !t.budgetType))
+      .filter(t => {
+        const transactionDate = new Date(t.date);
+        return t.category === category && t.amount < 0 && (t.budgetType === 'monthly' || !t.budgetType) &&
+               transactionDate.getFullYear() === year && transactionDate.getMonth() === month;
+      })
       .reduce((sum, t) => sum + Math.abs(t.amount), 0);
   };
 
@@ -1450,8 +1454,8 @@ const App = () => {
       const monthlyBudgetsData = categories.map(cat => ({
         Category: cat,
         Budget: budgets[cat] || 0,
-        Spent: getSpentAmount(cat),
-        Remaining: getRemainingBudget(cat),
+        Spent: getSpentAmount(cat, currentYear, currentMonth),
+        Remaining: getRemainingBudget(cat, currentYear, currentMonth),
       }));
       const monthlyBudgetSheet = XLSX.utils.json_to_sheet(monthlyBudgetsData);
 
@@ -1527,9 +1531,9 @@ const App = () => {
     }
   };
 
-  const getRemainingBudget = (category: string) => {
+  const getRemainingBudget = (category: string, year: number, month: number) => {
     const budget = budgets[category] || 0;
-    const spent = getSpentAmount(category);
+    const spent = getSpentAmount(category, year, month);
     return budget - spent;
   };
 
@@ -1624,7 +1628,10 @@ const App = () => {
   };
 
   const getSortedAndFilteredTransactions = () => {
-    let filtered = transactions;
+    let filtered = transactions.filter(t => {
+      const transactionDate = new Date(t.date);
+      return transactionDate.getFullYear() === currentYear && transactionDate.getMonth() === currentMonth;
+    });
 
     if (filterCategory) {
       if (filterCategory.startsWith('custom-')) {
@@ -1674,9 +1681,19 @@ const App = () => {
     });
   };
 
-  const getMonthlyStats = () => {
-    const monthlyTransactions = transactions.filter(t => t.budgetType === 'monthly' || !t.budgetType);
-    const customTransactions = transactions.filter(t => t.budgetType === 'custom');
+  const getMonthlyStats = (year: number, month: number) => {
+    const monthlyTransactions = transactions.filter(t => {
+      const transactionDate = new Date(t.date);
+      return (t.budgetType === 'monthly' || !t.budgetType) &&
+             transactionDate.getFullYear() === year &&
+             transactionDate.getMonth() === month;
+    });
+    const customTransactions = transactions.filter(t => {
+      const transactionDate = new Date(t.date);
+      return t.budgetType === 'custom' &&
+             transactionDate.getFullYear() === year &&
+             transactionDate.getMonth() === month;
+    });
     
     const totalIncome = monthlyTransactions.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0);
     const totalExpenses = monthlyTransactions.filter(t => t.amount < 0).reduce((sum, t) => sum + Math.abs(t.amount), 0);
@@ -1696,7 +1713,7 @@ const App = () => {
   const generatePDFReport = () => {
     try {
       const doc = new jsPDF();
-      const stats = getMonthlyStats();
+      const stats = getMonthlyStats(currentYear, currentMonth);
 
       // Title
       doc.setFontSize(18);
@@ -1725,7 +1742,7 @@ const App = () => {
         head: [['Category', 'Budget (₹)', 'Spent (₹)', 'Remaining (₹)']],
         body: categories.map(cat => {
             const budget = budgets[cat] || 0;
-            const spent = getSpentAmount(cat);
+            const spent = getSpentAmount(cat, currentYear, currentMonth);
             const remaining = budget - spent;
             return [cat, budget.toFixed(2), spent.toFixed(2), remaining.toFixed(2)];
         }),
@@ -1762,7 +1779,7 @@ const App = () => {
     }
   };
 
-  const stats = getMonthlyStats();
+  const stats = getMonthlyStats(currentYear, currentMonth);
 
   const sortedAndFilteredTransactions = getSortedAndFilteredTransactions();
 
@@ -3002,7 +3019,7 @@ const renderAnalyticsTab = () => {
                   className="w-full p-3 border border-gray-300 rounded-xl"
                 >
                   <option value="">Select Source Monthly Category</option>
-                  {categories.map(cat => <option key={cat} value={cat}>{cat} (Surplus: ₹{getRemainingBudget(cat).toFixed(0)})</option>)}
+                  {categories.map(cat => <option key={cat} value={cat}>{cat} (Surplus: ₹{getRemainingBudget(cat, currentYear, currentMonth).toFixed(0)})</option>)}
                 </select>
                 <select
                   value={relationshipForm.destinationBudgetId}
@@ -3222,7 +3239,7 @@ const renderAnalyticsTab = () => {
               <div className="space-y-4">
                 {categories.map(category => {
                   const budget = budgets[category] || 0;
-                  const spent = getSpentAmount(category);
+                  const spent = getSpentAmount(category, currentYear, currentMonth);
                   const remaining = budget - spent;
                   const percentage = budget > 0 ? (spent / budget) * 100 : 0;
 
