@@ -639,6 +639,7 @@ const App = () => {
     };
     setBillReminders([...billReminders, newReminder]);
     setBillForm({ name: '', amount: '', dueDate: '' });
+    alert('Bill reminder added successfully!');
   };
 
   const deleteBillReminder = (id: number) => {
@@ -2105,10 +2106,10 @@ const renderAnalyticsTab = () => {
         <div className="bg-white rounded-2xl p-6 shadow-lg">
           <h2 className="text-xl font-bold text-gray-800 mb-4">Bill Reminders</h2>
           <div className="space-y-3">
-            <div className="flex space-x-2">
-              <input type="text" value={billForm.name} onChange={e => setBillForm({...billForm, name: e.target.value})} placeholder="Bill Name" className="flex-1 p-2 border rounded-lg" />
-              <input type="number" value={billForm.amount} onChange={e => setBillForm({...billForm, amount: e.target.value})} placeholder="Amount" className="w-24 p-2 border rounded-lg" />
-              <input type="date" value={billForm.dueDate} onChange={e => setBillForm({...billForm, dueDate: e.target.value})} className="p-2 border rounded-lg" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <input type="text" value={billForm.name} onChange={e => setBillForm({...billForm, name: e.target.value})} placeholder="Bill Name" className="sm:col-span-2 p-3 border border-gray-300 rounded-xl" />
+              <input type="number" value={billForm.amount} onChange={e => setBillForm({...billForm, amount: e.target.value})} placeholder="Amount" className="p-3 border border-gray-300 rounded-xl" />
+              <input type="date" value={billForm.dueDate} onChange={e => setBillForm({...billForm, dueDate: e.target.value})} className="p-3 border border-gray-300 rounded-xl" />
             </div>
             <button onClick={addBillReminder} className="w-full p-3 bg-yellow-100 text-yellow-800 rounded-xl font-semibold hover:bg-yellow-200 flex items-center justify-center">
               <Bell size={18} className="mr-2" />
@@ -2116,9 +2117,12 @@ const renderAnalyticsTab = () => {
             </button>
             <div className="space-y-2 mt-4">
               {billReminders.map(r => (
-                <div key={r.id} className="flex justify-between items-center bg-gray-50 p-2 rounded-lg">
-                  <span>{r.name} - ₹{r.amount} (Due: {r.dueDate})</span>
-                  <button onClick={() => deleteBillReminder(r.id)} className="p-1 text-red-500 hover:bg-red-100 rounded-full">
+                <div key={r.id} className="flex justify-between items-center gap-4 bg-gray-50 p-3 rounded-xl">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-gray-800 truncate">{r.name}</p>
+                    <p className="text-sm text-gray-500">₹{r.amount.toFixed(2)} (Due: {r.dueDate})</p>
+                  </div>
+                  <button onClick={() => deleteBillReminder(r.id)} className="flex-shrink-0 p-2 text-red-500 hover:bg-red-100 rounded-full">
                     <Trash2 size={16} />
                   </button>
                 </div>
