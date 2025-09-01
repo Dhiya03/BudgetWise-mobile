@@ -177,7 +177,13 @@ const App = () => {
 
   // State for fund transfer modal
   const [showTransferModal, setShowTransferModal] = useState(false);
-  const [transferForm, setTransferForm] = useState({ fromBudgetId: '', toBudgetId: '', transferAmount: '' });
+  const [transferForm, setTransferForm] = useState({
+    fromBudgetId: '',
+    toBudgetId: '',
+    transferAmount: '',
+    fromCategory: '',
+    toCategoryAllocations: {} as { [key: string]: string },
+  });
 
 
   // --- Modal Control Functions ---
@@ -1285,11 +1291,12 @@ const App = () => {
   };
 
   const handleTransferFunds = () => {
-    const { fromBudgetId, toBudgetId, transferAmount } = transferForm;
+    const { fromBudgetId, toBudgetId, transferAmount, fromCategory, toCategoryAllocations } = transferForm;
     const amount = parseFloat(transferAmount);
 
-    if (!fromBudgetId || !toBudgetId || !transferAmount || isNaN(amount) || amount <= 0) {
-      alert('Please select source and destination budgets and enter a valid transfer amount.');
+    // 1. Validation
+    if (!fromBudgetId || !toBudgetId || !fromCategory || !transferAmount || isNaN(amount) || amount <= 0) {
+      alert('Please fill all fields and enter a valid positive amount.');
       return;
     }
 
@@ -1304,54 +1311,64 @@ const App = () => {
       return;
     }
 
-    if (sourceBudget.remainingAmount < amount) {
-      alert(`Source budget "${sourceBudget.name}" does not have enough funds to transfer ₹${amount}.`);
+    // Check source funds
+    const sourceCategoryBudget = sourceBudget.categoryBudgets[fromCategory] || 0;
+    const sourceCategorySpent = getCustomBudgetCategorySpending(sourceBudget.id, fromCategory);
+    const availableInCategory = sourceCategoryBudget - sourceCategorySpent;
+
+    if (amount > availableInCategory) {
+      alert(`Not enough funds in category "${fromCategory}". Available: ₹${availableInCategory.toFixed(2)}`);
       return;
     }
 
-    const now = new Date().toISOString();
-    const date = now.split('T')[0];
+    // Check destination allocation
+    const totalAllocated = Object.values(toCategoryAllocations).reduce((sum, val) => sum + (parseFloat(val) || 0), 0);
+    if (Math.abs(totalAllocated - amount) > 0.01) { // Use a tolerance for float comparison
+      alert(`The allocated amount (₹${totalAllocated.toFixed(2)}) must equal the transfer amount (₹${amount.toFixed(2)}).`);
+      return;
+    }
 
-    const expenseTransaction: Transaction = {
-      id: Date.now(),
-      category: '',
-      amount: -amount,
-      description: `Transfer to ${destinationBudget.name}`,
-      date: date,
-      type: 'expense',
-      budgetType: 'transfer',
-      customBudgetId: sourceBudget.id,
-      customCategory: 'Fund Transfer',
-      tags: ['transfer'],
-      isRecurring: false,
-      recurringFrequency: null,
-      timestamp: now
-    };
+    // 2. Update Budgets
+    const updatedCustomBudgets = customBudgets.map(budget => {
+      // Update Source Budget
+      if (budget.id === fromBudgetIdNum) {
+        const newCategoryBudgets = {
+          ...budget.categoryBudgets,
+          [fromCategory]: (budget.categoryBudgets[fromCategory] || 0) - amount,
+        };
+        const newTotalAmount = budget.totalAmount - amount;
+        return {
+          ...budget,
+          totalAmount: newTotalAmount,
+          categoryBudgets: newCategoryBudgets,
+          updatedAt: new Date().toISOString(),
+        };
+      }
 
-    const incomeTransaction: Transaction = {
-      id: Date.now() + 1,
-      category: '',
-      amount: amount,
-      description: `Transfer from ${sourceBudget.name}`,
-      date: date,
-      type: 'income',
-      budgetType: 'transfer',
-      customBudgetId: destinationBudget.id,
-      customCategory: 'Fund Transfer',
-      tags: ['transfer'],
-      isRecurring: false,
-      recurringFrequency: null,
-      timestamp: now
-    };
+      // Update Destination Budget
+      if (budget.id === toBudgetIdNum) {
+        const newCategoryBudgets = { ...budget.categoryBudgets };
+        for (const category in toCategoryAllocations) {
+          newCategoryBudgets[category] = (newCategoryBudgets[category] || 0) + (parseFloat(toCategoryAllocations[category]) || 0);
+        }
+        const newTotalAmount = budget.totalAmount + amount;
+        return {
+          ...budget,
+          totalAmount: newTotalAmount,
+          categoryBudgets: newCategoryBudgets,
+          updatedAt: new Date().toISOString(),
+        };
+      }
 
-    const newTransactions = [...transactions, expenseTransaction, incomeTransaction];
-    setTransactions(newTransactions);
+      return budget;
+    });
 
-    // This will correctly update the spent/remaining amounts for all budgets after the transfer by passing the new transactions array.
-    recalculateCustomBudgetSpending(newTransactions);
+    // Recalculate remaining amounts based on new total amounts
+    recalculateCustomBudgetSpending(transactions, updatedCustomBudgets);
 
+    // 3. Reset and close
     setShowTransferModal(false);
-    setTransferForm({ fromBudgetId: '', toBudgetId: '', transferAmount: '' });
+    setTransferForm({ fromBudgetId: '', toBudgetId: '', transferAmount: '', fromCategory: '', toCategoryAllocations: {} });
     alert('Fund transfer successful!');
   };
   const getSpentAmount = (category: string, year: number, month: number) => {
@@ -3072,13 +3089,8 @@ const renderAnalyticsTab = () => {
                 
                 <div className="space-y-4">
                   {customBudgets.filter(budget => budget.status === 'active').map(budget => {
-                    // Calculate actual spent amount from transactions for accuracy
-                    const actualSpentAmount = transactions
-                      .filter(t => t.customBudgetId === budget.id && t.amount < 0)
-                      .reduce((sum, t) => sum + Math.abs(t.amount), 0);
-                    const actualRemainingAmount = budget.totalAmount - actualSpentAmount;
-                    const percentage = budget.totalAmount > 0 ? (actualSpentAmount / budget.totalAmount) * 100 : 0;
-                    const isOverBudget = actualSpentAmount > budget.totalAmount;
+                    const percentage = budget.totalAmount > 0 ? (budget.spentAmount / budget.totalAmount) * 100 : 0;
+                    const isOverBudget = budget.spentAmount > budget.totalAmount;
 
                     return (
                       <div key={budget.id} className="border border-gray-200 rounded-xl p-4">
@@ -3113,10 +3125,10 @@ const renderAnalyticsTab = () => {
                         
                         <div className="flex justify-between items-center mb-2">
                           <span className="text-sm text-gray-600">
-                            ₹{actualSpentAmount.toFixed(0)} / ₹{budget.totalAmount.toFixed(0)}
+                            ₹{budget.spentAmount.toFixed(0)} / ₹{budget.totalAmount.toFixed(0)}
                           </span>
                           <span className={`text-sm ${isOverBudget ? 'text-red-600' : 'text-green-600'}`}>
-                            ₹{actualRemainingAmount.toFixed(0)} remaining
+                            ₹{budget.remainingAmount.toFixed(0)} remaining
                           </span>
                         </div>
                         
@@ -3135,9 +3147,9 @@ const renderAnalyticsTab = () => {
                             {percentage.toFixed(0)}% used
                           </span>
                           <span className={`${
-                            actualSpentAmount >= budget.totalAmount ? 'text-blue-600' : 'text-green-600'
+                            budget.spentAmount >= budget.totalAmount ? 'text-blue-600' : 'text-green-600'
                           }`}>
-                            {actualSpentAmount >= budget.totalAmount ? 'completed' : 'active'}
+                            {budget.spentAmount >= budget.totalAmount ? 'completed' : 'active'}
                           </span>
                         </div>
 
@@ -3507,39 +3519,109 @@ const renderAnalyticsTab = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">From Budget</label>
                 <select
                   value={transferForm.fromBudgetId}
-                  onChange={(e) => setTransferForm({ ...transferForm, fromBudgetId: e.target.value, toBudgetId: '' })}
+                  onChange={(e) => setTransferForm({
+                    ...transferForm,
+                    fromBudgetId: e.target.value,
+                    toBudgetId: '',
+                    fromCategory: '',
+                    toCategoryAllocations: {}
+                  })}
                   className="w-full p-3 border border-gray-300 rounded-xl"
                 >
                   <option value="">Select source</option>
-                  {customBudgets.filter(b => b.status === 'active' && b.remainingAmount > 0).map(b => (
-                    <option key={b.id} value={b.id}>{b.name} (Available: ₹{b.remainingAmount.toFixed(0)})</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">To Budget</label>
-                <select
-                  value={transferForm.toBudgetId}
-                  onChange={(e) => setTransferForm({ ...transferForm, toBudgetId: e.target.value })}
-                  className="w-full p-3 border border-gray-300 rounded-xl"
-                  disabled={!transferForm.fromBudgetId}
-                >
-                  <option value="">Select destination</option>
-                  {customBudgets.filter(b => b.status === 'active' && b.id !== parseInt(transferForm.fromBudgetId || '0')).map(b => (
+                  {customBudgets.filter(b => b.status === 'active').map(b => (
                     <option key={b.id} value={b.id}>{b.name}</option>
                   ))}
                 </select>
               </div>
+
+              {transferForm.fromBudgetId && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">From Category</label>
+                  <select
+                    value={transferForm.fromCategory}
+                    onChange={(e) => setTransferForm({ ...transferForm, fromCategory: e.target.value })}
+                    className="w-full p-3 border border-gray-300 rounded-xl"
+                  >
+                    <option value="">Select source category</option>
+                    {customBudgets.find(b => b.id === parseInt(transferForm.fromBudgetId))?.categories.map(cat => {
+                      const budget = customBudgets.find(b => b.id === parseInt(transferForm.fromBudgetId));
+                      const categoryBudget = budget?.categoryBudgets[cat] || 0;
+                      const categorySpent = getCustomBudgetCategorySpending(budget!.id, cat);
+                      const available = categoryBudget - categorySpent;
+                      return (
+                        <option key={cat} value={cat} disabled={available <= 0}>
+                          {cat} (Available: ₹{available.toFixed(2)})
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Amount to Transfer</label>
                 <input
                   type="number"
                   value={transferForm.transferAmount}
-                  onChange={(e) => setTransferForm({ ...transferForm, transferAmount: e.target.value })}
+                  onChange={(e) => setTransferForm({ ...transferForm, transferAmount: e.target.value, toCategoryAllocations: {} })}
                   placeholder="0.00"
                   className="w-full p-3 border border-gray-300 rounded-xl"
+                  disabled={!transferForm.fromCategory}
                 />
               </div>
+
+              {transferForm.fromBudgetId && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">To Budget</label>
+                  <select
+                    value={transferForm.toBudgetId}
+                    onChange={(e) => setTransferForm({ ...transferForm, toBudgetId: e.target.value, toCategoryAllocations: {} })}
+                    className="w-full p-3 border border-gray-300 rounded-xl"
+                  >
+                    <option value="">Select destination</option>
+                    {customBudgets.filter(b => b.status === 'active' && b.id !== parseInt(transferForm.fromBudgetId || '0')).map(b => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {transferForm.toBudgetId && parseFloat(transferForm.transferAmount) > 0 && (
+                <div className="p-4 bg-gray-50 rounded-lg space-y-3 border border-gray-200">
+                  <h3 className="font-semibold text-gray-700">Allocate to Destination Categories</h3>
+                  {customBudgets.find(b => b.id === parseInt(transferForm.toBudgetId))?.categories.map(cat => (
+                    <div key={cat} className="flex items-center space-x-2">
+                      <label className="w-1/2 text-sm text-gray-600">{cat}</label>
+                      <input
+                        type="number"
+                        placeholder="0.00"
+                        value={transferForm.toCategoryAllocations[cat] || ''}
+                        onChange={(e) => {
+                          const newAllocations = { ...transferForm.toCategoryAllocations };
+                          newAllocations[cat] = e.target.value;
+                          setTransferForm({ ...transferForm, toCategoryAllocations: newAllocations });
+                        }}
+                        className="w-1/2 p-2 border border-gray-300 rounded-lg"
+                      />
+                    </div>
+                  ))}
+                  <div className="pt-2 border-t mt-2">
+                    <div className="flex justify-between text-sm font-medium">
+                      <span>Total Allocated:</span>
+                      <span>₹{Object.values(transferForm.toCategoryAllocations).reduce((sum, val) => sum + (parseFloat(val) || 0), 0).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Transfer Amount:</span>
+                      <span className="text-gray-600">₹{(parseFloat(transferForm.transferAmount) || 0).toFixed(2)}</span>
+                    </div>
+                    {Math.abs(Object.values(transferForm.toCategoryAllocations).reduce((sum, val) => sum + (parseFloat(val) || 0), 0) - (parseFloat(transferForm.transferAmount) || 0)) > 0.01 && (
+                      <p className="text-red-600 text-xs text-right mt-1">Amounts must match!</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div className="pt-4 space-y-2">
                 <button
                   onClick={handleTransferFunds}
