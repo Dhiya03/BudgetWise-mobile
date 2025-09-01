@@ -3,13 +3,25 @@ name: Build Android APK
 on:
   push:
     branches: [ "main" ]
+    paths:
+      - 'android/**'
+      - 'src/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'public/**'
   pull_request:
     branches: [ "main" ]
+    paths:
+      - 'android/**'
+      - 'src/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'public/**'
 
 jobs:
   build:
     name: Build APK
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout Repository
@@ -20,6 +32,16 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
+
+      - name: Cache Gradle dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('android/**/gradle.*') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle- 
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -49,4 +71,5 @@ jobs:
         with:
           name: budget-wise-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 3
 
