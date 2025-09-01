@@ -19,9 +19,9 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
-    "@capacitor/android": "^7.4.3",
-    "@capacitor/cli": "^7.4.3",
-    "@capacitor/core": "^7.4.3",
+  "@capacitor/android": "^6.0.0",
+  "@capacitor/cli": "^6.0.0",
+  "@capacitor/core": "^6.0.0",
     "@testing-library/jest-dom": "^6.8.0",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",
