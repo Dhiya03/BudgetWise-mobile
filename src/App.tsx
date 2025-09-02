@@ -1,6 +1,4 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import ConfirmationModal from './components/shared/ConfirmationModal';
-import { DataProvider, useData } from './context/DataContext';
 import { Plus, TrendingUp, Settings, Download, Upload, Trash2, Edit3, List, PieChart, ArrowUpDown, BarChart3, TrendingDown, AlertCircle, FileText, Pause, Play, Save, Link2, ArrowRight, Repeat, FileSpreadsheet, FileJson, Bell, Unlock, X } from 'lucide-react';
 
 // Add these to your project:
@@ -23,36 +21,58 @@ import {
   TransferEvent,
 } from './types';
 
-const AppContent = () => {
-  const {
-    transactions,
-    setTransactions,
-    transferLog,
-    setTransferLog,
-    editingTransaction,
-    addTransaction: addTransactionFromHook,
-    updateTransaction: updateTransactionFromHook,
-    deleteTransaction: deleteTransactionFromHook,
-    startEditTransaction,
-    cancelEditTransaction,
-    customBudgets,
-    setCustomBudgets,
-    editingCustomBudget,
-    handleEditCustomBudget: handleEditCustomBudgetFromContext,
-    recalculateCustomBudgetSpending,
-    getCustomBudgetName,
-    getCustomBudgetCategories,
-    customCategorySpending,
-  } = useData();
+const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }: {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: (() => void) | null;
+  title: string;
+  message: string;
+}) => {
+  if (!isOpen) return null;
 
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
+        <h2 className="text-xl font-bold text-gray-800 mb-4">{title}</h2>
+        <p className="text-gray-600 mb-6">{message}</p>
+        <div className="flex justify-end space-x-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+          >
+            No
+          </button>
+          <button
+            onClick={() => {
+              if (onConfirm) {
+                onConfirm();
+              }
+              onClose();
+            }}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors"
+          >
+            Yes
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const App = () => {
   const [activeTab, setActiveTab] = useState('add');
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [budgets, setBudgets] = useState<MonthlyBudgets>({});
+  const [customBudgets, setCustomBudgets] = useState<CustomBudget[]>([]);
   const [categories, setCategories] = useState(['Food', 'Transport', 'Entertainment', 'Shopping', 'Bills', 'Health']);
+  const [transferLog, setTransferLog] = useState<TransferEvent[]>([]);
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [sortBy, setSortBy] = useState('date');
   const [filterCategory, setFilterCategory] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [editingCustomBudget, setEditingCustomBudget] = useState<CustomBudget | null>(null);
   const [filterTag, setFilterTag] = useState('');
   const [recurringProcessingMode, setRecurringProcessingMode] = useState<'automatic' | 'manual'>('automatic');
 
@@ -307,20 +327,8 @@ const AppContent = () => {
     }
   };
 
-  // Effect to cancel editing modes when switching tabs
-  useEffect(() => {
-    // If we navigate away from the budget tab while editing, cancel the edit.
-    if (activeTab !== 'budget' && editingCustomBudget) {
-      handleCancelEdit();
-    }
-    // If we navigate away from the add/edit tab while editing, cancel the edit.
-    if (activeTab !== 'add' && editingTransaction) {
-      handleCancelTransactionEdit();
-    }
-  }, [activeTab, editingTransaction, editingCustomBudget]); // Dependencies now come from context
-
   const handleEditCustomBudget = (budget: CustomBudget) => {
-    handleEditCustomBudgetFromContext(budget); // Call the context function to set state
+    setEditingCustomBudget(budget);
     setCustomBudgetForm({
       name: budget.name,
       amount: budget.totalAmount.toString(),
@@ -333,6 +341,18 @@ const AppContent = () => {
     setActiveTab('budget');
     customBudgetFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
+
+  // Effect to cancel editing modes when switching tabs
+  useEffect(() => {
+    // If we navigate away from the budget tab while editing, cancel the edit.
+    if (activeTab !== 'budget' && editingCustomBudget) {
+      handleCancelEdit();
+    }
+    // If we navigate away from the add/edit tab while editing, cancel the edit.
+    if (activeTab !== 'add' && editingTransaction) {
+      handleCancelTransactionEdit();
+    }
+  }, [activeTab]);
 
   const initializeSampleData = () => {
     // Sample transactions with both budget types
@@ -450,41 +470,93 @@ const AppContent = () => {
   };
 
   const addTransaction = () => {
-    const success = addTransactionFromHook(formData);
-    if (success) {
-      // Reset form on successful addition
-      setFormData({
-        category: '', amount: '', description: '',
-        date: new Date().toISOString().split('T')[0], type: 'expense',
-        budgetType: 'monthly', customBudgetId: null, customCategory: '',
-        tags: '', isRecurring: false, recurringFrequency: null,
-      });
-    }
-  };
+    if (!formData.amount) return;
+    
+    // Validate based on budget type
+    if (formData.budgetType === 'monthly' && !formData.category) return;
+    if (formData.budgetType === 'custom' && (!formData.customBudgetId || !formData.customCategory)) return;
 
-  const updateTransaction = () => {
-    const success = updateTransactionFromHook(formData);
-    if (success) {
-      // Reset form on successful update
-      setFormData({
-        category: '', amount: '', description: '',
-        date: new Date().toISOString().split('T')[0], type: 'expense',
-        budgetType: 'monthly', customBudgetId: null, customCategory: '',
-        tags: '', isRecurring: false, recurringFrequency: null,
-      });
-    }
+    const transaction: Transaction = {
+      id: Date.now(),
+      ...formData,
+      category: formData.budgetType === 'custom' ? '' : formData.category,
+      amount: parseFloat(formData.amount) * (formData.type === 'expense' ? -1 : 1),
+      tags: formData.tags ? formData.tags.split(',').map(tag => tag.trim()) : [],
+      timestamp: new Date().toISOString()
+    };
+
+    const newTransactions = [...transactions, transaction];
+    setTransactions(newTransactions);
+
+    recalculateCustomBudgetSpending(newTransactions, customBudgets);
+    setFormData({
+      category: '',
+      amount: '',
+      description: '',
+      date: new Date().toISOString().split('T')[0],
+      type: 'expense',
+      budgetType: 'monthly',
+      customBudgetId: null,
+      customCategory: '',
+      tags: '',
+      isRecurring: false,
+      recurringFrequency: null,
+    });
   };
+  const updateTransaction = () => {
+    if (!formData.amount || !editingTransaction) return;
+    // Validate based on budget type
+    if (formData.budgetType === 'monthly' && !formData.category) return;
+    if (formData.budgetType === 'custom' && (!formData.customBudgetId || !formData.customCategory)) return;
+
+    const newAmount = parseFloat(formData.amount) * (formData.type === 'expense' ? -1 : 1);
+
+    const updatedTransactions = transactions.map(t => 
+      t.id === editingTransaction.id 
+        ? { 
+            ...t, 
+            ...formData, 
+            category: formData.budgetType === 'custom' ? '' : formData.category,
+            amount: newAmount,
+            tags: formData.tags ? formData.tags.split(',').map(tag => tag.trim()) : [], // This was missing
+          }
+        : t
+    );
+
+    setFormData({
+      category: '',
+      amount: '',
+      description: '',
+      date: new Date().toISOString().split('T')[0],
+      type: 'expense',
+      budgetType: 'monthly',
+      customBudgetId: null,
+      customCategory: '',
+      tags: '',
+      isRecurring: false,
+      recurringFrequency: null,
+    });
+    setTransactions(updatedTransactions);
+    setEditingTransaction(null);
+    recalculateCustomBudgetSpending(updatedTransactions, customBudgets); };
 
   const deleteTransaction = (id: number) => {
     showConfirmation(
       'Confirm Deletion',
       'Are you sure you want to delete this transaction?',
-      () => deleteTransactionFromHook(id)
+      () => {
+        const transactionToDelete = transactions.find(t => t.id === id);
+        if (!transactionToDelete) return;
+
+        const newTransactions = transactions.filter((t) => t.id !== id);
+        setTransactions(newTransactions);
+        recalculateCustomBudgetSpending(newTransactions, customBudgets);
+      }
     );
   };
 
   const editTransaction = (transaction: Transaction) => {
-    startEditTransaction(transaction);
+    setEditingTransaction(transaction);
     setFormData({
       category: transaction.category || '',
       amount: Math.abs(transaction.amount).toString(),
@@ -501,14 +573,26 @@ const AppContent = () => {
     setActiveTab('add');
   };
 
-  const handleCancelTransactionEdit = () => {
-    cancelEditTransaction();
-    setFormData({
-      category: '', amount: '', description: '',
-      date: new Date().toISOString().split('T')[0], type: 'expense',
-      budgetType: 'monthly', customBudgetId: null, customCategory: '',
-      tags: '', isRecurring: false, recurringFrequency: null,
-    });
+  const addCategory = () => {
+    if (newCategory && !categories.includes(newCategory)) {
+      const newCategories = [...categories, newCategory];
+      setCategories(newCategories);
+      setFormData({ ...formData, category: newCategory });
+      setNewCategory('');
+      setShowCategoryInput(false);
+    }
+  };
+
+  const setBudget = () => {
+    if (!budgetForm.category || !budgetForm.amount) return;
+
+    const newBudgets = {
+      ...budgets,
+      [budgetForm.category]: parseFloat(budgetForm.amount)
+    };
+
+    setBudgets(newBudgets);
+    setBudgetForm({ category: '', amount: '' });
   };
 
   const createCustomBudget = () => {
@@ -607,10 +691,27 @@ const AppContent = () => {
   };
 
   const handleCancelEdit = () => {
-    handleEditCustomBudgetFromContext(null); // Use context function to clear edit state
+    setEditingCustomBudget(null);
     setCustomBudgetForm({
       name: '', amount: '', description: '', deadline: '',
       priority: 'medium', categories: [], categoryBudgets: {}
+    });
+  };
+
+  const handleCancelTransactionEdit = () => {
+    setEditingTransaction(null);
+    setFormData({
+      category: '',
+      amount: '',
+      description: '',
+      date: new Date().toISOString().split('T')[0],
+      type: 'expense',
+      budgetType: 'monthly',
+      customBudgetId: null,
+      customCategory: '',
+      tags: '',
+      isRecurring: false,
+      recurringFrequency: null,
     });
   };
 
@@ -695,6 +796,48 @@ const AppContent = () => {
         [category]: amount
       }
     });
+  };
+
+  const getCustomBudgetCategoryBudget = (customBudgetId: number, category: string) => {
+    const budget = customBudgets.find(b => b.id === customBudgetId);
+    // The value in `categoryBudgets` is already a number due to parsing on creation
+    return (budget && budget.categoryBudgets?.[category]) || 0;
+  };
+
+  const recalculateCustomBudgetSpending = (
+    currentTransactions: Transaction[] = transactions,
+    currentCustomBudgets: CustomBudget[] = customBudgets,
+  ) => {
+    const newCustomBudgets = currentCustomBudgets.map((budget) => {
+      // Calculate actual spent amount from transactions
+      const budgetTransactions = currentTransactions.filter(
+        (t) => t.customBudgetId === budget.id,
+      );
+
+      const spent = budgetTransactions
+        .filter((t) => t.amount < 0) // Expenses are negative
+        .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+
+      const income = budgetTransactions
+        .filter((t) => t.amount > 0) // Income is positive
+        .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+
+      const remaining = budget.totalAmount - spent + income;
+
+      const newStatus: 'active' | 'completed' | 'archived' | 'paused' = budget.status === 'paused' || budget.status === 'archived'
+        ? budget.status
+        : spent >= budget.totalAmount ? 'completed' : 'active';
+
+      return {
+        ...budget,
+        spentAmount: spent,
+        remainingAmount: remaining,
+        // Use the new logic to preserve paused/archived states
+        status: newStatus,
+        updatedAt: new Date().toISOString(),
+      };
+    });
+    setCustomBudgets(newCustomBudgets);
   };
 
   const pauseCustomBudget = (budgetId: number) => {
@@ -1442,6 +1585,211 @@ const AppContent = () => {
     return combinedItems;
   }, [transactions, transferLog, searchTerm, filterCategory, filterTag, sortBy, currentMonth, currentYear, getCustomBudgetName]);
 
+   const getCustomBudgetCategories = (customBudgetId: number | null) => {
+    const budget = customBudgets.find(b => b.id === customBudgetId);
+    return budget ? budget.categories : [];
+  };
+  const backupData = () => {
+    const stateToBackup = { transactions, budgets, customBudgets, categories, budgetTemplates, budgetRelationships, billReminders, transferLog, recurringProcessingMode };
+    const dataStr = JSON.stringify(stateToBackup, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.download = `budgetwise_backup_${new Date().toISOString().split('T')[0]}.json`;
+    link.href = url;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleRestore = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    const fileInput = event.target;
+    if (!file) return;
+
+    showConfirmation(
+      'Confirm Restore',
+      'Are you sure you want to restore? This will overwrite all current data.',
+      () => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const text = e.target?.result;
+            if (typeof text !== 'string') {
+              throw new Error("Failed to read file content.");
+            }
+            const restoredState = JSON.parse(text);
+
+            if (!restoredState.transactions || !restoredState.budgets) {
+                throw new Error("Invalid backup file format.");
+            }
+
+            setTransactions(restoredState.transactions || []);
+            setBudgets(restoredState.budgets || {});
+            setCustomBudgets(restoredState.customBudgets || []);
+            setCategories(restoredState.categories || ['Food', 'Transport', 'Entertainment', 'Shopping', 'Bills', 'Health']);
+            setBudgetTemplates(restoredState.budgetTemplates || []);
+            setBudgetRelationships(restoredState.budgetRelationships || []);
+            setBillReminders(restoredState.billReminders || []);
+            setTransferLog(restoredState.transferLog || []);
+            setRecurringProcessingMode(restoredState.recurringProcessingMode || 'automatic');
+            alert('Data restored successfully!');
+          } catch (error) {
+            console.error("Failed to restore data:", error);
+            alert(`Error restoring data: ${(error as Error).message}. Please ensure you are using a valid backup file.`);
+          }
+        };
+        reader.readAsText(file);
+      }
+    );
+
+    // Clear the file input so the same file can be selected again if the user cancels and retries.
+    fileInput.value = '';
+  };
+
+  const exportToExcel = () => {
+    try {
+      // 1. Transactions Sheet
+      const transactionData = sortedAndFilteredHistory
+        .filter(item => item.itemType === 'transaction')
+        .map(item => {
+          const t = item as Transaction; // Cast to Transaction type
+          return {
+            Date: t.date,
+            Type: t.type,
+            'Budget Type': t.budgetType,
+            Category: t.budgetType === 'monthly' ? t.category : `${getCustomBudgetName(t.customBudgetId) || 'N/A'} - ${t.customCategory}`,
+            Amount: t.amount,
+            Description: t.description,
+            Tags: t.tags?.join(', ') || '',
+          };
+        });
+      const transactionSheet = XLSX.utils.json_to_sheet(transactionData);
+
+      // 2. Monthly Budgets Sheet
+      const monthlyBudgetsData = categories.map(cat => ({
+        Category: cat,
+        Budget: budgets[cat] || 0,
+        Spent: getSpentAmount(cat, currentYear, currentMonth),
+        Remaining: getRemainingBudget(cat, currentYear, currentMonth),
+      }));
+      const monthlyBudgetSheet = XLSX.utils.json_to_sheet(monthlyBudgetsData);
+
+      // 3. Custom Budgets Sheet
+      const customBudgetsData = customBudgets.map(b => ({
+        Name: b.name,
+        'Total Amount': b.totalAmount,
+        'Spent Amount': b.spentAmount,
+        'Remaining Amount': b.remainingAmount,
+        Status: b.status,
+        Deadline: b.deadline || 'N/A',
+      }));
+      const customBudgetSheet = XLSX.utils.json_to_sheet(customBudgetsData);
+
+      // 4. Fund Transfers Sheet
+      const transferLogData = transferLog.map(t => ({
+        Date: new Date(t.date).toLocaleString(),
+        Amount: t.amount,
+        'From Budget': getCustomBudgetName(t.fromBudgetId),
+        'From Category': t.fromCategory,
+        'To Budget': getCustomBudgetName(t.toBudgetId),
+        'To Category Allocations': JSON.stringify(t.toCategoryAllocations),
+      }));
+      const transferLogSheet = XLSX.utils.json_to_sheet(transferLogData);
+
+      // Create workbook and add sheets
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, transactionSheet, 'Transactions');
+      XLSX.utils.book_append_sheet(wb, monthlyBudgetSheet, 'Monthly Budgets');
+      XLSX.utils.book_append_sheet(wb, customBudgetSheet, 'Custom Budgets');
+      XLSX.utils.book_append_sheet(wb, transferLogSheet, 'Fund Transfers');
+
+      // Download the file
+      XLSX.writeFile(wb, `BudgetWise_Export_${new Date().toISOString().split('T')[0]}.xlsx`);
+
+    } catch (error) {
+      console.error("Failed to export to Excel", error);
+      alert("An error occurred while exporting to Excel.");
+    }
+  };
+
+  const processRecurringTransactions = (isSilent = false) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const newTransactions: Transaction[] = [];
+    let processedCount = 0;
+
+    const updatedOriginals = transactions.map(t => {
+      if (t.isRecurring && t.recurringFrequency) {
+        let lastProcessed = t.lastProcessedDate ? new Date(t.lastProcessedDate) : new Date(t.date);
+        let nextDate = new Date(lastProcessed);
+
+        while (true) {
+          if (t.recurringFrequency === 'daily') nextDate.setDate(nextDate.getDate() + 1);
+          else if (t.recurringFrequency === 'weekly') nextDate.setDate(nextDate.getDate() + 7);
+          else if (t.recurringFrequency === 'monthly') nextDate.setMonth(nextDate.getMonth() + 1);
+          else break;
+
+          if (nextDate <= today) {
+            newTransactions.push({
+              ...t,
+              id: Date.now() + newTransactions.length,
+              date: nextDate.toISOString().split('T')[0],
+              isRecurring: false,
+              recurringFrequency: null,
+              lastProcessedDate: undefined,
+              tags: [...(t.tags || []), 'recurring'],
+              description: `${t.description} (Recurring)`
+            });
+            lastProcessed = new Date(nextDate);
+            processedCount++;
+          } else {
+            break;
+          }
+        }
+        // Update the original recurring transaction's last processed date, preserving the original start date
+        return { ...t, lastProcessedDate: lastProcessed.toISOString().split('T')[0] };
+      }
+      return t;
+    });
+
+    if (newTransactions.length > 0) {
+      setTransactions([...updatedOriginals, ...newTransactions]);
+      if (!isSilent) alert(`${processedCount} recurring transaction(s) have been created.`);
+    } else if (!isSilent) {
+      alert("No new recurring transactions are due.");
+    }
+  };
+
+  const quickCSVExport = () => {
+    try {
+      // Enhanced CSV format with budget type information
+      const headers = 'Date,BudgetType,Category,CustomBudget,CustomCategory,Description,Amount,Type,Tags,TransactionID\n';
+      const rows = transactions.map(t => {
+        const budgetName = t.budgetType === 'custom' ? getCustomBudgetName(t.customBudgetId) : '';
+        const category = t.budgetType === 'custom' ? '' : t.category;
+        const customCategory = t.budgetType === 'custom' ? t.customCategory : '';
+        const tags = t.tags?.join('; ') || ''; // Use semicolon to avoid CSV issues with commas
+        return `${t.date},${t.budgetType || 'monthly'},"${category}","${budgetName}","${customCategory}","${t.description || ''}",${t.amount},${t.amount < 0 ? 'Expense' : 'Income'},"${tags}",${t.id}`;
+      }).join('\n');
+      
+      const content = headers + rows;
+      const filename = `BudgetWise_Quick_Export_${new Date().toISOString().split('T')[0]}.csv`;
+      const type = 'text/csv';
+
+      const blob = new Blob([content], { type });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) {
+      console.error('Quick CSV Export failed:', error);
+      alert('Quick CSV Export failed. Please try again.');
+    }
+  };
   const getRemainingBudget = (category: string, year: number, month: number) => {
     const budget = budgets[category] || 0;
     const spent = getSpentAmount(category, year, month);
@@ -2972,7 +3320,7 @@ const renderAnalyticsTab = () => {
                             <div className="space-y-3">
                               {budget.categories.map(category => {
                                 const categoryBudget = getCustomBudgetCategoryBudget(budget.id, category);
-                                const categorySpent = customCategorySpending[budget.id]?.[category] || 0; // Now from context
+                                const categorySpent = customCategorySpending[budget.id]?.[category] || 0;
                                 const categoryRemaining = categoryBudget - categorySpent;
                                 const categoryPercentage = categoryBudget > 0 ? (categorySpent / categoryBudget) * 100 : 0;
                                 const categoryTransactions = transactions.filter(t => 
@@ -3359,7 +3707,7 @@ const renderAnalyticsTab = () => {
                     {customBudgets.find(b => b.id === parseInt(transferForm.fromBudgetId))?.categories.map(cat => {
                       const budget = customBudgets.find(b => b.id === parseInt(transferForm.fromBudgetId))!;
                       const categoryBudget = budget.categoryBudgets[cat] || 0;
-                      const categorySpent = customCategorySpending[budget.id]?.[cat] || 0; // Now from context
+                      const categorySpent = customCategorySpending[budget.id]?.[cat] || 0;
                       const available = categoryBudget - categorySpent;
                       return (
                         <option key={cat} value={cat} disabled={available <= 0}>
@@ -3521,14 +3869,6 @@ const renderAnalyticsTab = () => {
       </div>
     </div>
     )
-  );
-};
-
-const App = () => {
-  return (
-    <DataProvider>
-      <AppContent />
-    </DataProvider>
   );
 };
 
