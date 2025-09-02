@@ -327,6 +327,18 @@ const App = () => {
     customBudgetFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
+  // Effect to cancel editing modes when switching tabs
+  useEffect(() => {
+    // If we navigate away from the budget tab while editing, cancel the edit.
+    if (activeTab !== 'budget' && editingCustomBudget) {
+      handleCancelEdit();
+    }
+    // If we navigate away from the add/edit tab while editing, cancel the edit.
+    if (activeTab !== 'add' && editingTransaction) {
+      handleCancelTransactionEdit();
+    }
+  }, [activeTab]);
+
   const initializeSampleData = () => {
     // Sample transactions with both budget types
     const sampleTransactions: Transaction[] = [
@@ -631,27 +643,28 @@ const App = () => {
     }
     const overallBudget = parseFloat(customBudgetForm.amount);
 
-    setCustomBudgets(customBudgets.map(b => 
+    const updatedBudgetsWithFormChanges = customBudgets.map(b => 
       b.id === editingCustomBudget.id
         ? { ...b,
             name: customBudgetForm.name,
             totalAmount: overallBudget,
             description: customBudgetForm.description,
-            deadline: customBudgetForm.deadline,
+            deadline: customBudgetForm.deadline || null,
             priority: customBudgetForm.priority,
             categories: customBudgetForm.categories,
             categoryBudgets: parsedCategoryBudgets,
             updatedAt: new Date().toISOString()
           }
         : b
-    ));
+    );
+
     setEditingCustomBudget(null);
     setCustomBudgetForm({
       name: '', amount: '', description: '', deadline: '', 
       priority: 'medium', categories: [], categoryBudgets: {}
     });
-    // Recalculate spending to update remaining amounts
-    recalculateCustomBudgetSpending(transactions, customBudgets.map(b => b.id === editingCustomBudget.id ? { ...b, name: customBudgetForm.name, totalAmount: overallBudget, description: customBudgetForm.description, deadline: customBudgetForm.deadline, priority: customBudgetForm.priority, categories: customBudgetForm.categories, categoryBudgets: parsedCategoryBudgets, updatedAt: new Date().toISOString() } : b));
+    // Recalculate spending with the new budget details to update all amounts
+    recalculateCustomBudgetSpending(transactions, updatedBudgetsWithFormChanges);
   };
 
   const handleSaveCustomBudget = () => {
@@ -667,6 +680,23 @@ const App = () => {
     setCustomBudgetForm({
       name: '', amount: '', description: '', deadline: '',
       priority: 'medium', categories: [], categoryBudgets: {}
+    });
+  };
+
+  const handleCancelTransactionEdit = () => {
+    setEditingTransaction(null);
+    setFormData({
+      category: '',
+      amount: '',
+      description: '',
+      date: new Date().toISOString().split('T')[0],
+      type: 'expense',
+      budgetType: 'monthly',
+      customBudgetId: null,
+      customCategory: '',
+      tags: '',
+      isRecurring: false,
+      recurringFrequency: null,
     });
   };
 
@@ -801,6 +831,29 @@ const App = () => {
         ? { ...budget, status: 'active', updatedAt: new Date().toISOString() }
         : budget
     ));
+  };
+
+  const deleteCustomBudget = (budgetId: number) => {
+    showConfirmation(
+      'Confirm Deletion',
+      'Are you sure you want to delete this budget? This will also delete all associated transactions and rollover rules. This action cannot be undone.',
+      () => {
+        // Filter out the budget to be deleted
+        const newCustomBudgets = customBudgets.filter(b => b.id !== budgetId);
+        
+        // Filter out all transactions associated with this budget
+        const newTransactions = transactions.filter(t => t.customBudgetId !== budgetId);
+
+        // Filter out any rollover rules associated with this budget
+        const newRelationships = budgetRelationships.filter(rel => rel.destinationBudgetId !== budgetId);
+
+        setCustomBudgets(newCustomBudgets);
+        setTransactions(newTransactions);
+        setBudgetRelationships(newRelationships);
+        
+        alert('Custom budget, its transactions, and associated rules have been deleted.');
+      }
+    );
   };
 
   const saveAsTemplate = () => {
@@ -2633,25 +2686,7 @@ const renderAnalyticsTab = () => {
                 </button>
 
                 {editingTransaction && (
-                  <button
-                    onClick={() => {
-                      setEditingTransaction(null);
-                      setFormData({
-                        category: '',
-                        amount: '',
-                        description: '',
-                        date: new Date().toISOString().split('T')[0],
-                        type: 'expense',
-                        budgetType: 'monthly',
-                        customBudgetId: null,
-                        customCategory: '',
-                        tags: '',
-                        isRecurring: false,
-                        recurringFrequency: null,
-                      });
-                    }}
-                    className="w-full p-3 bg-gray-400 text-white rounded-xl hover:bg-gray-500"
-                  >
+                  <button onClick={handleCancelTransactionEdit} className="w-full p-3 bg-gray-400 text-white rounded-xl hover:bg-gray-500">
                     Cancel Edit
                   </button>
                 )}
@@ -3121,6 +3156,9 @@ const renderAnalyticsTab = () => {
                             </button>
                             <button onClick={() => handleEditCustomBudget(budget)} className="p-1 text-gray-400 hover:text-blue-600 rounded" title="Edit Budget">
                               <Edit3 size={16} />
+                            </button>
+                            <button onClick={() => deleteCustomBudget(budget.id)} className="p-1 text-gray-400 hover:text-red-600 rounded" title="Delete Budget">
+                              <Trash2 size={16} />
                             </button>
                           </div>
                         </div>
