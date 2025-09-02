@@ -160,6 +160,7 @@ These are pop-up dialogs for specific actions.
 -   **From/To Budget Dropdowns**: Selects the source and destination custom budgets for the transfer.
 -   **Amount to Transfer Input**: Field to enter the amount of money to be moved.
 -   **Transfer Button**: Executes the fund transfer, creating corresponding transactions in the history.
+-   **Transfer Button**: Executes the fund transfer, creating a record in the transfer history log.
 
 
 

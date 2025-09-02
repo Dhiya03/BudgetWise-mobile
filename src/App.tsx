@@ -825,7 +825,7 @@ const App = () => {
 
       const remaining = budget.totalAmount - spent + income;
 
-      const newStatus = budget.status === 'paused' || budget.status === 'archived'
+      const newStatus: 'active' | 'completed' | 'archived' | 'paused' = budget.status === 'paused' || budget.status === 'archived'
         ? budget.status
         : spent >= budget.totalAmount ? 'completed' : 'active';
 
@@ -1130,11 +1130,13 @@ const App = () => {
       type = 'application/json';
     } else {
       // Enhanced CSV format with more details
-      const headers = 'Date,Budget Type,Budget Name,Category,Description,Amount,Type,Transaction ID\n';
+      const headers = 'Date,BudgetType,Category,CustomBudget,CustomCategory,Description,Amount,Type,Tags,TransactionID\n';
       const rows = filteredTransactions.map(t => {
-        const budgetName = t.budgetType === 'custom' && t.customBudgetId ? getCustomBudgetName(t.customBudgetId) : 'Monthly Budget';
-        const category = t.budgetType === 'custom' ? t.customCategory : t.category;
-        return `${t.date},${t.budgetType || 'monthly'},"${budgetName}","${category}","${t.description || ''}",${Math.abs(t.amount)},${t.amount < 0 ? 'Expense' : 'Income'},${t.id}`;
+        const budgetName = t.budgetType === 'custom' ? getCustomBudgetName(t.customBudgetId) : '';
+        const category = t.budgetType === 'custom' ? '' : t.category;
+        const customCategory = t.budgetType === 'custom' ? t.customCategory : '';
+        const tags = t.tags?.join('; ') || ''; // Use semicolon to avoid CSV issues with commas
+        return `${t.date},${t.budgetType || 'monthly'},"${category}","${budgetName}","${customCategory}","${t.description || ''}",${t.amount},${t.amount < 0 ? 'Expense' : 'Income'},"${tags}",${t.id}`;
       }).join('\n');
       
       content = headers + rows;
@@ -1659,81 +1661,22 @@ const App = () => {
     }
   };
 
-  const getRemainingBudget = (category: string, year: number, month: number) => {
-    const budget = budgets[category] || 0;
-    const spent = getSpentAmount(category, year, month);
-    return budget - spent;
-  };
-
-  const exportData = (format: 'json' | 'csv', useCustomRange = false) => {
-    let filteredTransactions = [...transactions];
-    let filteredCustomBudgets = customBudgets;
-    
-    // Apply date filtering if custom range is specified
-    if (useCustomRange && exportStartDate && exportEndDate) {
-      const startDate = new Date(exportStartDate);
-      const endDate = new Date(exportEndDate);
-      
-      // Validate 90-day constraint
-      const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-      if (daysDiff > 90) {
-        alert('Date range cannot exceed 90 days. Please select a shorter range.');
-        return;
-      }
-      
-      filteredTransactions = transactions.filter(t => {
-        const transactionDate = new Date(t.date);
-        return transactionDate >= startDate && transactionDate <= endDate;
-      });
-      
-      // Filter custom budgets by creation date within range
-      filteredCustomBudgets = customBudgets.filter(budget => {
-        const budgetDate = new Date(budget.createdAt);
-        return budgetDate >= startDate && budgetDate <= endDate;
-      });
-    }
-
-    const dateRangeKey = useCustomRange && exportStartDate && exportEndDate 
-      ? `${exportStartDate}_to_${exportEndDate}`
-      : `${currentYear}-${currentMonth}`;
-
-    const data = {
-      exportInfo: {
-        type: exportType,
-        dateRange: useCustomRange ? { start: exportStartDate, end: exportEndDate } : { month: currentMonth, year: currentYear },
-        exportDate: new Date().toISOString(),
-        totalTransactions: filteredTransactions.length,
-        totalCustomBudgets: filteredCustomBudgets.length
-      },
-      transactions: filteredTransactions,
-      budgets: exportType !== 'custom' ? budgets : {},
-      customBudgets: exportType !== 'monthly' ? filteredCustomBudgets : [],
-      categories: exportType !== 'custom' ? categories : [],
-      recurringProcessingMode };
-    // Note: transferLog is not included in this export type. A separate export could be added.
-
-    let content, filename, type;
-
-    if (format === 'json') {
-      content = JSON.stringify(data, null, 2);
-      filename = `budget_data_${exportType}_${dateRangeKey}.json`;
-      type = 'application/json';
-    } else {
+  const quickCSVExport = () => {
+    try {
       // Enhanced CSV format with budget type information
       const headers = 'Date,BudgetType,Category,CustomBudget,CustomCategory,Description,Amount,Type,Tags,TransactionID\n';
-      const rows = filteredTransactions.map(t => {
+      const rows = transactions.map(t => {
         const budgetName = t.budgetType === 'custom' ? getCustomBudgetName(t.customBudgetId) : '';
         const category = t.budgetType === 'custom' ? '' : t.category;
         const customCategory = t.budgetType === 'custom' ? t.customCategory : '';
-        
-        return `${t.date},${t.budgetType || 'monthly'},"${category}","${budgetName}","${customCategory}","${t.description || ''}",${Math.abs(t.amount)},${t.amount < 0 ? 'Expense' : 'Income'},${t.id}`;
+        const tags = t.tags?.join('; ') || ''; // Use semicolon to avoid CSV issues with commas
+        return `${t.date},${t.budgetType || 'monthly'},"${category}","${budgetName}","${customCategory}","${t.description || ''}",${t.amount},${t.amount < 0 ? 'Expense' : 'Income'},"${tags}",${t.id}`;
       }).join('\n');
-      content = headers + rows;
-      filename = `transactions_${exportType}_${dateRangeKey}.csv`;
-      type = 'text/csv';
-    }
+      
+      const content = headers + rows;
+      const filename = `BudgetWise_Quick_Export_${new Date().toISOString().split('T')[0]}.csv`;
+      const type = 'text/csv';
 
-    try {
       const blob = new Blob([content], { type });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -1742,20 +1685,17 @@ const App = () => {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-      
-      // Reset form and close modal
-      setExportStartDate('');
-      setExportEndDate('');
-      setExportType('all');
-      setShowExportModal(false);
     } catch (error) {
-      console.error('Export failed:', error);
-      alert('Export failed. Please try again.');
+      console.error('Quick CSV Export failed:', error);
+      alert('Quick CSV Export failed. Please try again.');
     }
   };
-
+  const getRemainingBudget = (category: string, year: number, month: number) => {
+    const budget = budgets[category] || 0;
+    const spent = getSpentAmount(category, year, month);
+    return budget - spent;
+  };
   const getSortedAndFilteredTransactions = () => {
     let filtered = transactions.filter(t => {
       const transactionDate = new Date(t.date);
@@ -2437,7 +2377,7 @@ const renderAnalyticsTab = () => {
               <Download size={20} />
             </button>
             <button
-              onClick={() => exportData('csv', false)}
+              onClick={quickCSVExport}
               className="p-2 bg-white/20 rounded-lg hover:bg-white/30 transition-colors"
               title="Quick CSV Export (All Data)"
             >
