@@ -302,6 +302,7 @@ const App = () => {
           setBudgetTemplates(appState.budgetTemplates || []);
           setBudgetRelationships(appState.budgetRelationships || []);
           setBillReminders(appState.billReminders || []);
+          setRecurringProcessingMode(appState.recurringProcessingMode || 'automatic');
           setTransferLog(appState.transferLog || []);
           
           // Successfully unlocked and loaded
@@ -2896,53 +2897,51 @@ const renderAnalyticsTab = () => {
                   </div>
                 ) : (
                   sortedAndFilteredTransactions.map(transaction => (
-                    <div key={transaction.id} className="bg-gray-50 rounded-xl p-4 flex justify-between items-center">
-                      <div className="flex-1">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <div className="flex items-center space-x-2">
-                              <p className="font-semibold text-gray-800 truncate" title={transaction.budgetType === 'custom' && transaction.customBudgetId ? `${getCustomBudgetName(transaction.customBudgetId)} - ${transaction.customCategory || 'Uncategorized'}` : transaction.category || 'Uncategorized'}>
-                                {transaction.budgetType === 'custom' && transaction.customBudgetId
-                                  ? `${getCustomBudgetName(transaction.customBudgetId)} - ${transaction.customCategory || 'Uncategorized'}`
-                                  : transaction.category || 'Uncategorized'
-                               
-                                }
-                              </p>
-                              <span className={`flex-shrink-0 px-2 py-1 rounded-full text-xs font-medium ${
-                                transaction.budgetType === 'custom' 
-                                  ? 'bg-purple-100 text-purple-800' 
-                                  : 'bg-blue-100 text-blue-800'
-                              }`}>
-                                {transaction.budgetType === 'custom' ? 'Custom' : 'Monthly'}
-                              </span>
-                              {transaction.tags?.includes('recurring') && (
-                                <span className="flex-shrink-0 px-2 py-1 rounded-full text-xs font-medium bg-teal-100 text-teal-800">
-                                  Recurring
-                                </span>
-                              )}
-                            </div>
-                            {transaction.description && (
-                              <p className="text-sm text-gray-600">{transaction.description}</p>
-                            )}
-                            <p className="text-xs text-gray-500">{transaction.date}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className={`font-bold ${transaction.amount < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                              {transaction.amount < 0 ? '-' : '+'}₹{Math.abs(transaction.amount).toFixed(2)}
-                            </p>
-                          </div>
+                    <div key={transaction.id} className="bg-gray-50 rounded-xl p-4 flex justify-between items-start gap-4">
+                      {/* Left side: All text content. This will grow and shrink. */}
+                      <div className="flex-1 min-w-0">
+                        {/* Top line: Category/Budget name and tags */}
+                        <div className="flex items-center space-x-2 mb-1">
+                          <p className="font-semibold text-gray-800 truncate" title={transaction.budgetType === 'custom' && transaction.customBudgetId ? `${getCustomBudgetName(transaction.customBudgetId)} - ${transaction.customCategory || 'Uncategorized'}` : transaction.category || 'Uncategorized'}>
+                            {transaction.budgetType === 'custom' && transaction.customBudgetId
+                              ? `${getCustomBudgetName(transaction.customBudgetId)} - ${transaction.customCategory || 'Uncategorized'}`
+                              : transaction.category || 'Uncategorized'}
+                          </p>
+                          <span className={`flex-shrink-0 px-2 py-1 rounded-full text-xs font-medium ${transaction.budgetType === 'custom' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}`}>
+                            {transaction.budgetType === 'custom' ? 'Custom' : 'Monthly'}
+                          </span>
+                          {transaction.tags?.includes('recurring') && (
+                            <span className="flex-shrink-0 px-2 py-1 rounded-full text-xs font-medium bg-teal-100 text-teal-800">
+                              Recurring
+                            </span>
+                          )}
+                        </div>
+                        {/* Middle line: Description */}
+                        {transaction.description && (
+                          <p className="text-sm text-gray-600 truncate">{transaction.description}</p>
+                        )}
+                        {/* Bottom line: Date and Amount */}
+                        <div className="flex justify-between items-center mt-2">
+                          <p className="text-xs text-gray-500">{transaction.date}</p>
+                          <p className={`font-bold text-sm ${transaction.amount < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                            {transaction.amount < 0 ? '-' : '+'}₹{Math.abs(transaction.amount).toFixed(2)}
+                          </p>
                         </div>
                       </div>
-                      <div className="ml-4 flex space-x-2">
+
+                      {/* Right side: Action buttons. This will not shrink. */}
+                      <div className="flex-shrink-0 flex space-x-1">
                         <button
                           onClick={() => editTransaction(transaction)}
                           className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg"
+                          title="Edit Transaction"
                         >
                           <Edit3 size={16} />
                         </button>
                         <button
                           onClick={() => deleteTransaction(transaction.id)}
                           className="p-2 text-red-600 hover:bg-red-100 rounded-lg"
+                          title="Delete Transaction"
                         >
                           <Trash2 size={16} />
                         </button>
@@ -2962,26 +2961,29 @@ const renderAnalyticsTab = () => {
                   ) : (
                     [...transferLog].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(transfer => (
                       <div key={transfer.id} className="bg-gray-50 rounded-xl p-4">
-                        <div className="flex justify-between items-center">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center space-x-2 mb-1">
-                              <p className="font-semibold text-gray-800 truncate" title={`From: ${getCustomBudgetName(transfer.fromBudgetId)} (${transfer.fromCategory})`}>
-                                From: {getCustomBudgetName(transfer.fromBudgetId)} ({transfer.fromCategory})
-                              </p>
-                              <span className="flex-shrink-0 px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                                Custom
-                              </span>
-                              <span className="flex-shrink-0 px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                                Transfer
-                              </span>
-                            </div>
-                            <p className="text-sm text-gray-600">
-                              To: {getCustomBudgetName(transfer.toBudgetId)}
-                            </p>
-                            <p className="text-xs text-gray-500">{new Date(transfer.date).toLocaleString()}</p>
+                        {/* Top line: Tags and Amount */}
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex items-center space-x-2">
+                            <span className="flex-shrink-0 px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                              Custom
+                            </span>
+                            <span className="flex-shrink-0 px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                              Transfer
+                            </span>
                           </div>
-                          <p className="font-bold text-indigo-600 ml-4">₹{transfer.amount.toFixed(2)}</p>
+                          <p className="font-bold text-indigo-600">₹{transfer.amount.toFixed(2)}</p>
                         </div>
+                        {/* Details */}
+                        <div className="space-y-1 text-sm">
+                          <p className="text-gray-800 truncate">
+                            <span className="font-medium">From:</span> {getCustomBudgetName(transfer.fromBudgetId)} ({transfer.fromCategory})
+                          </p>
+                          <p className="text-gray-600 truncate">
+                            <span className="font-medium">To:</span> {getCustomBudgetName(transfer.toBudgetId)}
+                          </p>
+                        </div>
+                        {/* Footer */}
+                        <p className="text-xs text-gray-500 mt-2">{new Date(transfer.date).toLocaleString()}</p>
                       </div>
                     ))
                   )}
