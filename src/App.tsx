@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Plus, TrendingUp, Settings, Download, Upload, Trash2, Edit3, List, PieChart, ArrowUpDown, BarChart3, TrendingDown, AlertCircle, FileText, Pause, Play, Save, Link2, ArrowRight, Repeat, FileSpreadsheet, FileJson, Bell, Unlock, X } from 'lucide-react';
+import { Trash2, Edit3, ArrowUpDown, TrendingDown, AlertCircle, FileText, Pause, Play, Save, Link2, ArrowRight, Repeat, FileSpreadsheet, FileJson, Bell, Unlock, X, TrendingUp } from 'lucide-react';
+import ConfirmationModal from './components/ui/ConfirmationModal.tsx';
+import LockScreen from './components/layout/LockScreen.tsx';
 
 // Add these to your project:
 // npm install xlsx jspdf jspdf-autotable
@@ -20,50 +22,17 @@ import {
   RelationshipFormData,
   TransferEvent,
 } from './types';
-
-const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }: {
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm: (() => void) | null;
-  title: string;
-  message: string;
-}) => {
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">{title}</h2>
-        <p className="text-gray-600 mb-6">{message}</p>
-        <div className="flex justify-end space-x-3">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
-          >
-            No
-          </button>
-          <button
-            onClick={() => {
-              if (onConfirm) {
-                onConfirm();
-              }
-              onClose();
-            }}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors"
-          >
-            Yes
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
+import Header from './components/layout/Header.tsx';
+import BottomNav from './components/layout/BottomNav.tsx';
+import { useTransactions } from './hooks/useTransactions.ts';
+import { useBudgets } from './hooks/useBudget.ts';
+import AddTransactionTab from './components/tabs/AddTransactionTab.tsx';
 
 const App = () => {
   const [activeTab, setActiveTab] = useState('add');
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [budgets, setBudgets] = useState<MonthlyBudgets>({});
-  const [customBudgets, setCustomBudgets] = useState<CustomBudget[]>([]);
+
+  // const [budgets, setBudgets] = useState<MonthlyBudgets>({});
+  // const [customBudgets, setCustomBudgets] = useState<CustomBudget[]>([]);
   const [categories, setCategories] = useState(['Food', 'Transport', 'Entertainment', 'Shopping', 'Bills', 'Health']);
   const [transferLog, setTransferLog] = useState<TransferEvent[]>([]);
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
@@ -145,21 +114,18 @@ const App = () => {
   const [customBudgetForm, setCustomBudgetForm] = useState<CustomBudgetFormData>({
     name: '',
     amount: '',
+    // Add a new state for the custom category input in the budget form
+    // This was missed during a previous refactoring
+    
     description: '',
     deadline: '',
     priority: 'medium',
     categories: [],
     categoryBudgets: {},
   });
-  const [showCustomCategoryInput, setShowCustomCategoryInput] = useState(false);
-  const [newCustomCategory, setNewCustomCategory] = useState('');
-  const [selectedCustomBudgetForCategory, setSelectedCustomBudgetForCategory] = useState<number | null>(null);
-
   const customBudgetFormRef = useRef<HTMLDivElement>(null);
+  const [newCustomCategory, setNewCustomCategory] = useState('');
 
-  const [showCategoryInput, setShowCategoryInput] = useState(false);
-  const [newCategory, setNewCategory] = useState('');
-  
   // Export modal state
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportStartDate, setExportStartDate] = useState('');
@@ -211,6 +177,33 @@ const App = () => {
     });
   };
 
+  const {
+    budgets,
+    setBudgets,
+    customBudgets,
+    setCustomBudgets,
+    recalculateCustomBudgetSpending,
+    setMonthlyBudget,
+    addCustomBudget,
+    updateCustomBudgetWithRecalculation,
+    addCategoryToCustomBudget,
+    pauseCustomBudget,
+    resumeCustomBudget,
+    removeCustomBudgetAndTransactions,
+  } = useBudgets({}, []);
+
+  const onTransactionsUpdate = (newTransactions: Transaction[]) => {
+    recalculateCustomBudgetSpending(newTransactions, customBudgets);
+  };
+  const {
+    transactions,
+    setTransactions,
+    addTransaction: addTransactionToState,
+    updateTransaction: updateTransactionInState,
+    deleteTransactionById,
+  } = useTransactions([], onTransactionsUpdate);
+
+
   // --- Data Persistence and Security Hooks ---
 
   const loadAndInitializeData = () => {
@@ -223,6 +216,7 @@ const App = () => {
                 setTransactions(appState.transactions);
                 setBudgets(appState.budgets || {});
                 setCustomBudgets(appState.customBudgets || []);
+                recalculateCustomBudgetSpending(appState.transactions, appState.customBudgets);
                 setCategories(appState.categories || ['Food', 'Transport', 'Entertainment', 'Shopping', 'Bills', 'Health']);
                 setBudgetTemplates(appState.budgetTemplates || []);
                 setBudgetRelationships(appState.budgetRelationships || []);
@@ -297,6 +291,7 @@ const App = () => {
           setTransactions(appState.transactions || []);
           setBudgets(appState.budgets || {});
           setCustomBudgets(appState.customBudgets || []);
+          recalculateCustomBudgetSpending(appState.transactions || [], appState.customBudgets || []);
           setCategories(appState.categories || ['Food', 'Transport', 'Entertainment', 'Shopping', 'Bills', 'Health']);
           setBudgetTemplates(appState.budgetTemplates || []);
           setBudgetRelationships(appState.budgetRelationships || []);
@@ -485,10 +480,8 @@ const App = () => {
       timestamp: new Date().toISOString()
     };
 
-    const newTransactions = [...transactions, transaction];
-    setTransactions(newTransactions);
+    addTransactionToState(transaction);
 
-    recalculateCustomBudgetSpending(newTransactions, customBudgets);
     setFormData({
       category: '',
       amount: '',
@@ -523,10 +516,8 @@ const App = () => {
         : t
     );
 
-    setFormData({
-      category: '',
-      amount: '',
-      description: '',
+    updateTransactionInState(updatedTransactions.find(t => t.id === editingTransaction.id)!);
+    setFormData({ category: '', amount: '', description: '',
       date: new Date().toISOString().split('T')[0],
       type: 'expense',
       budgetType: 'monthly',
@@ -536,9 +527,8 @@ const App = () => {
       isRecurring: false,
       recurringFrequency: null,
     });
-    setTransactions(updatedTransactions);
     setEditingTransaction(null);
-    recalculateCustomBudgetSpending(updatedTransactions, customBudgets); };
+  };
 
   const deleteTransaction = (id: number) => {
     showConfirmation(
@@ -548,9 +538,7 @@ const App = () => {
         const transactionToDelete = transactions.find(t => t.id === id);
         if (!transactionToDelete) return;
 
-        const newTransactions = transactions.filter((t) => t.id !== id);
-        setTransactions(newTransactions);
-        recalculateCustomBudgetSpending(newTransactions, customBudgets);
+        deleteTransactionById(id);
       }
     );
   };
@@ -573,25 +561,18 @@ const App = () => {
     setActiveTab('add');
   };
 
-  const addCategory = () => {
-    if (newCategory && !categories.includes(newCategory)) {
-      const newCategories = [...categories, newCategory];
-      setCategories(newCategories);
-      setFormData({ ...formData, category: newCategory });
-      setNewCategory('');
-      setShowCategoryInput(false);
+  const handleAddCustomCategory = (budgetId: number, newCategory: string) => {
+    if (newCategory && budgetId) {
+      addCategoryToCustomBudget(budgetId, newCategory);
+      // Also update the form to select the new category
+      setFormData({ ...formData, customCategory: newCategory });
     }
   };
 
   const setBudget = () => {
     if (!budgetForm.category || !budgetForm.amount) return;
 
-    const newBudgets = {
-      ...budgets,
-      [budgetForm.category]: parseFloat(budgetForm.amount)
-    };
-
-    setBudgets(newBudgets);
+    setMonthlyBudget(budgetForm.category, parseFloat(budgetForm.amount));
     setBudgetForm({ category: '', amount: '' });
   };
 
@@ -633,8 +614,7 @@ const App = () => {
       updatedAt: new Date().toISOString()
     };
 
-    const newCustomBudgets = [...customBudgets, newCustomBudget];
-    setCustomBudgets(newCustomBudgets);
+    addCustomBudget(newCustomBudget);
 
     setCustomBudgetForm({ 
       name: '', 
@@ -658,28 +638,21 @@ const App = () => {
     }
     const overallBudget = parseFloat(customBudgetForm.amount);
 
-    const updatedBudgetsWithFormChanges = customBudgets.map(b => 
-      b.id === editingCustomBudget.id
-        ? { ...b,
-            name: customBudgetForm.name,
-            totalAmount: overallBudget,
-            description: customBudgetForm.description,
-            deadline: customBudgetForm.deadline || null,
-            priority: customBudgetForm.priority,
-            categories: customBudgetForm.categories,
-            categoryBudgets: parsedCategoryBudgets,
-            updatedAt: new Date().toISOString()
-          }
-        : b
-    );
+    const updatedBudget: CustomBudget = {
+      ...editingCustomBudget,
+      name: customBudgetForm.name,
+      totalAmount: overallBudget,
+      description: customBudgetForm.description,
+      deadline: customBudgetForm.deadline || null,
+      priority: customBudgetForm.priority,
+      categories: customBudgetForm.categories,
+      categoryBudgets: parsedCategoryBudgets,
+      updatedAt: new Date().toISOString()
+    };
 
     setEditingCustomBudget(null);
-    setCustomBudgetForm({
-      name: '', amount: '', description: '', deadline: '', 
-      priority: 'medium', categories: [], categoryBudgets: {}
-    });
-    // Recalculate spending with the new budget details to update all amounts
-    recalculateCustomBudgetSpending(transactions, updatedBudgetsWithFormChanges);
+    setCustomBudgetForm({ name: '', amount: '', description: '', deadline: '', priority: 'medium', categories: [], categoryBudgets: {} });
+    updateCustomBudgetWithRecalculation(updatedBudget, transactions);
   };
 
   const handleSaveCustomBudget = () => {
@@ -738,41 +711,18 @@ const App = () => {
     );
   };
 
-
-  const addCustomCategory = () => {
-    if (newCustomCategory && selectedCustomBudgetForCategory) {
-      // Find the budget and add the new category to it
-      const updatedCustomBudgets = customBudgets.map(budget => 
-        budget.id === selectedCustomBudgetForCategory
-          ? { ...budget, 
-              categories: [...budget.categories, newCustomCategory], 
-              updatedAt: new Date().toISOString() 
-            }
-          : budget
-      );
-      setCustomBudgets(updatedCustomBudgets);
-
-      // Also update the form to select the new category
-      setFormData({ ...formData, customCategory: newCustomCategory });
-
-      setNewCustomCategory('');
-      setShowCustomCategoryInput(false);
-      setSelectedCustomBudgetForCategory(null);
-    }
-  };
-
-  const addCustomCategoryToForm = () => {
+  const addCustomCategoryToForm = () => { // This function was broken due to missing state
     if (newCustomCategory && !customBudgetForm.categories.includes(newCustomCategory)) {
       const newCategories = [...customBudgetForm.categories, newCustomCategory];
       const newCategoryBudgets = { ...customBudgetForm.categoryBudgets };
-      newCategoryBudgets[newCustomCategory] = '';
+      newCategoryBudgets[newCustomCategory] = ''; // Initialize with empty string
 
       setCustomBudgetForm({
         ...customBudgetForm,
         categories: newCategories,
         categoryBudgets: newCategoryBudgets
       });
-      setNewCustomCategory('');
+      setNewCustomCategory(''); // Reset the input field
     }
   };
 
@@ -799,61 +749,9 @@ const App = () => {
   };
 
   const getCustomBudgetCategoryBudget = (customBudgetId: number, category: string) => {
-    const budget = customBudgets.find(b => b.id === customBudgetId);
+    const budget = customBudgets.find((b: CustomBudget) => b.id === customBudgetId);
     // The value in `categoryBudgets` is already a number due to parsing on creation
     return (budget && budget.categoryBudgets?.[category]) || 0;
-  };
-
-  const recalculateCustomBudgetSpending = (
-    currentTransactions: Transaction[] = transactions,
-    currentCustomBudgets: CustomBudget[] = customBudgets,
-  ) => {
-    const newCustomBudgets = currentCustomBudgets.map((budget) => {
-      // Calculate actual spent amount from transactions
-      const budgetTransactions = currentTransactions.filter(
-        (t) => t.customBudgetId === budget.id,
-      );
-
-      const spent = budgetTransactions
-        .filter((t) => t.amount < 0) // Expenses are negative
-        .reduce((sum, t) => sum + Math.abs(t.amount), 0);
-
-      const income = budgetTransactions
-        .filter((t) => t.amount > 0) // Income is positive
-        .reduce((sum, t) => sum + Math.abs(t.amount), 0);
-
-      const remaining = budget.totalAmount - spent + income;
-
-      const newStatus: 'active' | 'completed' | 'archived' | 'paused' = budget.status === 'paused' || budget.status === 'archived'
-        ? budget.status
-        : spent >= budget.totalAmount ? 'completed' : 'active';
-
-      return {
-        ...budget,
-        spentAmount: spent,
-        remainingAmount: remaining,
-        // Use the new logic to preserve paused/archived states
-        status: newStatus,
-        updatedAt: new Date().toISOString(),
-      };
-    });
-    setCustomBudgets(newCustomBudgets);
-  };
-
-  const pauseCustomBudget = (budgetId: number) => {
-    setCustomBudgets(customBudgets.map(budget => 
-      budget.id === budgetId 
-        ? { ...budget, status: 'paused', updatedAt: new Date().toISOString() }
-        : budget
-    ));
-  };
-
-  const resumeCustomBudget = (budgetId: number) => {
-    setCustomBudgets(customBudgets.map(budget => 
-      budget.id === budgetId 
-        ? { ...budget, status: 'active', updatedAt: new Date().toISOString() }
-        : budget
-    ));
   };
 
   const deleteCustomBudget = (budgetId: number) => {
@@ -861,8 +759,7 @@ const App = () => {
       'Confirm Deletion',
       'Are you sure you want to delete this budget? This will also delete all associated transactions and rollover rules. This action cannot be undone.',
       () => {
-        // Filter out the budget to be deleted
-        const newCustomBudgets = customBudgets.filter(b => b.id !== budgetId);
+        removeCustomBudgetAndTransactions(budgetId);
         
         // Filter out all transactions associated with this budget
         const newTransactions = transactions.filter(t => t.customBudgetId !== budgetId);
@@ -870,7 +767,6 @@ const App = () => {
         // Filter out any rollover rules associated with this budget
         const newRelationships = budgetRelationships.filter(rel => rel.destinationBudgetId !== budgetId);
 
-        setCustomBudgets(newCustomBudgets);
         setTransactions(newTransactions);
         setBudgetRelationships(newRelationships);
         
@@ -977,7 +873,7 @@ const App = () => {
         budgetRelationships.forEach(rel => {
           const remaining = getRemainingBudget(rel.sourceCategory, currentYear, currentMonth);
           if (remaining > 0) {
-            const destinationBudget = customBudgets.find(b => b.id === rel.destinationBudgetId);
+            const destinationBudget = customBudgets.find((b: CustomBudget) => b.id === rel.destinationBudgetId);
             if (destinationBudget) {
               totalRolledOver += remaining;
 
@@ -1111,7 +1007,7 @@ const App = () => {
       transactions: filteredTransactions,
       budgets: {
         monthly: budgets,
-        custom: customBudgets.map(budget => ({
+        custom: customBudgets.map((budget: CustomBudget) => ({
           id: budget.id,
           name: budget.name,
           totalAmount: budget.totalAmount,
@@ -1294,7 +1190,7 @@ const App = () => {
               <th>Remaining</th>
               <th>Status</th>
             </tr>
-            ${customBudgets.filter(b => b.status === 'active').map(budget => {
+            ${customBudgets.filter((b: CustomBudget) => b.status === 'active').map((budget: CustomBudget) => {
               // Bug Fix: Use the already calculated amounts from state for consistency
               return `
                 <tr>
@@ -1380,11 +1276,11 @@ const App = () => {
       return;
     }
 
-    const fromBudgetIdNum = parseInt(fromBudgetId);
-    const toBudgetIdNum = parseInt(toBudgetId);
+    const fromBudgetIdNum = parseInt(fromBudgetId, 10);
+    const toBudgetIdNum = parseInt(toBudgetId, 10);
 
-    const sourceBudget = customBudgets.find(b => b.id === fromBudgetIdNum);
-    const destinationBudget = customBudgets.find(b => b.id === toBudgetIdNum);
+    const sourceBudget = customBudgets.find((b: CustomBudget) => b.id === fromBudgetIdNum);
+    const destinationBudget = customBudgets.find((b: CustomBudget) => b.id === toBudgetIdNum);
 
     if (!sourceBudget || !destinationBudget) {
       alert('Source or destination budget not found.');
@@ -1494,7 +1390,7 @@ const App = () => {
 
     const getCustomBudgetName = (customBudgetId: number | null) => {
     if (customBudgetId === null) return 'N/A';
-    const budget = customBudgets.find(b => b.id === customBudgetId);
+    const budget = customBudgets.find((b: CustomBudget) => b.id === customBudgetId);
     return budget ? budget.name : 'Unknown Budget';
   };
 
@@ -1592,7 +1488,7 @@ const App = () => {
   };
 
    const getCustomBudgetCategories = (customBudgetId: number | null) => {
-    const budget = customBudgets.find(b => b.id === customBudgetId);
+    const budget = customBudgets.find((b: CustomBudget) => b.id === customBudgetId);
     return budget ? budget.categories : [];
   };
   const backupData = () => {
@@ -1805,7 +1701,7 @@ const App = () => {
   const getMonthlyStats = (year: number, month: number) => {
     const monthlyTransactions = transactions.filter(t => {
       const transactionDate = new Date(t.date);
-      return (t.budgetType === 'monthly' || !t.budgetType) &&
+      return (t.budgetType === 'monthly' || !t.budgetType) && // Default to monthly
              transactionDate.getFullYear() === year &&
              transactionDate.getMonth() === month;
     });
@@ -1818,7 +1714,7 @@ const App = () => {
     
     const totalIncome = monthlyTransactions.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0);
     const totalExpenses = monthlyTransactions.filter(t => t.amount < 0).reduce((sum, t) => sum + Math.abs(t.amount), 0);
-    const totalBudget = Object.values(budgets).reduce((sum, budget) => sum + budget, 0);
+    const totalBudget = Object.values(budgets).reduce((sum: number, budget: number) => sum + budget, 0);
     
     const customBudgetSpent = customTransactions.filter(t => t.amount < 0).reduce((sum, t) => sum + Math.abs(t.amount), 0);
     
@@ -2174,7 +2070,7 @@ const renderAnalyticsTab = () => {
                 {predictiveData.trendDirection === 'decreasing' && (
                   <li>Great job reducing spending! Consider allocating savings to custom budgets.</li>
                 )}
-                {predictiveData.monthlyProjection > stats.totalBudget && (
+                {predictiveData.monthlyProjection > (stats.totalBudget as number) && (
                   <li className="text-red-700 font-medium">Warning: Projected monthly spending exceeds total budget.</li>
                 )}
               </ul>
@@ -2366,423 +2262,47 @@ const renderAnalyticsTab = () => {
 
   return (
     isLocked ? (
-      <div className="max-w-md mx-auto bg-gradient-to-br from-purple-50 to-blue-50 min-h-screen flex items-center justify-center p-4">
-        <div className="w-full bg-white rounded-2xl p-8 shadow-lg text-center">
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">BudgetWise</h1>
-          <p className="text-gray-600 mb-6">App is locked. Please enter your password.</p>
-          <div className="space-y-4">
-            <input
-              type="tel"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              maxLength={4}
-              value={passwordInput}
-              onChange={(e) => setPasswordInput(e.target.value)}
-              onKeyPress={(e) => {
-                if (e.key === 'Enter') {
-                  handleUnlock();
-                }
-              }}
-              placeholder="Enter PIN"
-              className="w-full p-3 border border-gray-300 rounded-xl text-center focus:ring-2 focus:ring-purple-500"
-            />
-            {unlockError && (
-              <p className="text-red-500 text-sm">{unlockError}</p>
-            )}
-            <button
-              onClick={handleUnlock}
-              className="w-full p-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-semibold hover:from-purple-700 hover:to-blue-700"
-            >
-              Unlock
-            </button>
-          </div>
-        </div>
-      </div>
+      <LockScreen
+        passwordInput={passwordInput}
+        setPasswordInput={setPasswordInput}
+        unlockError={unlockError}
+        handleUnlock={handleUnlock}
+      />
     ) : (
     <div className="max-w-md mx-auto bg-gradient-to-br from-purple-50 to-blue-50 min-h-screen">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-purple-600 to-blue-600 text-white p-4 pb-6">
-        <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold">BudgetWise</h1>
-          <div className="flex space-x-2">
-            <button
-              onClick={() => setShowExportModal(true)}
-              className="p-2 bg-white/20 rounded-lg hover:bg-white/30 transition-colors"
-              title="Advanced Export"
-            >
-              <Download size={20} />
-            </button>
-            <button
-              onClick={quickCSVExport}
-              className="p-2 bg-white/20 rounded-lg hover:bg-white/30 transition-colors"
-              title="Quick CSV Export (All Data)"
-            >
-              <Upload size={20} />
-            </button>
-            <button
-              onClick={() => setActiveTab('settings')}
-              className="p-2 bg-white/20 rounded-lg hover:bg-white/30 transition-colors"
-              title="Settings"
-            >
-              <Settings size={20} />
-            </button>
-          </div>
-        </div>
-        
-        <div className="mt-4 grid grid-cols-2 gap-4">
-          <div className="bg-white/20 rounded-xl p-3">
-            <p className="text-sm opacity-90">Monthly Balance</p>
-            <p className="text-xl font-bold">₹{stats.balance.toFixed(0)}</p>
-          </div>
-          <div className="bg-white/20 rounded-xl p-3">
-            <p className="text-sm opacity-90">Monthly Spent</p>
-            <p className="text-xl font-bold">₹{stats.totalExpenses.toFixed(0)}</p>
-          </div>
-        </div>
-
-        {stats.customBudgetSpent > 0 && (
-          <div className="mt-3 bg-white/20 rounded-xl p-3">
-            <p className="text-sm opacity-90">Custom Budgets Spent</p>
-            <p className="text-xl font-bold">₹{stats.customBudgetSpent.toFixed(0)}</p>
-          </div>
-        )}
-
-        <div className="mt-4 flex items-center justify-center space-x-4">
-          <button
-            onClick={() => {
-              const newMonth = currentMonth === 0 ? 11 : currentMonth - 1;
-              const newYear = currentMonth === 0 ? currentYear - 1 : currentYear;
-              setCurrentMonth(newMonth);
-              setCurrentYear(newYear);
-            }}
-            className="p-2 bg-white/20 rounded-lg"
-          >
-            ←
-          </button>
-          <span className="font-semibold">
-            {new Date(currentYear, currentMonth).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-          </span>
-          <button
-            onClick={() => {
-              const newMonth = currentMonth === 11 ? 0 : currentMonth + 1;
-              const newYear = currentMonth === 11 ? currentYear + 1 : currentYear;
-              setCurrentMonth(newMonth);
-              setCurrentYear(newYear);
-            }}
-            className="p-2 bg-white/20 rounded-lg"
-          >
-            →
-          </button>
-        </div>
-      </div>
+      <Header
+        stats={stats}
+        setShowExportModal={setShowExportModal}
+        quickCSVExport={quickCSVExport}
+        setActiveTab={setActiveTab}
+        currentMonth={currentMonth}
+        currentYear={currentYear}
+        setCurrentMonth={setCurrentMonth}
+        setCurrentYear={setCurrentYear}
+      />
 
       {/* Main Content */}
       <div className="flex-1 pb-20">
         {/* Render active tab content */}
         {/* Add Transaction Tab */}
-        {activeTab === 'add' && (
-          <div className="p-4 space-y-6">
-            <div className="bg-white rounded-2xl p-6 shadow-lg">
-              <h2 className="text-xl font-bold text-gray-800 mb-4">
-                {editingTransaction ? 'Edit Transaction' : 'Add Transaction'}
-              </h2>
-              
-              <div className="space-y-4">
-                <div className="flex space-x-2">
-                  <button
-                    onClick={() => setFormData({ ...formData, type: 'expense' })}
-                    className={`flex-1 p-3 rounded-xl font-medium transition-colors ${
-                      formData.type === 'expense'
-                        ? 'bg-red-100 text-red-700 border-2 border-red-300'
-                        : 'bg-gray-100 text-gray-600'
-                    }`}
-                  >
-                    Expense
-                  </button>
-                  <button
-                    onClick={() => setFormData({ ...formData, type: 'income' })}
-                    className={`flex-1 p-3 rounded-xl font-medium transition-colors ${
-                      formData.type === 'income'
-                        ? 'bg-green-100 text-green-700 border-2 border-green-300'
-                        : 'bg-gray-100 text-gray-600'
-                    }`}
-                  >
-                    Income
-                  </button>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Budget Type</label>
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() => {
-                        setFormData({ ...formData, budgetType: 'monthly', customBudgetId: null, customCategory: '' });
-                        setCategorySuggestion(null);
-                      }}
-                      className={`flex-1 p-3 rounded-xl font-medium transition-colors ${
-                        formData.budgetType === 'monthly'
-                          ? 'bg-blue-100 text-blue-700 border-2 border-blue-300'
-                          : 'bg-gray-100 text-gray-600'
-                      }`}
-                    >
-                      Monthly Budget
-                    </button>
-                    <button
-                      onClick={() => {
-                        setFormData({ ...formData, budgetType: 'custom', category: '' });
-                        setCategorySuggestion(null);
-                      }}
-                      className={`flex-1 p-3 rounded-xl font-medium transition-colors ${
-                        formData.budgetType === 'custom'
-                          ? 'bg-purple-100 text-purple-700 border-2 border-purple-300'
-                          : 'bg-gray-100 text-gray-600'
-                      }`}
-                    >
-                      Custom Budget
-                    </button>
-                  </div>
-                </div>
-
-                {formData.budgetType === 'monthly' ? (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
-                    <div className="space-y-2">
-                      <select
-                        value={formData.category}
-                        onChange={(e) => {
-                          if (e.target.value === 'add_new') {
-                            setShowCategoryInput(true);
-                          } else {
-                            setFormData({ ...formData, category: e.target.value });
-                          }
-                        }}
-                        className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                      >
-                        <option value="">Select Category</option>
-                        {categories.map(cat => (
-                          <option key={cat} value={cat}>{cat}</option>
-                        ))}
-                        <option value="add_new">+ Add New Category</option>
-                      </select>
-
-                      {showCategoryInput && (
-                        <div className="flex space-x-2">
-                          <input
-                            type="text"
-                            value={newCategory}
-                            onChange={(e) => setNewCategory(e.target.value)}
-                            placeholder="Enter new category"
-                            className="flex-1 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
-                          />
-                          <button
-                            onClick={addCategory}
-                            className="px-4 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700"
-                          >
-                            Add
-                          </button>
-                          <button
-                            onClick={() => setShowCategoryInput(false)}
-                            className="px-4 py-3 bg-gray-400 text-white rounded-xl hover:bg-gray-500"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Custom Budget</label>
-                      <select
-                        value={formData.customBudgetId || ''}
-                        onChange={(e) => setFormData({ 
-                          ...formData,
-                          customBudgetId: e.target.value ? parseInt(e.target.value) : null,
-                          customCategory: ''
-                        })}
-                        className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                      >
-                        <option value="">Select Custom Budget</option>
-                        {customBudgets.filter(budget => budget.status === 'active').map(budget => (
-                          <option key={budget.id} value={budget.id}>
-                            {budget.name} (₹{budget.remainingAmount.toFixed(0)} remaining)
-                          </option>
-                        ))}
-                      </select>
-                      {customBudgets.filter(budget => budget.status === 'active').length === 0 && (
-                        <p className="text-sm text-gray-500 mt-2">
-                          No active custom budgets. Create one in the Budget tab first.
-                        </p>
-                      )}
-                    </div>
-
-                    {formData.customBudgetId && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Category within Budget</label>
-                        <div className="space-y-2">
-                          <select
-                            value={formData.customCategory}
-                            onChange={(e) => {
-                              if (e.target.value === 'add_new_custom') {
-                                setShowCustomCategoryInput(true);
-                                setSelectedCustomBudgetForCategory(formData.customBudgetId);
-                              } else {
-                                setFormData({ ...formData, customCategory: e.target.value });
-                              }
-                            }}
-                            className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                          >
-                            <option value="">Select Category</option>
-                            {getCustomBudgetCategories(formData.customBudgetId).map(cat => (
-                              <option key={cat} value={cat}>{cat}</option>
-                            ))}
-                            <option value="add_new_custom">+ Add New Category</option>
-                          </select>
-
-                          {showCustomCategoryInput && selectedCustomBudgetForCategory === formData.customBudgetId && (
-                            <div className="flex space-x-2">
-                              <input
-                                type="text"
-                                value={newCustomCategory}
-                                onChange={(e) => setNewCustomCategory(e.target.value)}
-                                placeholder="Enter new category"
-                                className="flex-1 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
-                              />
-                              <button
-                                onClick={addCustomCategory}
-                                className="px-4 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700"
-                              >
-                                Add
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setShowCustomCategoryInput(false);
-                                  setSelectedCustomBudgetForCategory(null);
-                                  setNewCustomCategory('');
-                                }}
-                                className="px-4 py-3 bg-gray-400 text-white rounded-xl hover:bg-gray-500"
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          )}
-
-                          {formData.customBudgetId && getCustomBudgetCategories(formData.customBudgetId).length === 0 && (
-                            <p className="text-sm text-gray-500">
-                              No categories defined for this budget. Add one above.
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Amount</label>
-                  <input
-                    type="number"
-                    value={formData.amount}
-                    onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                    placeholder="0.00"
-                    className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  />
-                </div>
-
-                <div className="relative">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Description (Optional)</label>
-                  <input
-                    type="text"
-                    value={formData.description}
-                    onChange={(e) => handleDescriptionChange(e.target.value)}
-                    placeholder="Add a note..."
-                    className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  />
-                  {categorySuggestion && formData.budgetType === 'monthly' && (
-                    <div className="absolute right-2 top-9 flex items-center">
-                      <span className="text-xs text-gray-500 mr-2">Suggested:</span>
-                      <button
-                        onClick={() => {
-                          setFormData({ ...formData, category: categorySuggestion });
-                          setCategorySuggestion(null);
-                        }}
-                        className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-md hover:bg-purple-200"
-                      >
-                        {categorySuggestion}
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Tags (comma-separated)</label>
-                  <input
-                    type="text"
-                    value={formData.tags}
-                    onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
-                    placeholder="e.g., travel, business, 2024"
-                    className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
-                  <input
-                    type="date"
-                    value={formData.date}
-                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                    className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  />
-                </div>
-
-                {/* Recurring Transaction Section */}
-                <div className="space-y-3 pt-2">
-                  <div className="flex items-center justify-between">
-                    <label className="font-medium text-gray-700">Recurring Transaction</label>
-                    <button
-                      onClick={() => setFormData({ ...formData, isRecurring: !formData.isRecurring })}
-                      className={`relative w-12 h-6 rounded-full transition-colors ${
-                        formData.isRecurring ? 'bg-purple-600' : 'bg-gray-300'
-                      }`}
-                    >
-                      <div className={`absolute w-5 h-5 bg-white rounded-full top-0.5 transition-transform ${
-                        formData.isRecurring ? 'translate-x-6' : 'translate-x-0.5'
-                      }`} />
-                    </button>
-                  </div>
-                  {formData.isRecurring && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Frequency</label>
-                      <select
-                        value={formData.recurringFrequency || ''}
-                        onChange={(e) => setFormData({ ...formData, recurringFrequency: e.target.value as any })}
-                        className="w-full p-3 border border-gray-300 rounded-xl"
-                      >
-                        <option value="">Select Frequency</option>
-                        <option value="daily">Daily</option>
-                        <option value="weekly">Weekly</option>
-                        <option value="monthly">Monthly</option>
-                      </select>
-                    </div>
-                  )}
-                </div>
-
-                <button
-                  onClick={editingTransaction ? updateTransaction : addTransaction}
-                  className="w-full p-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-semibold hover:from-purple-700 hover:to-blue-700 transition-all"
-                >
-                  {editingTransaction ? 'Update Transaction' : 'Add Transaction'}
-                </button>
-
-                {editingTransaction && (
-                  <button onClick={handleCancelTransactionEdit} className="w-full p-3 bg-gray-400 text-white rounded-xl hover:bg-gray-500">
-                    Cancel Edit
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+        {activeTab === 'add' && 
+          <AddTransactionTab 
+            formData={formData}
+            setFormData={setFormData}
+            editingTransaction={editingTransaction}
+            categories={categories}
+            setCategories={setCategories}
+            customBudgets={customBudgets}
+            getCustomBudgetCategories={getCustomBudgetCategories}
+            addTransaction={addTransaction}
+            updateTransaction={updateTransaction}
+            handleCancelTransactionEdit={handleCancelTransactionEdit}
+            handleDescriptionChange={handleDescriptionChange}
+            onAddCustomCategory={handleAddCustomCategory}
+            categorySuggestion={categorySuggestion}
+            setCategorySuggestion={setCategorySuggestion}
+          />
+        }
 
         {/* Transaction History Tab */}
         {activeTab === 'history' && (
@@ -3025,10 +2545,10 @@ const renderAnalyticsTab = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">Budget Categories</label>
                   <div className="space-y-4">
                     {/* Display current categories with budget inputs */}
-                    {customBudgetForm.categories.length > 0 && (
+                    {customBudgetForm.categories.length > 0 &&
                       <div className="space-y-3 p-4 bg-gray-50 rounded-xl">
                         <h4 className="text-sm font-medium text-gray-700">Category Budgets:</h4>
-                        {customBudgetForm.categories.map((category) => (
+                        {customBudgetForm.categories.map((category: string) => (
                           <div key={category} className="flex items-center space-x-2">
                             <div className="flex-1">
                               <label className="block text-xs text-gray-600 mb-1">{category}</label>
@@ -3070,14 +2590,14 @@ const renderAnalyticsTab = () => {
                           )}
                         </div>
                       </div>
-                    )}
+                    }
                     
                     {/* Add new category */}
                     <div className="flex space-x-2">
                       <input
                         type="text"
-                        value={newCustomCategory}
-                        onChange={(e) => setNewCustomCategory(e.target.value)}
+                        value={newCustomCategory} // This was the source of the error
+                        onChange={(e) => setNewCustomCategory(e.target.value)} // This was the source of the error
                         placeholder="Add a category (e.g., Venue, Catering)"
                         className="flex-1 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
                         onKeyPress={(e) => {
@@ -3192,7 +2712,7 @@ const renderAnalyticsTab = () => {
                   className="w-full p-3 border border-gray-300 rounded-xl"
                 >
                   <option value="">Select Destination Custom Budget</option>
-                  {customBudgets.filter(b => b.status === 'active').map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  {customBudgets.filter((b: CustomBudget) => b.status === 'active').map((b: CustomBudget) => <option key={b.id} value={b.id}>{b.name}</option>)}
                 </select>
                 <button onClick={addRelationship} className="w-full p-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 flex items-center justify-center">
                   <Link2 size={18} className="mr-2" />
@@ -3231,12 +2751,12 @@ const renderAnalyticsTab = () => {
             </div>
 
             {/* Active Custom Budgets */}
-            {customBudgets.filter(budget => budget.status === 'active').length > 0 && (
+            {customBudgets.filter((budget: CustomBudget) => budget.status === 'active').length > 0 && (
               <div className="bg-white rounded-2xl p-6 shadow-lg">
                 <h2 className="text-xl font-bold text-gray-800 mb-4">Active Custom Budgets</h2>
                 
                 <div className="space-y-4">
-                  {customBudgets.filter(budget => budget.status === 'active').map(budget => {
+                  {customBudgets.filter((budget: CustomBudget) => budget.status === 'active').map((budget: CustomBudget) => {
                     const percentage = budget.totalAmount > 0 ? (budget.spentAmount / budget.totalAmount) * 100 : 0;
                     const isOverBudget = budget.spentAmount > budget.totalAmount;
 
@@ -3309,7 +2829,7 @@ const renderAnalyticsTab = () => {
                           <div className="mt-4 pt-3 border-t border-gray-200">
                             <h4 className="text-sm font-medium text-gray-700 mb-2">Category Breakdown:</h4>
                             <div className="space-y-3">
-                              {budget.categories.map(category => {
+                              {budget.categories.map((category: string) => {
                                 const categoryBudget = getCustomBudgetCategoryBudget(budget.id, category);
                                 const categorySpent = getCustomBudgetCategorySpending(budget.id, category);
                                 const categoryRemaining = categoryBudget - categorySpent;
@@ -3372,11 +2892,11 @@ const renderAnalyticsTab = () => {
             )}
 
             {/* Paused Custom Budgets */}
-            {customBudgets.filter(budget => budget.status === 'paused').length > 0 && (
+            {customBudgets.filter((budget: CustomBudget) => budget.status === 'paused').length > 0 && (
               <div className="bg-white rounded-2xl p-6 shadow-lg opacity-70">
                 <h2 className="text-xl font-bold text-gray-800 mb-4">Paused Custom Budgets</h2>
                 <div className="space-y-4">
-                  {customBudgets.filter(budget => budget.status === 'paused').map(budget => (
+                  {customBudgets.filter((budget: CustomBudget) => budget.status === 'paused').map((budget: CustomBudget) => (
                     <div key={budget.id} className="border border-gray-200 rounded-xl p-4">
                       <div className="flex justify-between items-start mb-3">
                         <div>
@@ -3673,14 +3193,14 @@ const renderAnalyticsTab = () => {
                   onChange={(e) => setTransferForm({
                     ...transferForm,
                     fromBudgetId: e.target.value,
-                    toBudgetId: '',
+                    toBudgetId: '', // Also reset destination
                     fromCategory: '',
                     toCategoryAllocations: {}
                   })}
                   className="w-full p-3 border border-gray-300 rounded-xl"
                 >
                   <option value="">Select source</option>
-                  {customBudgets.filter(b => b.status === 'active').map(b => (
+                  {customBudgets.filter((b: CustomBudget) => b.status === 'active').map((b: CustomBudget) => (
                     <option key={b.id} value={b.id}>{b.name}</option>
                   ))}
                 </select>
@@ -3695,8 +3215,8 @@ const renderAnalyticsTab = () => {
                     className="w-full p-3 border border-gray-300 rounded-xl"
                   >
                     <option value="">Select source category</option>
-                    {customBudgets.find(b => b.id === parseInt(transferForm.fromBudgetId))?.categories.map(cat => {
-                      const budget = customBudgets.find(b => b.id === parseInt(transferForm.fromBudgetId));
+                    {customBudgets.find((b: CustomBudget) => b.id === parseInt(transferForm.fromBudgetId))?.categories.map((cat: string) => {
+                      const budget = customBudgets.find((b: CustomBudget) => b.id === parseInt(transferForm.fromBudgetId));
                       const categoryBudget = budget?.categoryBudgets[cat] || 0;
                       const categorySpent = getCustomBudgetCategorySpending(budget!.id, cat);
                       const available = categoryBudget - categorySpent;
@@ -3731,17 +3251,17 @@ const renderAnalyticsTab = () => {
                     className="w-full p-3 border border-gray-300 rounded-xl"
                   >
                     <option value="">Select destination</option>
-                    {customBudgets.filter(b => b.status === 'active' && b.id !== parseInt(transferForm.fromBudgetId || '0')).map(b => (
+                    {customBudgets.filter((b: CustomBudget) => b.status === 'active' && b.id !== parseInt(transferForm.fromBudgetId || '0')).map((b: CustomBudget) => (
                       <option key={b.id} value={b.id}>{b.name}</option>
                     ))}
                   </select>
                 </div>
               )}
 
-              {transferForm.toBudgetId && parseFloat(transferForm.transferAmount) > 0 && (
+              {transferForm.toBudgetId && parseFloat(transferForm.transferAmount) > 0 &&
                 <div className="p-4 bg-gray-50 rounded-lg space-y-3 border border-gray-200">
                   <h3 className="font-semibold text-gray-700">Allocate to Destination Categories</h3>
-                  {customBudgets.find(b => b.id === parseInt(transferForm.toBudgetId))?.categories.map(cat => (
+                  {customBudgets.find((b: CustomBudget) => b.id === parseInt(transferForm.toBudgetId))?.categories.map((cat: string) => (
                     <div key={cat} className="flex items-center space-x-2">
                       <label className="w-1/2 text-sm text-gray-600">{cat}</label>
                       <input
@@ -3770,8 +3290,7 @@ const renderAnalyticsTab = () => {
                       <p className="text-red-600 text-xs text-right mt-1">Amounts must match!</p>
                     )}
                   </div>
-                </div>
-              )}
+                </div>}
 
               <div className="pt-4 space-y-2">
                 <button
@@ -3804,60 +3323,7 @@ const renderAnalyticsTab = () => {
         message={confirmationState.message}
       />
 
-      {/* Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t border-gray-200 px-2 py-2">
-        <div className="flex justify-around">
-          <button
-            onClick={() => setActiveTab('add')}
-            className={`flex flex-col items-center py-2 px-3 rounded-xl transition-colors ${
-              activeTab === 'add' ? 'bg-purple-100 text-purple-600' : 'text-gray-600'
-            }`}
-          >
-            <Plus size={20} />
-            <span className="text-xs mt-1">Add</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('history')}
-            className={`flex flex-col items-center py-2 px-3 rounded-xl transition-colors ${
-              activeTab === 'history' ? 'bg-purple-100 text-purple-600' : 'text-gray-600'
-            }`}
-          >
-            <List size={20} />
-            <span className="text-xs mt-1">History</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('analytics')}
-            className={`flex flex-col items-center py-2 px-3 rounded-xl transition-colors ${
-              activeTab === 'analytics' ? 'bg-purple-100 text-purple-600' : 'text-gray-600'
-            }`}
-          >
-            <BarChart3 size={20} />
-            <span className="text-xs mt-1">Analytics</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('budget')}
-            className={`flex flex-col items-center py-2 px-4 rounded-xl transition-colors ${
-              activeTab === 'budget' ? 'bg-purple-100 text-purple-600' : 'text-gray-600'
-            }`}
-          >
-            <PieChart size={24} />
-            <span className="text-xs mt-1">Budget</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('settings')}
-            className={`flex flex-col items-center py-2 px-4 rounded-xl transition-colors ${
-              activeTab === 'settings' ? 'bg-purple-100 text-purple-600' : 'text-gray-600'
-            }`}
-          >
-            <Settings size={24} />
-            <span className="text-xs mt-1">Settings</span>
-          </button>
-        </div>
-      </div>
+      <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
     </div>
     )
   );
