@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Plus, TrendingUp, Settings, Download, Upload, Trash2, Edit3, List, PieChart, ArrowUpDown, BarChart3, TrendingDown, AlertCircle, FileText, Pause, Play, Save, Link2, ArrowRight, Repeat, FileSpreadsheet, FileJson, Bell, Unlock, X } from 'lucide-react';
 
 // Add these to your project:
@@ -1393,7 +1393,7 @@ const App = () => {
 
     // Check source funds
     const sourceCategoryBudget = sourceBudget.categoryBudgets[fromCategory] || 0;
-    const sourceCategorySpent = getCustomBudgetCategorySpending(sourceBudget.id, fromCategory);
+    const sourceCategorySpent = customCategorySpending[sourceBudget.id]?.[fromCategory] || 0;
     const availableInCategory = sourceCategoryBudget - sourceCategorySpent;
 
     if (amount > availableInCategory) {
@@ -1492,11 +1492,11 @@ const App = () => {
       .reduce((sum, t) => sum + Math.abs(t.amount), 0);
   };
 
-    const getCustomBudgetName = (customBudgetId: number | null) => {
+  const getCustomBudgetName = useCallback((customBudgetId: number | null) => {
     if (customBudgetId === null) return 'N/A';
     const budget = customBudgets.find(b => b.id === customBudgetId);
     return budget ? budget.name : 'Unknown Budget';
-  };
+  }, [customBudgets]);
 
   const sortedAndFilteredHistory = useMemo(() => {
     const transactionItems = transactions.map(t => ({ ...t, itemType: 'transaction' as const, sortDate: new Date(t.timestamp) }));
@@ -1584,12 +1584,6 @@ const App = () => {
 
     return combinedItems;
   }, [transactions, transferLog, searchTerm, filterCategory, filterTag, sortBy, currentMonth, currentYear, getCustomBudgetName]);
-
-  const getCustomBudgetCategorySpending = (customBudgetId: number, category: string) => {
-    return transactions
-      .filter(t => t.customBudgetId === customBudgetId && t.customCategory === category && t.amount < 0)
-      .reduce((sum, t) => sum + Math.abs(t.amount), 0);
-  };
 
    const getCustomBudgetCategories = (customBudgetId: number | null) => {
     const budget = customBudgets.find(b => b.id === customBudgetId);
@@ -1917,6 +1911,21 @@ const App = () => {
     }
     return [...staticTags, ...Array.from(dynamicTags).sort((a, b) => a.localeCompare(b))];
   }, [transactions]);
+
+  const customCategorySpending = useMemo(() => {
+    const spendingMap: { [budgetId: number]: { [category: string]: number } } = {};
+    transactions.forEach(t => {
+      if (t.budgetType === 'custom' && t.customBudgetId && t.customCategory && t.amount < 0) {
+        if (!spendingMap[t.customBudgetId]) {
+          spendingMap[t.customBudgetId] = {};
+        }
+        spendingMap[t.customBudgetId][t.customCategory] = 
+          (spendingMap[t.customBudgetId][t.customCategory] || 0) + Math.abs(t.amount);
+      }
+    });
+    return spendingMap;
+  }, [transactions]);
+
 
   // --- Enhanced Analytics Functions ---
 
@@ -3311,7 +3320,7 @@ const renderAnalyticsTab = () => {
                             <div className="space-y-3">
                               {budget.categories.map(category => {
                                 const categoryBudget = getCustomBudgetCategoryBudget(budget.id, category);
-                                const categorySpent = getCustomBudgetCategorySpending(budget.id, category);
+                                const categorySpent = customCategorySpending[budget.id]?.[category] || 0;
                                 const categoryRemaining = categoryBudget - categorySpent;
                                 const categoryPercentage = categoryBudget > 0 ? (categorySpent / categoryBudget) * 100 : 0;
                                 const categoryTransactions = transactions.filter(t => 
@@ -3696,9 +3705,9 @@ const renderAnalyticsTab = () => {
                   >
                     <option value="">Select source category</option>
                     {customBudgets.find(b => b.id === parseInt(transferForm.fromBudgetId))?.categories.map(cat => {
-                      const budget = customBudgets.find(b => b.id === parseInt(transferForm.fromBudgetId));
-                      const categoryBudget = budget?.categoryBudgets[cat] || 0;
-                      const categorySpent = getCustomBudgetCategorySpending(budget!.id, cat);
+                      const budget = customBudgets.find(b => b.id === parseInt(transferForm.fromBudgetId))!;
+                      const categoryBudget = budget.categoryBudgets[cat] || 0;
+                      const categorySpent = customCategorySpending[budget.id]?.[cat] || 0;
                       const available = categoryBudget - categorySpent;
                       return (
                         <option key={cat} value={cat} disabled={available <= 0}>
