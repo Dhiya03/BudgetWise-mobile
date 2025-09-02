@@ -982,7 +982,7 @@ const App = () => {
         if (newTransactions.length > 0) {
           const allNewTransactions = [...transactions, ...newTransactions];
           setTransactions(allNewTransactions);
-          recalculateCustomBudgetSpending(allNewTransactions);
+          recalculateCustomBudgetSpending(allNewTransactions, customBudgets);
           alert(`Successfully processed rollovers. Total amount transferred: ₹${totalRolledOver.toFixed(2)}`);
         } else {
           alert("No monthly surpluses to roll over at this time.");
@@ -2159,16 +2159,19 @@ const renderAnalyticsTab = () => {
               <p className="text-gray-600 mb-2">Set a password to lock your app.</p>
               <div className="flex space-x-2">
                 <input
-                  type="password"
+                  type="tel"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={4}
                   value={passwordInput}
                   onChange={(e) => setPasswordInput(e.target.value)}
-                  placeholder="Enter new password"
+                  placeholder="Enter 4-digit PIN"
                   className="flex-1 p-3 border border-gray-300 rounded-xl"
                 />
                 <button
                   onClick={() => {
-                    if (!passwordInput) {
-                      alert("Password cannot be empty.");
+                    if (!/^\d{4}$/.test(passwordInput)) {
+                      alert("Please enter a valid 4-digit PIN.");
                       return;
                     }
                     // Atomically set password and encrypt data
@@ -2286,7 +2289,10 @@ const renderAnalyticsTab = () => {
           <p className="text-gray-600 mb-6">App is locked. Please enter your password.</p>
           <div className="space-y-4">
             <input
-              type="password"
+              type="tel"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={4}
               value={passwordInput}
               onChange={(e) => setPasswordInput(e.target.value)}
               onKeyPress={(e) => {
@@ -2294,7 +2300,7 @@ const renderAnalyticsTab = () => {
                   handleUnlock();
                 }
               }}
-              placeholder="Password"
+              placeholder="Enter PIN"
               className="w-full p-3 border border-gray-300 rounded-xl text-center focus:ring-2 focus:ring-purple-500"
             />
             {unlockError && (
