@@ -61,14 +61,14 @@ This is the central form for logging all financial activities.
 
 ---
 
-## 📜 History Tab
+## 📜 History Tab / Activity Feed
 
-This tab allows users to review, search, and manage their past transactions.
+This tab allows users to review, search, and manage their past financial activities, including both transactions and fund transfers.
 
 -   **Sort by Dropdown**: Changes the order of the transaction list based on date, amount, or category name.
 -   **Search Input**: Filters the transaction list in real-time based on text in the description or category.
 -   **Filter Category Dropdown**: Narrows the list to show only transactions from a single, specific category.
--   **Transaction List Item**: Each entry in the list displays transaction details.
+-   **Transaction/Transfer List Item**: Each entry in the list displays details for a transaction or a fund transfer.
     -   **Edit Button (Pencil Icon)**: Loads the transaction's data into the 'Add' tab form for editing.
     -   **Delete Button (Trash Icon)**: Permanently removes the transaction from the records.
 
@@ -160,7 +160,6 @@ These are pop-up dialogs for specific actions.
 -   **From/To Budget Dropdowns**: Selects the source and destination custom budgets for the transfer.
 -   **Amount to Transfer Input**: Field to enter the amount of money to be moved.
 -   **Transfer Button**: Executes the fund transfer, creating corresponding transactions in the history.
--   **Transfer Button**: Executes the fund transfer, creating a record in the transfer history log.
 
 
 

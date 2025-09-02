@@ -1408,45 +1408,58 @@ const App = () => {
       return;
     }
 
-    // 2. Update Budgets
-    const updatedCustomBudgets = customBudgets.map(budget => {
-      // Update Source Budget
-      if (budget.id === fromBudgetIdNum) {
-        const newCategoryBudgets = {
-          ...budget.categoryBudgets,
-          [fromCategory]: (budget.categoryBudgets[fromCategory] || 0) - amount,
-        };
-        const newTotalAmount = budget.totalAmount - amount;
-        return {
-          ...budget,
-          totalAmount: newTotalAmount,
-          categoryBudgets: newCategoryBudgets,
-          updatedAt: new Date().toISOString(),
-        };
+    const now = new Date().toISOString();
+    const date = now.split('T')[0];
+
+    const baseId = Date.now();
+
+    // 2. Create corresponding transactions for the audit trail, as per the UI Guide.
+    // This is the correct way to handle transfers, as budget spending is calculated from transactions.
+    const expenseTransaction: Transaction = {
+      id: baseId,
+      category: '', // Required property for type Transaction
+      type: 'expense',
+      amount: -amount,
+      description: `Transfer to "${destinationBudget.name}" from category "${fromCategory}"`,
+      date: date,
+      budgetType: 'custom',
+      customBudgetId: fromBudgetIdNum,
+      customCategory: fromCategory,
+      tags: ['transfer'],
+      isRecurring: false,
+      recurringFrequency: null,
+      timestamp: now,
+    };
+
+    const incomeTransactions: Transaction[] = Object.entries(toCategoryAllocations).map(([category, allocationAmountStr], index): Transaction | null => {
+      const allocationAmount = parseFloat(allocationAmountStr);
+      if (isNaN(allocationAmount) || allocationAmount <= 0) {
+        return null;
       }
+      const transaction: Transaction = {
+        id: baseId + 1 + index,
+        category: '', // Required property for type Transaction
+        type: 'income',
+        amount: allocationAmount,
+        description: `Transfer from "${sourceBudget.name}" to category "${category}"`,
+        date: date,
+        budgetType: 'custom',
+        customBudgetId: toBudgetIdNum,
+        customCategory: category,
+        tags: ['transfer'],
+        isRecurring: false,
+        recurringFrequency: null,
+        timestamp: now,
+      };
+      return transaction;
+    }).filter((t): t is Transaction => t !== null);
 
-      // Update Destination Budget
-      if (budget.id === toBudgetIdNum) {
-        const newCategoryBudgets = { ...budget.categoryBudgets };
-        for (const category in toCategoryAllocations) {
-          newCategoryBudgets[category] = (newCategoryBudgets[category] || 0) + (parseFloat(toCategoryAllocations[category]) || 0);
-        }
-        const newTotalAmount = budget.totalAmount + amount;
-        return {
-          ...budget,
-          totalAmount: newTotalAmount,
-          categoryBudgets: newCategoryBudgets,
-          updatedAt: new Date().toISOString(),
-        };
-      }
+    const newTransactions: Transaction[] = [expenseTransaction, ...incomeTransactions];
 
-      return budget;
-    });
-
-    // 3. Create an audit log for the transfer
+    // 3. Create an audit log for the transfer (this is now supplemental to the transactions)
     const newTransferEvent: TransferEvent = {
-      id: Date.now(),
-      date: new Date().toISOString(),
+      id: baseId + 1 + incomeTransactions.length,
+      date: now,
       amount: amount,
       fromBudgetId: fromBudgetIdNum,
       fromCategory: fromCategory,
@@ -1459,10 +1472,12 @@ const App = () => {
 
     setTransferLog([...transferLog, newTransferEvent]);
 
-    // Recalculate remaining amounts based on new total amounts
-    recalculateCustomBudgetSpending(transactions, updatedCustomBudgets);
+    // Add new transactions and recalculate all budget spending
+    const allNewTransactions = [...transactions, ...newTransactions];
+    setTransactions(allNewTransactions);
+    recalculateCustomBudgetSpending(allNewTransactions, customBudgets);
 
-    // 3. Reset and close
+    // 4. Reset and close
     setShowTransferModal(false);
     setTransferForm({ fromBudgetId: '', toBudgetId: '', transferAmount: '', fromCategory: '', toCategoryAllocations: {} });
     alert('Fund transfer successful!');
