@@ -14,6 +14,7 @@ export interface Transaction {
   tags: string[];
   isRecurring: boolean;
   recurringFrequency: 'daily' | 'weekly' | 'monthly' | null;
+  lastProcessedDate?: string; // New field to track the last time a recurring transaction was generated
   timestamp: string; // ISO string
 }
 
@@ -98,4 +99,15 @@ export interface RelationshipFormData {
   sourceCategory: string;
   destinationBudgetId: string;
   condition: 'end_of_month_surplus';
+}
+
+// Describes a fund transfer event for the audit log
+export interface TransferEvent {
+  id: number;
+  date: string; // ISO string
+  amount: number;
+  fromBudgetId: number;
+  fromCategory: string;
+  toBudgetId: number;
+  toCategoryAllocations: { [key: string]: number };
 }

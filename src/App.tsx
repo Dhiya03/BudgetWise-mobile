@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Plus, TrendingUp, Settings, Download, Upload, Trash2, Edit3, List, PieChart, ArrowUpDown, BarChart3, TrendingDown, AlertCircle, FileText, Pause, Play, Save, Link2, ArrowRight, Repeat, FileSpreadsheet, FileJson, Bell, Unlock, X } from 'lucide-react';
 
 // Add these to your project:
@@ -18,6 +18,7 @@ import {
   TransactionFormData,
   CustomBudgetFormData,
   RelationshipFormData,
+  TransferEvent,
 } from './types';
 
 const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }: {
@@ -64,6 +65,7 @@ const App = () => {
   const [budgets, setBudgets] = useState<MonthlyBudgets>({});
   const [customBudgets, setCustomBudgets] = useState<CustomBudget[]>([]);
   const [categories, setCategories] = useState(['Food', 'Transport', 'Entertainment', 'Shopping', 'Bills', 'Health']);
+  const [transferLog, setTransferLog] = useState<TransferEvent[]>([]);
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [sortBy, setSortBy] = useState('date');
@@ -71,6 +73,9 @@ const App = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [editingCustomBudget, setEditingCustomBudget] = useState<CustomBudget | null>(null);
+  const [historyView, setHistoryView] = useState<'transactions' | 'transfers'>('transactions');
+  const [filterTag, setFilterTag] = useState('');
+  const [recurringProcessingMode, setRecurringProcessingMode] = useState<'automatic' | 'manual'>('automatic');
 
   // --- New State for Advanced Features ---
 
@@ -223,6 +228,8 @@ const App = () => {
                 setBudgetTemplates(appState.budgetTemplates || []);
                 setBudgetRelationships(appState.budgetRelationships || []);
                 setBillReminders(appState.billReminders || []);
+                setTransferLog(appState.transferLog || []);
+                setRecurringProcessingMode(appState.recurringProcessingMode || 'automatic');
                 return; // Exit after successful load
             }
         } catch (e) {
@@ -252,7 +259,7 @@ const App = () => {
       // Only save if the app is not locked to prevent saving empty initial state
       if (isLocked) return;
       
-      const appState = { transactions, budgets, customBudgets, categories, budgetTemplates, budgetRelationships, billReminders };
+      const appState = { transactions, budgets, customBudgets, categories, budgetTemplates, budgetRelationships, billReminders, transferLog, recurringProcessingMode };
       const jsonString = JSON.stringify(appState);
       const encryptedData = appPassword ? btoa(jsonString) : jsonString; // Simple Base64 "encryption"
       localStorage.setItem('budgetWiseData_v2', encryptedData);
@@ -267,9 +274,16 @@ const App = () => {
       const handler = setTimeout(() => {
         saveDataToStorage();
       }, 1000); // Save 1 second after the last change
-      return () => clearTimeout(handler);
+      return () => clearTimeout(handler); // Add this cleanup
     }
-  }, [transactions, budgets, customBudgets, categories, budgetTemplates, budgetRelationships, billReminders]);
+  }, [transactions, budgets, customBudgets, categories, budgetTemplates, budgetRelationships, billReminders, transferLog, recurringProcessingMode]);
+
+  // Automatically process recurring transactions if in automatic mode and app is unlocked
+  useEffect(() => {
+    if (!isLocked && recurringProcessingMode === 'automatic') {
+      processRecurringTransactions(true);
+    }
+  }, [isLocked, recurringProcessingMode]);
 
   const handleUnlock = () => {
     if (passwordInput === appPassword) {
@@ -288,6 +302,7 @@ const App = () => {
           setBudgetTemplates(appState.budgetTemplates || []);
           setBudgetRelationships(appState.budgetRelationships || []);
           setBillReminders(appState.billReminders || []);
+          setTransferLog(appState.transferLog || []);
           
           // Successfully unlocked and loaded
           setIsLocked(false);
@@ -473,7 +488,7 @@ const App = () => {
     const newTransactions = [...transactions, transaction];
     setTransactions(newTransactions);
 
-    recalculateCustomBudgetSpending(newTransactions);
+    recalculateCustomBudgetSpending(newTransactions, customBudgets);
     setFormData({
       category: '',
       amount: '',
@@ -523,7 +538,7 @@ const App = () => {
     });
     setTransactions(updatedTransactions);
     setEditingTransaction(null);
-    recalculateCustomBudgetSpending(updatedTransactions); };
+    recalculateCustomBudgetSpending(updatedTransactions, customBudgets); };
 
   const deleteTransaction = (id: number) => {
     showConfirmation(
@@ -535,7 +550,7 @@ const App = () => {
 
         const newTransactions = transactions.filter((t) => t.id !== id);
         setTransactions(newTransactions);
-        recalculateCustomBudgetSpending(newTransactions);
+        recalculateCustomBudgetSpending(newTransactions, customBudgets);
       }
     );
   };
@@ -737,6 +752,9 @@ const App = () => {
       );
       setCustomBudgets(updatedCustomBudgets);
 
+      // Also update the form to select the new category
+      setFormData({ ...formData, customCategory: newCustomCategory });
+
       setNewCustomCategory('');
       setShowCustomCategoryInput(false);
       setSelectedCustomBudgetForCategory(null);
@@ -806,11 +824,16 @@ const App = () => {
 
       const remaining = budget.totalAmount - spent + income;
 
+      const newStatus = budget.status === 'paused' || budget.status === 'archived'
+        ? budget.status
+        : spent >= budget.totalAmount ? 'completed' : 'active';
+
       return {
         ...budget,
         spentAmount: spent,
         remainingAmount: remaining,
-        status: spent >= budget.totalAmount ? 'completed' : 'active' as 'active' | 'completed' | 'archived' | 'paused',
+        // Use the new logic to preserve paused/archived states
+        status: newStatus,
         updatedAt: new Date().toISOString(),
       };
     });
@@ -1418,6 +1441,22 @@ const App = () => {
       return budget;
     });
 
+    // 3. Create an audit log for the transfer
+    const newTransferEvent: TransferEvent = {
+      id: Date.now(),
+      date: new Date().toISOString(),
+      amount: amount,
+      fromBudgetId: fromBudgetIdNum,
+      fromCategory: fromCategory,
+      toBudgetId: toBudgetIdNum,
+      toCategoryAllocations: Object.entries(toCategoryAllocations).reduce((acc, [key, value]) => {
+        acc[key] = parseFloat(value) || 0;
+        return acc;
+      }, {} as { [key: string]: number }),
+    };
+
+    setTransferLog([...transferLog, newTransferEvent]);
+
     // Recalculate remaining amounts based on new total amounts
     recalculateCustomBudgetSpending(transactions, updatedCustomBudgets);
 
@@ -1454,7 +1493,7 @@ const App = () => {
   };
 
   const backupData = () => {
-    const stateToBackup = { transactions, budgets, customBudgets, categories, budgetTemplates, budgetRelationships, billReminders };
+    const stateToBackup = { transactions, budgets, customBudgets, categories, budgetTemplates, budgetRelationships, billReminders, transferLog, recurringProcessingMode };
     const dataStr = JSON.stringify(stateToBackup, null, 2);
     const blob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -1494,6 +1533,8 @@ const App = () => {
             setBudgetTemplates(restoredState.budgetTemplates || []);
             setBudgetRelationships(restoredState.budgetRelationships || []);
             setBillReminders(restoredState.billReminders || []);
+            setTransferLog(restoredState.transferLog || []);
+            setRecurringProcessingMode(restoredState.recurringProcessingMode || 'automatic');
             alert('Data restored successfully!');
           } catch (error) {
             console.error("Failed to restore data:", error);
@@ -1542,11 +1583,23 @@ const App = () => {
       }));
       const customBudgetSheet = XLSX.utils.json_to_sheet(customBudgetsData);
 
+      // 4. Fund Transfers Sheet
+      const transferLogData = transferLog.map(t => ({
+        Date: new Date(t.date).toLocaleString(),
+        Amount: t.amount,
+        'From Budget': getCustomBudgetName(t.fromBudgetId),
+        'From Category': t.fromCategory,
+        'To Budget': getCustomBudgetName(t.toBudgetId),
+        'To Category Allocations': JSON.stringify(t.toCategoryAllocations),
+      }));
+      const transferLogSheet = XLSX.utils.json_to_sheet(transferLogData);
+
       // Create workbook and add sheets
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, transactionSheet, 'Transactions');
       XLSX.utils.book_append_sheet(wb, monthlyBudgetSheet, 'Monthly Budgets');
       XLSX.utils.book_append_sheet(wb, customBudgetSheet, 'Custom Budgets');
+      XLSX.utils.book_append_sheet(wb, transferLogSheet, 'Fund Transfers');
 
       // Download the file
       XLSX.writeFile(wb, `BudgetWise_Export_${new Date().toISOString().split('T')[0]}.xlsx`);
@@ -1557,16 +1610,16 @@ const App = () => {
     }
   };
 
-  const processRecurringTransactions = () => {
+  const processRecurringTransactions = (isSilent = false) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const newTransactions: Transaction[] = [];
     let processedCount = 0;
 
     const updatedOriginals = transactions.map(t => {
-      if (t.isRecurring) {
-        let lastDate = new Date(t.date);
-        let nextDate = new Date(lastDate);
+      if (t.isRecurring && t.recurringFrequency) {
+        let lastProcessed = t.lastProcessedDate ? new Date(t.lastProcessedDate) : new Date(t.date);
+        let nextDate = new Date(lastProcessed);
 
         while (true) {
           if (t.recurringFrequency === 'daily') nextDate.setDate(nextDate.getDate() + 1);
@@ -1579,27 +1632,29 @@ const App = () => {
               ...t,
               id: Date.now() + newTransactions.length,
               date: nextDate.toISOString().split('T')[0],
-              isRecurring: false, // The generated transaction is not recurring itself
+              isRecurring: false,
               recurringFrequency: null,
+              lastProcessedDate: undefined,
+              tags: [...(t.tags || []), 'recurring'],
               description: `${t.description} (Recurring)`
             });
-            lastDate = new Date(nextDate);
+            lastProcessed = new Date(nextDate);
             processedCount++;
           } else {
             break;
           }
         }
-        // Update the original recurring transaction's date to the last processed date
-        return { ...t, date: lastDate.toISOString().split('T')[0] };
+        // Update the original recurring transaction's last processed date, preserving the original start date
+        return { ...t, lastProcessedDate: lastProcessed.toISOString().split('T')[0] };
       }
       return t;
     });
 
     if (newTransactions.length > 0) {
       setTransactions([...updatedOriginals, ...newTransactions]);
-      alert(`${processedCount} recurring transaction(s) have been created.`);
-    } else {
-      alert("No recurring transactions are due.");
+      if (!isSilent) alert(`${processedCount} recurring transaction(s) have been created.`);
+    } else if (!isSilent) {
+      alert("No new recurring transactions are due.");
     }
   };
 
@@ -1653,7 +1708,8 @@ const App = () => {
       budgets: exportType !== 'custom' ? budgets : {},
       customBudgets: exportType !== 'monthly' ? filteredCustomBudgets : [],
       categories: exportType !== 'custom' ? categories : [],
-    };
+      recurringProcessingMode };
+    // Note: transferLog is not included in this export type. A separate export could be added.
 
     let content, filename, type;
 
@@ -1732,6 +1788,28 @@ const App = () => {
         return searchableText.includes(searchTerm.toLowerCase()) ||
                (t.description && t.description.toLowerCase().includes(searchTerm.toLowerCase()));
       });
+    }
+
+    // Add new tag filtering logic
+    if (filterTag) {
+      switch (filterTag) {
+        case 'Monthly':
+          filtered = filtered.filter(t => t.budgetType === 'monthly' || !t.budgetType);
+          break;
+        case 'Custom':
+          filtered = filtered.filter(t => t.budgetType === 'custom');
+          break;
+        case 'Transfer':
+          filtered = filtered.filter(t => t.budgetType === 'transfer');
+          break;
+        case 'Recurring':
+          filtered = filtered.filter(t => t.tags?.includes('recurring'));
+          break;
+        default:
+          // Filter by user-defined tags
+          filtered = filtered.filter(t => t.tags && t.tags.includes(filterTag));
+          break;
+      }
     }
 
     return filtered.sort((a, b) => {
@@ -1854,6 +1932,16 @@ const App = () => {
   const stats = getMonthlyStats(currentYear, currentMonth);
 
   const sortedAndFilteredTransactions = getSortedAndFilteredTransactions();
+
+  // --- Memoized calculations ---
+  const allTags = useMemo(() => {
+    const staticTags = ['Monthly', 'Custom', 'Transfer', 'Recurring'];
+    const dynamicTags = new Set<string>();
+    transactions.forEach(t => {
+      t.tags?.forEach(tag => dynamicTags.add(tag));
+    });
+    return [...staticTags, ...Array.from(dynamicTags).sort()];
+  }, [transactions]);
 
   // --- Enhanced Analytics Functions ---
 
@@ -2137,8 +2225,8 @@ const renderAnalyticsTab = () => {
                   'Confirm Password Removal',
                   'Are you sure you want to remove the password?',
                   () => {
-                    // Atomically remove password and un-encrypt data
-                    const appState = { transactions, budgets, customBudgets, categories, budgetTemplates, budgetRelationships, billReminders };
+                    // Atomically remove password and un-encrypt data, preserving all state
+                    const appState = { transactions, budgets, customBudgets, categories, budgetTemplates, budgetRelationships, billReminders, transferLog, recurringProcessingMode };
                     const jsonString = JSON.stringify(appState);
 
                     localStorage.removeItem('appPassword_v2');
@@ -2175,7 +2263,7 @@ const renderAnalyticsTab = () => {
                       return;
                     }
                     // Atomically set password and encrypt data
-                    const appState = { transactions, budgets, customBudgets, categories, budgetTemplates, budgetRelationships, billReminders };
+                    const appState = { transactions, budgets, customBudgets, categories, budgetTemplates, budgetRelationships, billReminders, transferLog, recurringProcessingMode };
                     const jsonString = JSON.stringify(appState);
                     const encryptedData = btoa(jsonString);
 
@@ -2240,13 +2328,31 @@ const renderAnalyticsTab = () => {
         {/* Recurring Transactions */}
         <div className="bg-white rounded-2xl p-6 shadow-lg">
           <h2 className="text-xl font-bold text-gray-800 mb-4">Recurring Transactions</h2>
-          <button
-            onClick={processRecurringTransactions}
-            className="w-full p-3 bg-teal-100 text-teal-800 rounded-xl font-semibold hover:bg-teal-200 flex items-center justify-center"
-          >
-            <Repeat size={18} className="mr-2" />
-            Process Recurring Transactions
-          </button>
+          <p className="text-sm text-gray-600 mb-3">Choose how recurring transactions are processed.</p>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => setRecurringProcessingMode('automatic')}
+              className={`p-3 rounded-xl font-medium transition-colors ${
+                recurringProcessingMode === 'automatic' ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700'
+              }`}
+            >
+              Automatic
+            </button>
+            <button
+              onClick={() => setRecurringProcessingMode('manual')}
+              className={`p-3 rounded-xl font-medium transition-colors ${
+                recurringProcessingMode === 'manual' ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700'
+              }`}
+            >
+              Manual
+            </button>
+          </div>
+          {recurringProcessingMode === 'manual' && (
+            <button onClick={() => processRecurringTransactions(false)} className="w-full mt-4 p-3 bg-teal-100 text-teal-800 rounded-xl font-semibold hover:bg-teal-200 flex items-center justify-center">
+              <Repeat size={18} className="mr-2" />
+              Process Recurring Transactions
+            </button>
+          )}
         </div>
 
         {/* Bill Reminders */}
@@ -2720,6 +2826,25 @@ const renderAnalyticsTab = () => {
                 </div>
               </div>
 
+              <div className="flex justify-center space-x-2 mb-4 border-b pb-4">
+                <button
+                  onClick={() => setHistoryView('transactions')}
+                  className={`px-4 py-2 rounded-full text-sm font-medium ${
+                    historyView === 'transactions' ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700'
+                  }`}
+                >
+                  Spending
+                </button>
+                <button
+                  onClick={() => setHistoryView('transfers')}
+                  className={`px-4 py-2 rounded-full text-sm font-medium ${
+                    historyView === 'transfers' ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700'
+                  }`}
+                >
+                  Transfers
+                </button>
+              </div>
+
               <div className="space-y-2 mb-4">
                 <input
                   type="text"
@@ -2750,10 +2875,22 @@ const renderAnalyticsTab = () => {
                     ).flat()}
                   </optgroup>
                 </select>
+
+                <select
+                  value={filterTag}
+                  onChange={(e) => setFilterTag(e.target.value)}
+                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
+                >
+                  <option value="">Filter by Tag</option>
+                  {allTags.map(tag => (
+                    <option key={tag} value={tag}>{tag}</option>
+                  ))}
+                </select>
               </div>
 
-              <div className="space-y-3 max-h-96 overflow-y-auto">
-                {sortedAndFilteredTransactions.length === 0 ? (
+              {historyView === 'transactions' && (
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {sortedAndFilteredTransactions.length === 0 ? (
                   <div className="text-center py-8 text-gray-500">
                     <p>No transactions found</p>
                   </div>
@@ -2764,20 +2901,25 @@ const renderAnalyticsTab = () => {
                         <div className="flex justify-between items-start">
                           <div>
                             <div className="flex items-center space-x-2">
-                              <p className="font-semibold text-gray-800">
+                              <p className="font-semibold text-gray-800 truncate" title={transaction.budgetType === 'custom' && transaction.customBudgetId ? `${getCustomBudgetName(transaction.customBudgetId)} - ${transaction.customCategory || 'Uncategorized'}` : transaction.category || 'Uncategorized'}>
                                 {transaction.budgetType === 'custom' && transaction.customBudgetId
                                   ? `${getCustomBudgetName(transaction.customBudgetId)} - ${transaction.customCategory || 'Uncategorized'}`
                                   : transaction.category || 'Uncategorized'
                                
                                 }
                               </p>
-                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              <span className={`flex-shrink-0 px-2 py-1 rounded-full text-xs font-medium ${
                                 transaction.budgetType === 'custom' 
                                   ? 'bg-purple-100 text-purple-800' 
                                   : 'bg-blue-100 text-blue-800'
                               }`}>
                                 {transaction.budgetType === 'custom' ? 'Custom' : 'Monthly'}
                               </span>
+                              {transaction.tags?.includes('recurring') && (
+                                <span className="flex-shrink-0 px-2 py-1 rounded-full text-xs font-medium bg-teal-100 text-teal-800">
+                                  Recurring
+                                </span>
+                              )}
                             </div>
                             {transaction.description && (
                               <p className="text-sm text-gray-600">{transaction.description}</p>
@@ -2808,7 +2950,43 @@ const renderAnalyticsTab = () => {
                     </div>
                   ))
                 )}
-              </div>
+                </div>
+              )}
+
+              {historyView === 'transfers' && (
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {transferLog.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <p>No fund transfers recorded</p>
+                    </div>
+                  ) : (
+                    [...transferLog].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(transfer => (
+                      <div key={transfer.id} className="bg-gray-50 rounded-xl p-4">
+                        <div className="flex justify-between items-center">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center space-x-2 mb-1">
+                              <p className="font-semibold text-gray-800 truncate" title={`From: ${getCustomBudgetName(transfer.fromBudgetId)} (${transfer.fromCategory})`}>
+                                From: {getCustomBudgetName(transfer.fromBudgetId)} ({transfer.fromCategory})
+                              </p>
+                              <span className="flex-shrink-0 px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                Custom
+                              </span>
+                              <span className="flex-shrink-0 px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                                Transfer
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-600">
+                              To: {getCustomBudgetName(transfer.toBudgetId)}
+                            </p>
+                            <p className="text-xs text-gray-500">{new Date(transfer.date).toLocaleString()}</p>
+                          </div>
+                          <p className="font-bold text-indigo-600 ml-4">₹{transfer.amount.toFixed(2)}</p>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}

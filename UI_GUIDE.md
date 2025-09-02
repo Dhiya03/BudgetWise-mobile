@@ -138,7 +138,8 @@ This section contains app-level configurations and data management tools.
 -   **Generate HTML Report Button**: Creates and downloads a highly detailed, styled report in HTML format.
 
 ### Recurring Transactions Section
--   **Process Recurring Transactions Button**: Manually triggers the app to check for and create any due recurring transactions.
+-   **Automatic / Manual Buttons**: Allows the user to choose how recurring transactions are processed. 'Automatic' processes them on app launch, while 'Manual' requires the user to press a button.
+-   **Process Recurring Transactions Button**: Appears only in 'Manual' mode; triggers the app to check for and create any due recurring transactions.
 
 ### Bill Reminders Section
 -   **Input Fields & Add Reminder Button**: Allows users to set reminders for upcoming bills, which are displayed in a list.
