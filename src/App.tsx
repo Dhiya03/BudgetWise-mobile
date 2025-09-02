@@ -73,7 +73,6 @@ const App = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [editingCustomBudget, setEditingCustomBudget] = useState<CustomBudget | null>(null);
-  const [historyView, setHistoryView] = useState<'transactions' | 'transfers'>('transactions');
   const [filterTag, setFilterTag] = useState('');
   const [recurringProcessingMode, setRecurringProcessingMode] = useState<'automatic' | 'manual'>('automatic');
 
@@ -1484,10 +1483,92 @@ const App = () => {
     return budget ? budget.name : 'Unknown Budget';
   };
 
-  const getCustomBudgetCategories = (customBudgetId: number | null) => {
-    const budget = customBudgets.find(b => b.id === customBudgetId);
-    return budget ? budget.categories : [];
-  };
+  const sortedAndFilteredHistory = useMemo(() => {
+    const transactionItems = transactions.map(t => ({ ...t, itemType: 'transaction' as const, sortDate: new Date(t.timestamp) }));
+    const transferItems = transferLog.map(t => ({ ...t, itemType: 'transfer' as const, sortDate: new Date(t.date) }));
+
+ let combinedItems: (Transaction & { itemType: 'transaction', sortDate: Date } | TransferEvent & { itemType: 'transfer', sortDate: Date })[] = [...transactionItems, ...transferItems]
+      .filter(item => {
+        const itemDate = item.sortDate;
+        return itemDate.getFullYear() === currentYear && itemDate.getMonth() === currentMonth;
+      });
+
+    // Apply search term filter
+    if (searchTerm) {
+      combinedItems = combinedItems.filter(item => {
+        if (item.itemType === 'transaction') {
+        const t = item;
+          const searchableText = t.budgetType === 'custom' && t.customBudgetId
+           ? `${getCustomBudgetName(t.customBudgetId) || ''} ${t.customCategory || ''}`.toLowerCase()
+            : t.category.toLowerCase();
+          
+          return searchableText.includes(searchTerm.toLowerCase()) ||
+                 (t.description && t.description.toLowerCase().includes(searchTerm.toLowerCase()));
+        }
+        if (item.itemType === 'transfer') {
+          const fromName = getCustomBudgetName(item.fromBudgetId) || '';
+          const toName = getCustomBudgetName(item.toBudgetId) || '';
+          const searchableText = `transfer ${fromName} ${toName}`.toLowerCase();
+          return searchableText.includes(searchTerm.toLowerCase());
+        }
+        return false;
+      });
+    }
+
+    // Apply category filter (only to transactions)
+    if (filterCategory) {
+      if (filterCategory.startsWith('custom-')) {
+        const parts = filterCategory.replace('custom-', '').split('-');
+         const customBudgetId = parseInt(parts[0], 10);
+        const category = parts.length > 1 ? parts.slice(1).join('-') : null; // Handle categories with hyphens
+        combinedItems = combinedItems.filter(item =>
+          item.itemType === 'transaction' &&
+          item.customBudgetId === customBudgetId &&
+          (category ? item.customCategory === category : true));
+        }else {
+        combinedItems = combinedItems.filter(item => item.itemType === 'transaction' && item.category === filterCategory && item.budgetType !== 'custom');
+      }
+    }
+
+    // Apply tag filter
+    if (filterTag) {
+      combinedItems = combinedItems.filter(item => {
+        if (item.itemType === 'transaction') {
+          if (filterTag === 'Monthly') return item.budgetType === 'monthly' || !item.budgetType;
+          if (filterTag === 'Custom') return item.budgetType === 'custom';
+          if (filterTag === 'Recurring') return item.tags?.includes('recurring');
+          if (filterTag === 'Transfer') return false;
+          return item.tags?.includes(filterTag);
+        }
+        if (item.itemType === 'transfer') return filterTag === 'Transfer';
+        return false;
+      });
+    }
+
+    // Apply sorting
+    combinedItems.sort((a, b) => {
+      switch (sortBy) {
+        case 'amount':
+          const aAmount = a.itemType === 'transaction' ? Math.abs(a.amount) : a.itemType === 'transfer' ? a.amount : 0;
+          const bAmount = b.itemType === 'transaction' ? Math.abs(b.amount) : b.itemType === 'transfer' ? b.amount : 0;
+          if (bAmount !== aAmount) return bAmount - aAmount;
+          break;
+        case 'category':
+          const aName = a.itemType === 'transaction' ? (a.budgetType === 'custom' ? `${getCustomBudgetName(a.customBudgetId) || 'N/A'} - ${a.customCategory || 'Uncategorized'}` : a.category) : 'Fund Transfer';
+          const bName = b.itemType === 'transaction' ? (b.budgetType === 'custom' ? `${getCustomBudgetName(b.customBudgetId) || 'N/A'} - ${b.customCategory || 'Uncategorized'}` : b.category) : 'Fund Transfer';
+          if (aName.localeCompare(bName) !== 0) return aName.localeCompare(bName);
+          break;
+        case 'date':
+        default:
+          // Fall through to default date sort
+          break;
+      }
+      // Default/fallback sort by date descending
+      return b.sortDate.getTime() - a.sortDate.getTime();
+    });
+
+    return combinedItems;
+  }, [transactions, transferLog, searchTerm, filterCategory, filterTag, sortBy, currentMonth, currentYear, getCustomBudgetName]);
 
   const getCustomBudgetCategorySpending = (customBudgetId: number, category: string) => {
     return transactions
@@ -1495,6 +1576,10 @@ const App = () => {
       .reduce((sum, t) => sum + Math.abs(t.amount), 0);
   };
 
+   const getCustomBudgetCategories = (customBudgetId: number | null) => {
+    const budget = customBudgets.find(b => b.id === customBudgetId);
+    return budget ? budget.categories : [];
+  };
   const backupData = () => {
     const stateToBackup = { transactions, budgets, customBudgets, categories, budgetTemplates, budgetRelationships, billReminders, transferLog, recurringProcessingMode };
     const dataStr = JSON.stringify(stateToBackup, null, 2);
@@ -1555,15 +1640,20 @@ const App = () => {
   const exportToExcel = () => {
     try {
       // 1. Transactions Sheet
-      const transactionData = getSortedAndFilteredTransactions().map(t => ({
-        Date: t.date,
-        Type: t.type,
-        'Budget Type': t.budgetType,
-        Category: t.budgetType === 'monthly' ? t.category : `${getCustomBudgetName(t.customBudgetId) || 'N/A'} - ${t.customCategory}`,
-        Amount: t.amount,
-        Description: t.description,
-        Tags: t.tags?.join(', ') || '',
-      }));
+      const transactionData = sortedAndFilteredHistory
+        .filter(item => item.itemType === 'transaction')
+        .map(item => {
+          const t = item as Transaction; // Cast to Transaction type
+          return {
+            Date: t.date,
+            Type: t.type,
+            'Budget Type': t.budgetType,
+            Category: t.budgetType === 'monthly' ? t.category : `${getCustomBudgetName(t.customBudgetId) || 'N/A'} - ${t.customCategory}`,
+            Amount: t.amount,
+            Description: t.description,
+            Tags: t.tags?.join(', ') || '',
+          };
+        });
       const transactionSheet = XLSX.utils.json_to_sheet(transactionData);
 
       // 2. Monthly Budgets Sheet
@@ -1696,81 +1786,6 @@ const App = () => {
     const spent = getSpentAmount(category, year, month);
     return budget - spent;
   };
-  const getSortedAndFilteredTransactions = () => {
-    let filtered = transactions.filter(t => {
-      const transactionDate = new Date(t.date);
-      return transactionDate.getFullYear() === currentYear && transactionDate.getMonth() === currentMonth;
-    });
-
-    if (filterCategory) {
-      if (filterCategory.startsWith('custom-')) {
-        const parts = filterCategory.replace('custom-', '').split('-');
-        if (parts.length >= 2) {
-          // Format: custom-budgetId-category
-          const customBudgetId = parseInt(parts[0]);
-          const category = parts.slice(1).join('-'); // Handle categories with hyphens
-          filtered = filtered.filter(t => t.customBudgetId === customBudgetId && t.customCategory === category);
-        } else {
-          // Format: custom-budgetId (legacy support)
-          const customBudgetId = parseInt(parts[0]);
-          filtered = filtered.filter(t => t.customBudgetId === customBudgetId);
-        }
-      } else {
-        filtered = filtered.filter(t => t.category === filterCategory && t.budgetType !== 'custom');
-      }
-    }
-
-    if (searchTerm) {
-      filtered = filtered.filter(t => {
-        const searchableText = t.budgetType === 'custom' && t.customBudgetId
-         ? `${getCustomBudgetName(t.customBudgetId) || ''} ${t.customCategory || ''}`.toLowerCase()
-          : t.category.toLowerCase();
-        
-        return searchableText.includes(searchTerm.toLowerCase()) ||
-               (t.description && t.description.toLowerCase().includes(searchTerm.toLowerCase()));
-      });
-    }
-
-    // Add new tag filtering logic
-    if (filterTag) {
-      switch (filterTag) {
-        case 'Monthly':
-          filtered = filtered.filter(t => t.budgetType === 'monthly' || !t.budgetType);
-          break;
-        case 'Custom':
-          filtered = filtered.filter(t => t.budgetType === 'custom');
-          break;
-        case 'Transfer':
-          filtered = filtered.filter(t => t.budgetType === 'transfer');
-          break;
-        case 'Recurring':
-          filtered = filtered.filter(t => t.tags?.includes('recurring'));
-          break;
-        default:
-          // Filter by user-defined tags
-          filtered = filtered.filter(t => t.tags && t.tags.includes(filterTag));
-          break;
-      }
-    }
-
-    return filtered.sort((a, b) => {
-      switch (sortBy) {
-        case 'amount':
-          return Math.abs(b.amount) - Math.abs(a.amount);
-        case 'category':
-          const aName = a.budgetType === 'custom'
-            ? `${getCustomBudgetName(a.customBudgetId) || 'N/A'} - ${a.customCategory || 'Uncategorized'}`
-            : a.category;
-          const bName = b.budgetType === 'custom'
-            ? `${getCustomBudgetName(b.customBudgetId) || 'N/A'} - ${b.customCategory || 'Uncategorized'}`
-            : b.category;
-          return aName.localeCompare(bName);
-        case 'date':
-        default:
-          return new Date(b.date).getTime() - new Date(a.date).getTime();
-      }
-    });
-  };
 
   const getMonthlyStats = (year: number, month: number) => {
     const monthlyTransactions = transactions.filter(t => {
@@ -1845,12 +1860,15 @@ const App = () => {
       });
 
       // Recent Transactions Table
-      const transactionData = getSortedAndFilteredTransactions().slice(0, 20).map((t: Transaction) => [
-        t.date,
-        t.description,
-        t.budgetType === 'custom' && t.customBudgetId ? getCustomBudgetName(t.customBudgetId) : t.category,
-        t.amount.toFixed(2),
-      ]);
+      const transactionData = sortedAndFilteredHistory
+        .filter(item => item.itemType === 'transaction')
+        .slice(0, 20)
+        .map((item) => {
+          const t = item as Transaction;
+          return [
+            t.date, t.description, t.budgetType === 'custom' && t.customBudgetId ? `${getCustomBudgetName(t.customBudgetId)} - ${t.customCategory}` : t.category, t.amount.toFixed(2)
+          ];
+        });
 
       (doc as any).autoTable({
         startY: (doc as any).lastAutoTable.finalY + 15,
@@ -1870,9 +1888,6 @@ const App = () => {
     }
   };
 
-  const stats = getMonthlyStats(currentYear, currentMonth);
-
-  const sortedAndFilteredTransactions = getSortedAndFilteredTransactions();
 
   // --- Memoized calculations ---
   const allTags = useMemo(() => {
@@ -1881,7 +1896,11 @@ const App = () => {
     transactions.forEach(t => {
       t.tags?.forEach(tag => dynamicTags.add(tag));
     });
-    return [...staticTags, ...Array.from(dynamicTags).sort()];
+    // If there are transfers, ensure the 'Transfer' tag is available for filtering
+    if (transferLog.length > 0 && !staticTags.includes('Transfer')) {
+      staticTags.push('Transfer');
+    }
+    return [...staticTags, ...Array.from(dynamicTags).sort((a, b) => a.localeCompare(b))];
   }, [transactions]);
 
   // --- Enhanced Analytics Functions ---
@@ -2328,6 +2347,8 @@ const renderAnalyticsTab = () => {
     );
   };
 
+  const stats = getMonthlyStats(currentYear, currentMonth);
+
   return (
     isLocked ? (
       <div className="max-w-md mx-auto bg-gradient-to-br from-purple-50 to-blue-50 min-h-screen flex items-center justify-center p-4">
@@ -2767,25 +2788,6 @@ const renderAnalyticsTab = () => {
                 </div>
               </div>
 
-              <div className="flex justify-center space-x-2 mb-4 border-b pb-4">
-                <button
-                  onClick={() => setHistoryView('transactions')}
-                  className={`px-4 py-2 rounded-full text-sm font-medium ${
-                    historyView === 'transactions' ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700'
-                  }`}
-                >
-                  Spending
-                </button>
-                <button
-                  onClick={() => setHistoryView('transfers')}
-                  className={`px-4 py-2 rounded-full text-sm font-medium ${
-                    historyView === 'transfers' ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700'
-                  }`}
-                >
-                  Transfers
-                </button>
-              </div>
-
               <div className="space-y-2 mb-4">
                 <input
                   type="text"
@@ -2829,106 +2831,74 @@ const renderAnalyticsTab = () => {
                 </select>
               </div>
 
-              {historyView === 'transactions' && (
-                <div className="space-y-3 max-h-96 overflow-y-auto">
-                  {sortedAndFilteredTransactions.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <p>No transactions found</p>
-                  </div>
-                ) : (
-                  sortedAndFilteredTransactions.map(transaction => (
-                    <div key={transaction.id} className="bg-gray-50 rounded-xl p-4 flex justify-between items-start gap-4">
-                      {/* Left side: All text content. This will grow and shrink. */}
-                      <div className="flex-1 min-w-0">
-                        {/* Top line: Category/Budget name and tags */}
-                        <div className="flex items-center space-x-2 mb-1">
-                          <p className="font-semibold text-gray-800 truncate" title={transaction.budgetType === 'custom' && transaction.customBudgetId ? `${getCustomBudgetName(transaction.customBudgetId)} - ${transaction.customCategory || 'Uncategorized'}` : transaction.category || 'Uncategorized'}>
-                            {transaction.budgetType === 'custom' && transaction.customBudgetId
-                              ? `${getCustomBudgetName(transaction.customBudgetId)} - ${transaction.customCategory || 'Uncategorized'}`
-                              : transaction.category || 'Uncategorized'}
-                          </p>
-                          <span className={`flex-shrink-0 px-2 py-1 rounded-full text-xs font-medium ${transaction.budgetType === 'custom' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}`}>
-                            {transaction.budgetType === 'custom' ? 'Custom' : 'Monthly'}
-                          </span>
-                          {transaction.tags?.includes('recurring') && (
-                            <span className="flex-shrink-0 px-2 py-1 rounded-full text-xs font-medium bg-teal-100 text-teal-800">
-                              Recurring
-                            </span>
-                          )}
-                        </div>
-                        {/* Middle line: Description */}
-                        {transaction.description && (
-                          <p className="text-sm text-gray-600 truncate">{transaction.description}</p>
-                        )}
-                        {/* Bottom line: Date and Amount */}
-                        <div className="flex justify-between items-center mt-2">
-                          <p className="text-xs text-gray-500">{transaction.date}</p>
-                          <p className={`font-bold text-sm ${transaction.amount < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                            {transaction.amount < 0 ? '-' : '+'}₹{Math.abs(transaction.amount).toFixed(2)}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Right side: Action buttons. This will not shrink. */}
-                      <div className="flex-shrink-0 flex space-x-1">
-                        <button
-                          onClick={() => editTransaction(transaction)}
-                          className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg"
-                          title="Edit Transaction"
-                        >
-                          <Edit3 size={16} />
-                        </button>
-                        <button
-                          onClick={() => deleteTransaction(transaction.id)}
-                          className="p-2 text-red-600 hover:bg-red-100 rounded-lg"
-                          title="Delete Transaction"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
+               <div className="space-y-3 max-h-96 overflow-y-auto" style={{ paddingRight: '8px' }}>
+                {sortedAndFilteredHistory.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <p>No transactions found</p>
                 </div>
-              )}
-
-              {historyView === 'transfers' && (
-                <div className="space-y-3 max-h-96 overflow-y-auto">
-                  {transferLog.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500">
-                      <p>No fund transfers recorded</p>
-                    </div>
-                  ) : (
-                    [...transferLog].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(transfer => (
-                      <div key={transfer.id} className="bg-gray-50 rounded-xl p-4">
-                        {/* Top line: Tags and Amount */}
-                        <div className="flex justify-between items-start mb-2">
-                          <div className="flex items-center space-x-2">
-                            <span className="flex-shrink-0 px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                              Custom
+              ) : (
+                sortedAndFilteredHistory.map(item => {
+                  if (item.itemType === 'transaction') {
+                    const transaction = item as Transaction;
+                    return (
+                      <div key={`txn-${transaction.id}`} className="bg-gray-50 rounded-xl p-4 flex justify-between items-start gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center space-x-2 mb-1">
+                            <p className="font-semibold text-gray-800 truncate" title={transaction.budgetType === 'custom' && transaction.customBudgetId ? `${getCustomBudgetName(transaction.customBudgetId)} - ${transaction.customCategory || 'Uncategorized'}` : transaction.category || 'Uncategorized'}>
+                              {transaction.budgetType === 'custom' && transaction.customBudgetId
+                                ? `${getCustomBudgetName(transaction.customBudgetId)} - ${transaction.customCategory || 'Uncategorized'}`
+                                : transaction.category || 'Uncategorized'}
+                            </p>
+                            <span className={`flex-shrink-0 px-2 py-1 rounded-full text-xs font-medium ${transaction.budgetType === 'custom' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}`}>
+                              {transaction.budgetType === 'custom' ? 'Custom' : 'Monthly'}
                             </span>
+                            {transaction.tags?.includes('recurring') && (
+                              <span className="flex-shrink-0 px-2 py-1 rounded-full text-xs font-medium bg-teal-100 text-teal-800">
+                                Recurring
+                              </span>
+                            )}
+                          </div>
+                          {transaction.description && <p className="text-sm text-gray-600 truncate">{transaction.description}</p>}
+                          <div className="flex justify-between items-center mt-2">
+                            <p className="text-xs text-gray-500">{transaction.date}</p>
+                            <p className={`font-bold text-sm ${transaction.amount < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                              {transaction.amount < 0 ? '-' : '+'}₹{Math.abs(transaction.amount).toFixed(2)}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex-shrink-0 flex space-x-1">
+                          <button onClick={() => editTransaction(transaction)} className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg" title="Edit Transaction"><Edit3 size={16} /></button>
+                          <button onClick={() => deleteTransaction(transaction.id)} className="p-2 text-red-600 hover:bg-red-100 rounded-lg" title="Delete Transaction"><Trash2 size={16} /></button>
+                        </div>
+                      </div>
+                    );
+                  } else { // item.itemType === 'transfer'
+                    const transfer = item as TransferEvent;
+                    return (
+                      <div key={`transfer-${transfer.id}`} className="bg-indigo-50 rounded-xl p-4 flex items-start gap-4">
+                        <div className="flex-shrink-0 bg-indigo-100 text-indigo-600 rounded-full p-2 mt-1"><ArrowRight size={18} /></div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center space-x-2 mb-1">
+                            <p className="font-semibold text-indigo-800">Fund Transfer</p>
                             <span className="flex-shrink-0 px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
                               Transfer
                             </span>
                           </div>
-                          <p className="font-bold text-indigo-600">₹{transfer.amount.toFixed(2)}</p>
+                          <div className="text-sm text-gray-700 mt-1 space-y-1">
+                            <p className="truncate" title={`From: ${getCustomBudgetName(transfer.fromBudgetId)} (${transfer.fromCategory})`}><span className="font-medium">From:</span> {getCustomBudgetName(transfer.fromBudgetId)} ({transfer.fromCategory})</p>
+                            <p className="truncate" title={`To: ${getCustomBudgetName(transfer.toBudgetId)}`}><span className="font-medium">To:</span> {getCustomBudgetName(transfer.toBudgetId)}</p>
+                          </div>
+                          <div className="flex justify-between items-center mt-2">
+                            <p className="text-xs text-gray-500">{new Date(transfer.date).toLocaleString()}</p>
+                            <p className="font-bold text-sm text-indigo-600">₹{transfer.amount.toFixed(2)}</p>
+                          </div>
                         </div>
-                        {/* Details */}
-                        <div className="space-y-1 text-sm">
-                          <p className="text-gray-800 truncate">
-                            <span className="font-medium">From:</span> {getCustomBudgetName(transfer.fromBudgetId)} ({transfer.fromCategory})
-                          </p>
-                          <p className="text-gray-600 truncate">
-                            <span className="font-medium">To:</span> {getCustomBudgetName(transfer.toBudgetId)}
-                          </p>
-                        </div>
-                        {/* Footer */}
-                        <p className="text-xs text-gray-500 mt-2">{new Date(transfer.date).toLocaleString()}</p>
                       </div>
-                    ))
-                  )}
-                </div>
-              )}
+                    );
+                  }
+                })
+                        )}
+              </div>
             </div>
           </div>
         )}
