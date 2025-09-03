@@ -354,6 +354,43 @@ const App = () => {
     }
   }, [activeTab]);
 
+  // --- Back Button Handling for Mobile ---
+  useEffect(() => {
+    const handleBackButton = (event: PopStateEvent) => {
+      // This event fires when the user navigates back (e.g., via mobile back button).
+      // We intercept it to implement custom back-navigation logic.
+
+      // Priority 1: Close any open modal
+      if (showExportModal || showTransferModal || confirmationState.isOpen) {
+        setShowExportModal(false);
+        setShowTransferModal(false);
+        closeConfirmation();
+        // "Cancel" the back navigation by pushing the current state back onto the history stack.
+        window.history.pushState(null, '', window.location.href);
+        return;
+      }
+
+      // Priority 2: Cancel any editing mode
+      if (editingTransaction || editingCustomBudget) {
+        handleCancelTransactionEdit();
+        handleCancelEdit();
+        window.history.pushState(null, '', window.location.href);
+        return;
+      }
+
+      // Priority 3: Navigate from other tabs to the main 'add' tab
+      if (activeTab !== 'add') {
+        setActiveTab('add');
+        window.history.pushState(null, '', window.location.href);
+        return;
+      }
+
+      // If on the 'add' tab with no modals or edits active, allow the app to close by going back.
+    };
+
+    window.addEventListener('popstate', handleBackButton);
+    return () => window.removeEventListener('popstate', handleBackButton);
+  }, [activeTab, showExportModal, showTransferModal, confirmationState.isOpen, editingTransaction, editingCustomBudget]);
   const initializeSampleData = () => {
     // Sample transactions with both budget types
     const sampleTransactions: Transaction[] = [
