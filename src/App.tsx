@@ -8,6 +8,9 @@ import { Plus, TrendingUp, Settings, Download, Upload, Trash2, Edit3, List, PieC
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
+import { FilePicker } from '@capawesome/capacitor-file-picker';
+import {Capacitor} from '@capacitor/core';
+import {Filesystem, Directory, Encoding} from '@capacitor/filesystem';
 import {
   Transaction,
   MonthlyBudgets,
@@ -24,7 +27,7 @@ import {
 const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }: {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (() => void) | null;
+  onConfirm: (() => void | Promise<void>) | null;
   title: string;
   message: string;
 }) => {
@@ -43,9 +46,9 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }: {
             No
           </button>
           <button
-            onClick={() => {
+            onClick={async () => {
               if (onConfirm) {
-                onConfirm();
+                await onConfirm();
               }
               onClose();
             }}
@@ -74,6 +77,7 @@ const App = () => {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [editingCustomBudget, setEditingCustomBudget] = useState<CustomBudget | null>(null);
   const [filterTag, setFilterTag] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [recurringProcessingMode, setRecurringProcessingMode] = useState<'automatic' | 'manual'>('automatic');
 
   // --- New State for Advanced Features ---
@@ -83,7 +87,7 @@ const App = () => {
     isOpen: boolean;
     title: string;
     message: string;
-    onConfirm: (() => void) | null;
+    onConfirm: (() => (void | Promise<void>)) | null;
   }>({
     isOpen: false,
     title: '',
@@ -193,7 +197,7 @@ const App = () => {
 
 
   // --- Modal Control Functions ---
-  const showConfirmation = (title: string, message: string, onConfirm: () => void) => {
+  const showConfirmation = (title: string, message: string, onConfirm: () => void | Promise<void>) => {
     setConfirmationState({
       isOpen: true,
       title,
@@ -211,6 +215,19 @@ const App = () => {
     });
   };
 
+  const escapeCsvField = (field: any): string => {
+    if (field === null || field === undefined) {
+      return '';
+    }
+    const str = String(field);
+    // If the string contains a comma, a double quote, or a newline, it needs to be quoted.
+    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+      // Escape double quotes by doubling them
+      const escapedStr = str.replace(/"/g, '""');
+      return `"${escapedStr}"`;
+    }
+    return str;
+  };
   // --- Data Persistence and Security Hooks ---
 
   const loadAndInitializeData = () => {
@@ -1165,44 +1182,63 @@ const App = () => {
       filename = `budget_export_${exportStartDate}_to_${exportEndDate}_${exportType}.json`;
       type = 'application/json';
     } else {
-      // Enhanced CSV format with more details
       const headers = 'Date,BudgetType,Category,CustomBudget,CustomCategory,Description,Amount,Type,Tags,TransactionID\n';
-      const rows = filteredTransactions.map(t => {
-        const budgetName = t.budgetType === 'custom' ? getCustomBudgetName(t.customBudgetId) : '';
-        const category = t.budgetType === 'custom' ? '' : t.category;
-        const customCategory = t.budgetType === 'custom' ? t.customCategory : '';
-        const tags = t.tags?.join('; ') || ''; // Use semicolon to avoid CSV issues with commas
-        return `${t.date},${t.budgetType || 'monthly'},"${category}","${budgetName}","${customCategory}","${t.description || ''}",${t.amount},${t.amount < 0 ? 'Expense' : 'Income'},"${tags}",${t.id}`;
-      }).join('\n');
+      const rows = filteredTransactions
+        .map(t => {
+          const budgetName = t.budgetType === 'custom' ? getCustomBudgetName(t.customBudgetId) : '';
+          const category = t.budgetType === 'custom' ? '' : t.category;
+          const customCategory = t.budgetType === 'custom' ? t.customCategory : '';
+          const tags = t.tags?.join('; ') || '';
+          const rowData = [
+            t.date,
+            t.budgetType || 'monthly',
+            category,
+            budgetName,
+            customCategory,
+            t.description || '',
+            t.amount,
+            t.amount < 0 ? 'Expense' : 'Income',
+            tags,
+            t.id,
+          ];
+          return rowData.map(escapeCsvField).join(',');
+        }).join('\n');
       
-      content = headers + rows;
+      content = '\uFEFF' + headers + rows;
       filename = `budget_export_${exportStartDate}_to_${exportEndDate}_${exportType}.csv`;
       type = 'text/csv';
     }
 
-    try {
+    if (Capacitor.isNativePlatform()) {
+      Filesystem.writeFile({
+        path: filename,
+        data: content,
+        directory: Directory.Documents,
+        encoding: Encoding.UTF8,
+      }).then(() => {
+        alert(`Export saved to Documents: ${filename}`);
+      }).catch((e: any) => {
+        alert(`Error saving export: ${(e as Error).message}`);
+      });
+    } else {
+      // Web fallback
       const blob = new Blob([content], { type });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       link.download = filename;
-      link.style.display = 'none';
-      
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      
-      // Reset form and close modal
-      setShowExportModal(false);
-      setExportStartDate('');
-      setExportEndDate('');
-      setExportFormat('json');
-      setExportType('all');
-    } catch (error) {
-      console.error('Export failed:', error);
-      alert('Export failed. Please try again.');
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
+
+    // Reset form and close modal
+    setShowExportModal(false);
+    setExportStartDate('');
+    setExportEndDate('');
+    setExportFormat('json');
+    setExportType('all');
   };
 
   const generateHTMLReport = () => {
@@ -1216,6 +1252,7 @@ const App = () => {
       <html>
       <head>
         <title>BudgetWise Financial Report</title>
+        <meta charset="UTF-8" />
         <style>
           body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
           .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #6B46C1; padding-bottom: 20px; }
@@ -1362,22 +1399,31 @@ const App = () => {
     `;
 
     // Create and download the HTML report
-    try {
-      const blob = new Blob([reportHTML], { type: 'text/html' });
+    const filename = `BudgetWise_Report_${new Date().toISOString().split('T')[0]}.html`;
+    if (Capacitor.isNativePlatform()) {
+      Filesystem.writeFile({
+        path: filename,
+        data: reportHTML,
+        directory: Directory.Documents,
+        encoding: Encoding.UTF8,
+      }).then(() => {
+        alert(`HTML report saved to Documents: ${filename}`);
+      }).catch((e: any) => {
+        console.error('HTML report generation failed:', e);
+        alert(`Report generation failed: ${(e as Error).message}`);
+      });
+    } else {
+      // Web fallback
+      const blob = new Blob([reportHTML], { type: "text/html" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `BudgetWise_Report_${new Date().toISOString().split('T')[0]}.html`;
+      link.download = filename;
       link.style.display = 'none';
-      
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch (error) {
-      console.error('HTML report generation failed:', error);
-      alert('Report generation failed. Please try again.');
     }
   };
 
@@ -1627,64 +1673,111 @@ const App = () => {
     return budget ? budget.categories : [];
   };
   const backupData = () => {
-    const stateToBackup = { transactions, budgets, customBudgets, categories, budgetTemplates, budgetRelationships, billReminders, transferLog, recurringProcessingMode };
-    const dataStr = JSON.stringify(stateToBackup, null, 2);
-    const blob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.download = `budgetwise_backup_${new Date().toISOString().split('T')[0]}.json`;
-    link.href = url;
-    link.click();
-    URL.revokeObjectURL(url);
+    showConfirmation('Backup Data', 'Do you want to create a backup file of all your data?', async () => {
+      const stateToBackup = { transactions, budgets, customBudgets, categories, budgetTemplates, budgetRelationships, billReminders, transferLog, recurringProcessingMode };
+      const dataStr = JSON.stringify(stateToBackup, null, 2);
+      const filename = `budgetwise_backup_${new Date().toISOString().split('T')[0]}.json`;
+
+      if (Capacitor.isNativePlatform()) {
+        try {
+          await Filesystem.writeFile({
+            path: filename,
+            data: dataStr,
+            directory: Directory.Documents,
+            encoding: Encoding.UTF8,
+          });
+          alert(`Backup saved to your device's Documents folder: ${filename}`);
+        } catch (e) {
+          console.error('Unable to write file', e);
+          alert(`Error saving backup: ${(e as Error).message}`);
+        }
+      } else {
+        // Web fallback
+        const blob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.download = filename;
+        link.href = url;
+        link.click();
+        URL.revokeObjectURL(url);
+      }
+    });
   };
 
-  const handleRestore = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const processRestoredData = (jsonString: string) => {
+    try {
+      const restoredState = JSON.parse(jsonString);
+
+      if (!restoredState.transactions || !restoredState.budgets) {
+          throw new Error("Invalid backup file format.");
+      }
+
+      setTransactions(restoredState.transactions || []);
+      setBudgets(restoredState.budgets || {});
+      setCustomBudgets(restoredState.customBudgets || []);
+      setCategories(restoredState.categories || ['Food', 'Transport', 'Entertainment', 'Shopping', 'Bills', 'Health']);
+      setBudgetTemplates(restoredState.budgetTemplates || []);
+      setBudgetRelationships(restoredState.budgetRelationships || []);
+      setBillReminders(restoredState.billReminders || []);
+      setTransferLog(restoredState.transferLog || []);
+      setRecurringProcessingMode(restoredState.recurringProcessingMode || 'automatic');
+      alert('Data restored successfully!');
+    } catch (error) {
+      console.error("Failed to restore data:", error);
+      alert(`Error restoring data: ${(error as Error).message}. Please ensure you are using a valid backup file.`);
+    }
+  };
+
+  const handleFileSelectedFromWeb = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     const fileInput = event.target;
     if (!file) return;
 
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result;
+      if (typeof text === 'string') {
+        processRestoredData(text);
+      } else {
+        alert("Failed to read file content.");
+      }
+    };
+    reader.readAsText(file);
+
+    if (fileInput) {
+      fileInput.value = '';
+    }
+  };
+
+  const triggerRestore = async () => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const result = await FilePicker.pickFiles({ types: ['application/json'], readData: true });
+        const file = result.files[0];
+        if (file && file.data) {
+          const jsonString = atob(file.data); // Data is base64 encoded
+          processRestoredData(jsonString);
+        }
+      } catch (e) {
+        console.log('File picker was cancelled or failed.', e);
+      }
+    } else {
+      fileInputRef.current?.click();
+    }
+  };
+
+  const handleRestore = (event: React.MouseEvent<HTMLLabelElement>) => {
+    event.preventDefault();
     showConfirmation(
       'Confirm Restore',
       'Are you sure you want to restore? This will overwrite all current data.',
-      () => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          try {
-            const text = e.target?.result;
-            if (typeof text !== 'string') {
-              throw new Error("Failed to read file content.");
-            }
-            const restoredState = JSON.parse(text);
-
-            if (!restoredState.transactions || !restoredState.budgets) {
-                throw new Error("Invalid backup file format.");
-            }
-
-            setTransactions(restoredState.transactions || []);
-            setBudgets(restoredState.budgets || {});
-            setCustomBudgets(restoredState.customBudgets || []);
-            setCategories(restoredState.categories || ['Food', 'Transport', 'Entertainment', 'Shopping', 'Bills', 'Health']);
-            setBudgetTemplates(restoredState.budgetTemplates || []);
-            setBudgetRelationships(restoredState.budgetRelationships || []);
-            setBillReminders(restoredState.billReminders || []);
-            setTransferLog(restoredState.transferLog || []);
-            setRecurringProcessingMode(restoredState.recurringProcessingMode || 'automatic');
-            alert('Data restored successfully!');
-          } catch (error) {
-            console.error("Failed to restore data:", error);
-            alert(`Error restoring data: ${(error as Error).message}. Please ensure you are using a valid backup file.`);
-          }
-        };
-        reader.readAsText(file);
-      }
+      triggerRestore
     );
-
-    // Clear the file input so the same file can be selected again if the user cancels and retries.
-    fileInput.value = '';
   };
 
   const exportToExcel = () => {
     try {
+      const filename = `BudgetWise_Export_${new Date().toISOString().split('T')[0]}.xlsx`;
       // 1. Transactions Sheet
       const transactionData = sortedAndFilteredHistory
         .filter(item => item.itemType === 'transaction')
@@ -1740,9 +1833,20 @@ const App = () => {
       XLSX.utils.book_append_sheet(wb, customBudgetSheet, 'Custom Budgets');
       XLSX.utils.book_append_sheet(wb, transferLogSheet, 'Fund Transfers');
 
-      // Download the file
-      XLSX.writeFile(wb, `BudgetWise_Export_${new Date().toISOString().split('T')[0]}.xlsx`);
-
+      if (Capacitor.isNativePlatform()) {
+        const data = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
+        Filesystem.writeFile({
+          path: filename,
+          data: data,
+          directory: Directory.Documents,
+        }).then(() => {
+          alert(`Excel report saved to Documents: ${filename}`);
+        }).catch((e: any) => {
+          alert(`Error saving Excel file: ${(e as Error).message}`);
+        });
+      } else {
+        XLSX.writeFile(wb, filename);
+      }
     } catch (error) {
       console.error("Failed to export to Excel", error);
       alert("An error occurred while exporting to Excel.");
@@ -1799,29 +1903,54 @@ const App = () => {
 
   const quickCSVExport = () => {
     try {
-      // Enhanced CSV format with budget type information
-      const headers = 'Date,BudgetType,Category,CustomBudget,CustomCategory,Description,Amount,Type,Tags,TransactionID\n';
-      const rows = transactions.map(t => {
-        const budgetName = t.budgetType === 'custom' ? getCustomBudgetName(t.customBudgetId) : '';
-        const category = t.budgetType === 'custom' ? '' : t.category;
-        const customCategory = t.budgetType === 'custom' ? t.customCategory : '';
-        const tags = t.tags?.join('; ') || ''; // Use semicolon to avoid CSV issues with commas
-        return `${t.date},${t.budgetType || 'monthly'},"${category}","${budgetName}","${customCategory}","${t.description || ''}",${t.amount},${t.amount < 0 ? 'Expense' : 'Income'},"${tags}",${t.id}`;
-      }).join('\n');
-      
-      const content = headers + rows;
       const filename = `BudgetWise_Quick_Export_${new Date().toISOString().split('T')[0]}.csv`;
-      const type = 'text/csv';
+      const headers = 'Date,BudgetType,Category,CustomBudget,CustomCategory,Description,Amount,Type,Tags,TransactionID\n';
+      const rows = transactions
+        .map(t => {
+          const budgetName = t.budgetType === 'custom' ? getCustomBudgetName(t.customBudgetId) : '';
+          const category = t.budgetType === 'custom' ? '' : t.category;
+          const customCategory = t.budgetType === 'custom' ? t.customCategory : '';
+          const tags = t.tags?.join('; ') || '';
+          const rowData = [
+            t.date,
+            t.budgetType || 'monthly',
+            category,
+            budgetName,
+            customCategory,
+            t.description || '',
+            t.amount,
+            t.amount < 0 ? 'Expense' : 'Income',
+            tags,
+            t.id,
+          ];
+          return rowData.map(escapeCsvField).join(',');
+        }).join('\n');
+      
+      const content = '\uFEFF' + headers + rows;
 
-      const blob = new Blob([content], { type });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      if (Capacitor.isNativePlatform()) {
+        Filesystem.writeFile({
+          path: filename,
+          data: content,
+          directory: Directory.Documents,
+          encoding: Encoding.UTF8,
+        }).then(() => {
+          alert(`CSV saved to Documents: ${filename}`);
+        }).catch((e: any) => {
+          alert(`Error saving CSV: ${(e as Error).message}`);
+        });
+      } else {
+        const type = 'text/csv';
+        const blob = new Blob([content], { type });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
     } catch (error) {
       console.error('Quick CSV Export failed:', error);
       alert('Quick CSV Export failed. Please try again.');
@@ -1865,6 +1994,7 @@ const App = () => {
   const generatePDFReport = () => {
     try {
       const doc = new jsPDF();
+      const filename = `BudgetWise_Report_${new Date().toISOString().split('T')[0]}.pdf`;
       const stats = getMonthlyStats(currentYear, currentMonth);
 
       // Title
@@ -1927,7 +2057,20 @@ const App = () => {
         }
       });
 
-      doc.save(`BudgetWise_Report_${new Date().toISOString().split('T')[0]}.pdf`);
+      if (Capacitor.isNativePlatform()) {
+        const pdfData = doc.output("datauristring").split(",")[1];
+        Filesystem.writeFile({
+          path: filename,
+          data: pdfData,
+          directory: Directory.Documents,
+        }).then(() => {
+          alert(`PDF report saved to Documents: ${filename}`);
+        }).catch((e: any) => {
+          alert(`Error saving PDF: ${(e as Error).message}`);
+        });
+      } else {
+        doc.save(filename);
+      }
     } catch (error) {
       console.error("Failed to generate PDF report", error);
       alert("An error occurred while generating the PDF report.");
@@ -2268,7 +2411,7 @@ const renderAnalyticsTab = () => {
               <p className="text-gray-600 mb-2">Set a password to lock your app.</p>
               <div className="flex space-x-2">
                 <input
-                  type="tel"
+                  type="password"
                   inputMode="numeric"
                   pattern="[0-9]*"
                   maxLength={4}
@@ -2316,10 +2459,13 @@ const renderAnalyticsTab = () => {
               Backup Data (JSON)
             </button>
             <div>
-              <label className="w-full text-center p-3 bg-blue-100 text-blue-800 rounded-xl font-semibold hover:bg-blue-200 flex items-center justify-center cursor-pointer">
+              <label
+                onClick={handleRestore}
+                className="w-full text-center p-3 bg-blue-100 text-blue-800 rounded-xl font-semibold hover:bg-blue-200 flex items-center justify-center cursor-pointer"
+              >
                 <FileJson size={18} className="mr-2" />
                 Restore from Backup
-                <input type="file" accept=".json" onChange={handleRestore} className="hidden" />
+                <input type="file" accept=".json" ref={fileInputRef} onChange={handleFileSelectedFromWeb} className="hidden" />
               </label>
             </div>
             <button
@@ -2418,7 +2564,7 @@ const renderAnalyticsTab = () => {
           <p className="text-gray-600 mb-6">App is locked. Please enter your password.</p>
           <div className="space-y-4">
             <input
-              type="tel"
+              type="password"
               inputMode="numeric"
               pattern="[0-9]*"
               maxLength={4}
