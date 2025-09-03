@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Plus, TrendingUp, Settings, Download, Upload, Trash2, Edit3, List, PieChart, ArrowUpDown, BarChart3, TrendingDown, AlertCircle, FileText, Pause, Play, Save, Link2, ArrowRight, Repeat, FileSpreadsheet, FileJson, Bell, Unlock, X, XCircle, Lock } from 'lucide-react';
+import { Plus, TrendingUp, Settings, Download, Trash2, Edit3, List, PieChart, ArrowUpDown, BarChart3, TrendingDown, AlertCircle, FileText, Pause, Play, Save, Link2, ArrowRight, Repeat, FileSpreadsheet, FileJson, Bell, Unlock, X, XCircle, Lock } from 'lucide-react';
 
 // Add these to your project:
 // npm install xlsx jspdf jspdf-autotable
+// npm install @capacitor/local-notifications@^6.0.0
 // or
 // yarn add xlsx jspdf jspdf-autotable
+// yarn add @capacitor/local-notifications@^6.0.0
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
@@ -23,6 +25,7 @@ import {
   RelationshipFormData,
   TransferEvent,
 } from './types';
+import { LocalNotifications } from '@capacitor/local-notifications';
 
 const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }: {
   isOpen: boolean;
@@ -108,6 +111,7 @@ const App = () => {
 
   // Bill Reminders
   const [billReminders, setBillReminders] = useState<BillReminder[]>([]);
+  const [editingBillReminder, setEditingBillReminder] = useState<BillReminder | null>(null);
   const [billForm, setBillForm] = useState({ name: '', amount: '', dueDate: '' });
 
   // Smart Categorization
@@ -301,6 +305,26 @@ const App = () => {
     }
   }, [isLocked, recurringProcessingMode]);
 
+  // --- Notification Permission Hook ---
+  useEffect(() => {
+    const requestNotificationPermission = async () => {
+      if (Capacitor.isNativePlatform()) {
+        try {
+          let permStatus = await LocalNotifications.checkPermissions();
+          if (permStatus.display !== 'granted') {
+            permStatus = await LocalNotifications.requestPermissions();
+          }
+          if (permStatus.display !== 'granted') {
+            console.warn('User denied notification permissions.');
+          }
+        } catch (e) {
+          console.error("Could not request notification permissions", e);
+        }
+      }
+    };
+    requestNotificationPermission();
+  }, []);
+  
   const handleUnlock = () => {
     if (passwordInput === appPassword) {
       const savedData = localStorage.getItem('budgetWiseData_v2');
@@ -408,6 +432,7 @@ const App = () => {
     window.addEventListener('popstate', handleBackButton);
     return () => window.removeEventListener('popstate', handleBackButton);
   }, [activeTab, showExportModal, showTransferModal, confirmationState.isOpen, editingTransaction, editingCustomBudget]);
+  
   const initializeSampleData = () => {
     // Sample transactions with both budget types
     const sampleTransactions: Transaction[] = [
@@ -620,7 +645,8 @@ const App = () => {
     });
     setTransactions(updatedTransactions);
     setEditingTransaction(null);
-    recalculateCustomBudgetSpending(updatedTransactions, customBudgets); };
+    recalculateCustomBudgetSpending(updatedTransactions, customBudgets); 
+  };
 
   const deleteTransaction = (id: number) => {
     const transactionToDelete = transactions.find(t => t.id === id);
@@ -817,29 +843,101 @@ const App = () => {
     });
   };
 
-  const addBillReminder = () => {
-    if (!billForm.name || !billForm.amount || !billForm.dueDate) return;
-    const newReminder: BillReminder = {
-      id: Date.now(),
-      name: billForm.name,
-      amount: parseFloat(billForm.amount),
-      dueDate: billForm.dueDate,
-    };
-    setBillReminders([...billReminders, newReminder]);
+    const handleCancelBillEdit = () => {
+    setEditingBillReminder(null);
     setBillForm({ name: '', amount: '', dueDate: '' });
-    alert('Bill reminder added successfully!');
+  };
+
+  const editBillReminder = (reminder: BillReminder) => {
+    setEditingBillReminder(reminder);
+    setBillForm({
+      name: reminder.name,
+      amount: reminder.amount.toString(),
+      dueDate: reminder.dueDate,
+    });
+  };
+
+  const addOrUpdateBillReminder = async () => {
+    if (!billForm.name || !billForm.amount || !billForm.dueDate) return;
+
+    if (editingBillReminder) {
+      // --- Update Logic ---
+      const updatedReminder = {
+        ...editingBillReminder,
+        name: billForm.name,
+        amount: parseFloat(billForm.amount),
+        dueDate: billForm.dueDate,
+      };
+      setBillReminders(billReminders.map(br => br.id === editingBillReminder.id ? updatedReminder : br));
+
+      if (Capacitor.isNativePlatform()) {
+        try {
+          await LocalNotifications.cancel({ notifications: [{ id: editingBillReminder.id }] });
+          const scheduleDate = new Date(updatedReminder.dueDate);
+          scheduleDate.setHours(9, 0, 0, 0);
+          if (scheduleDate > new Date()) {
+            await LocalNotifications.schedule({
+              notifications: [{
+                title: `Bill Reminder: ${updatedReminder.name}`,
+                body: `Your bill of ₹${updatedReminder.amount.toFixed(2)} is due today!`,
+                id: updatedReminder.id,
+                schedule: { at: scheduleDate },
+                sound: undefined, attachments: undefined, actionTypeId: "", extra: null
+              }]
+            });
+            alert('Reminder and notification updated successfully!');
+          } else {
+            alert('Reminder updated, but the due date is in the past. No new notification was scheduled.');
+          }
+        } catch (e) {
+          console.error("Error updating notification", e);
+          alert('Reminder updated, but failed to update the notification.');
+        }
+      } else {
+        alert('Bill reminder updated successfully!');
+      }
+      handleCancelBillEdit();
+    } else {
+      // --- Add Logic ---
+      const newReminder: BillReminder = { id: Date.now(), name: billForm.name, amount: parseFloat(billForm.amount), dueDate: billForm.dueDate };
+      setBillReminders([...billReminders, newReminder]);
+
+      if (Capacitor.isNativePlatform()) {
+        try {
+          const scheduleDate = new Date(newReminder.dueDate);
+          scheduleDate.setHours(9, 0, 0, 0);
+          if (scheduleDate > new Date()) {
+            await LocalNotifications.schedule({ notifications: [{ title: `Bill Reminder: ${newReminder.name}`, body: `Your bill of ₹${newReminder.amount.toFixed(2)} is due today!`, id: newReminder.id, schedule: { at: scheduleDate }, sound: undefined, attachments: undefined, actionTypeId: "", extra: null }] });
+            alert('Bill reminder and notification added successfully!');
+          } else {
+            alert('Bill reminder added, but the due date is in the past. No notification was scheduled.');
+          }
+        } catch (e) { console.error("Error scheduling notification", e); alert('Bill reminder added, but failed to schedule the notification.'); }
+      } else {
+        alert('Bill reminder added successfully! (Notifications only work on mobile devices)');
+      }
+      setBillForm({ name: '', amount: '', dueDate: '' });
+    }
   };
 
   const deleteBillReminder = (id: number) => {
     showConfirmation(
       'Confirm Deletion',
       'Are you sure you want to delete this reminder?',
-      () => {
+      async () => {
         setBillReminders(billReminders.filter(br => br.id !== id));
+        // --- Cancel the corresponding notification ---
+        if (Capacitor.isNativePlatform()) {
+          try {
+            await LocalNotifications.cancel({ notifications: [{ id }] });
+          } catch (e) {
+            console.error("Error cancelling notification", e);
+          }
+        }
       }
     );
   };
-
+  
 
   const addCustomCategory = () => {
     if (newCustomCategory && selectedCustomBudgetForCategory) {
@@ -2432,6 +2530,96 @@ const renderAnalyticsTab = () => {
     );
   };
 
+  const renderRemindersTab = () => {
+    return (
+      <div className="p-4 space-y-6">
+        {/* Add/Edit Reminder Form */}
+        <div className="bg-white rounded-2xl p-6 shadow-lg">
+          <h2 className="text-xl font-bold text-gray-800 mb-4">
+            {editingBillReminder ? 'Edit Bill Reminder' : 'Add Bill Reminder'}
+          </h2>
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <input
+                type="text"
+                value={billForm.name}
+                onChange={e => setBillForm({ ...billForm, name: e.target.value })}
+                placeholder="Bill Name"
+                className="sm:col-span-2 p-3 border border-gray-300 rounded-xl"
+              />
+              <input
+                type="number"
+                value={billForm.amount}
+                onChange={e => setBillForm({ ...billForm, amount: e.target.value })}
+                placeholder="Amount"
+                className="p-3 border border-gray-300 rounded-xl"
+              />
+              <input
+                type="date"
+                value={billForm.dueDate}
+                onChange={e => setBillForm({ ...billForm, dueDate: e.target.value })}
+                className="p-3 border border-gray-300 rounded-xl"
+              />
+            </div>
+            <button
+              onClick={addOrUpdateBillReminder}
+              className="w-full p-3 bg-yellow-500 text-white rounded-xl font-semibold hover:bg-yellow-600 flex items-center justify-center"
+            >
+              <Bell size={18} className="mr-2" />
+              {editingBillReminder ? 'Update Reminder' : 'Add Reminder'}
+            </button>
+            {editingBillReminder && (
+              <button
+                onClick={handleCancelBillEdit}
+                className="w-full p-3 bg-gray-400 text-white rounded-xl hover:bg-gray-500"
+              >
+                Cancel Edit
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* List of Reminders */}
+        <div className="bg-white rounded-2xl p-6 shadow-lg">
+          <h2 className="text-xl font-bold text-gray-800 mb-4">Upcoming Bills</h2>
+          <div className="space-y-2">
+            {billReminders.length === 0 && (
+              <p className="text-gray-500 text-center py-4">No reminders set.</p>
+            )}
+            {billReminders
+              .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
+              .map(reminder => (
+              <div key={reminder.id} className="flex justify-between items-center gap-4 bg-gray-50 p-3 rounded-xl">
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-gray-800 truncate">{reminder.name}</p>
+                  <p className="text-sm text-gray-500">
+                    ₹{reminder.amount.toFixed(2)} (Due: {reminder.dueDate})
+                  </p>
+                </div>
+                <div className="flex-shrink-0 flex space-x-1">
+                  <button
+                    onClick={() => editBillReminder(reminder)}
+                    className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg"
+                    title="Edit Reminder"
+                  >
+                    <Edit3 size={16} />
+                  </button>
+                  <button
+                    onClick={() => deleteBillReminder(reminder.id)}
+                    className="p-2 text-red-500 hover:bg-red-100 rounded-lg"
+                    title="Delete Reminder"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // Placeholder for the settings tab rendering.
   const renderSettingsTab = () => {
     return (
@@ -2580,34 +2768,6 @@ const renderAnalyticsTab = () => {
           )}
         </div>
 
-        {/* Bill Reminders */}
-        <div className="bg-white rounded-2xl p-6 shadow-lg">
-          <h2 className="text-xl font-bold text-gray-800 mb-4">Bill Reminders</h2>
-          <div className="space-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <input type="text" value={billForm.name} onChange={e => setBillForm({...billForm, name: e.target.value})} placeholder="Bill Name" className="sm:col-span-2 p-3 border border-gray-300 rounded-xl" />
-              <input type="number" value={billForm.amount} onChange={e => setBillForm({...billForm, amount: e.target.value})} placeholder="Amount" className="p-3 border border-gray-300 rounded-xl" />
-              <input type="date" value={billForm.dueDate} onChange={e => setBillForm({...billForm, dueDate: e.target.value})} className="p-3 border border-gray-300 rounded-xl" />
-            </div>
-            <button onClick={addBillReminder} className="w-full p-3 bg-yellow-100 text-yellow-800 rounded-xl font-semibold hover:bg-yellow-200 flex items-center justify-center">
-              <Bell size={18} className="mr-2" />
-              Add Reminder
-            </button>
-            <div className="space-y-2 mt-4">
-              {billReminders.map(r => (
-                <div key={r.id} className="flex justify-between items-center gap-4 bg-gray-50 p-3 rounded-xl">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-800 truncate">{r.name}</p>
-                    <p className="text-sm text-gray-500">₹{r.amount.toFixed(2)} (Due: {r.dueDate})</p>
-                  </div>
-                  <button onClick={() => deleteBillReminder(r.id)} className="flex-shrink-0 p-2 text-red-500 hover:bg-red-100 rounded-full">
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
       </div>
     );
   };
@@ -2667,7 +2827,7 @@ const renderAnalyticsTab = () => {
               className="p-2 bg-white/20 rounded-lg hover:bg-white/30 transition-colors"
               title="Quick CSV Export (All Data)"
             >
-              <Upload size={20} />
+              <FileSpreadsheet size={20} />
             </button>
             <button
               onClick={() => setActiveTab('settings')}
@@ -3964,8 +4124,7 @@ const renderAnalyticsTab = () => {
                     fromCategory: '',
                     toCategoryAllocations: {}
                   })}
-                  className="w-full p-3 border border-gray-300 rounded-xl"
-                >
+                  className="w-full p-3 border border-gray-300 rounded-xl">
                   <option value="">Select source</option>
         {customBudgets.filter(b => b.status === 'active').map(b => (
                     <option key={b.id} value={b.id}>{b.name}</option>
@@ -4079,6 +4238,10 @@ const renderAnalyticsTab = () => {
         {/* Analytics Tab */}
         {activeTab === 'analytics' && renderAnalyticsTab()}
 
+        {/* Reminders Tab */}
+        {activeTab === 'reminders' && renderRemindersTab()}
+
+
         {/* Settings Tab */}
         {activeTab === 'settings' && renderSettingsTab()}
       </div>
@@ -4135,13 +4298,13 @@ const renderAnalyticsTab = () => {
           </button>
 
           <button
-            onClick={() => setActiveTab('settings')}
+            onClick={() => setActiveTab('reminders')}
             className={`flex flex-col items-center py-2 px-4 rounded-xl transition-colors ${
-              activeTab === 'settings' ? 'bg-purple-100 text-purple-600' : 'text-gray-600'
+              activeTab === 'reminders' ? 'bg-purple-100 text-purple-600' : 'text-gray-600'
             }`}
           >
-            <Settings size={24} />
-            <span className="text-xs mt-1">Settings</span>
+            <Bell size={24} />
+            <span className="text-xs mt-1">Reminders</span>
           </button>
         </div>
       </div>

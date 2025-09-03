@@ -37,6 +37,7 @@ The primary method for switching between the main sections of the application.
 -   **Analytics Button (Chart Icon)**: Navigates to the dashboard for visualizing spending trends and financial analytics.
 -   **Budget Button (Pie Chart Icon)**: Navigates to the section for managing both monthly and custom budgets.
 -   **Settings Button (Gear Icon)**: Navigates to the application settings and data management page.
+-   **Reminders Button (Bell Icon)**: Navigates to the bill reminders page.
 
 ---
 
@@ -141,8 +142,20 @@ This section contains app-level configurations and data management tools.
 -   **Automatic / Manual Buttons**: Allows the user to choose how recurring transactions are processed. 'Automatic' processes them on app launch, while 'Manual' requires the user to press a button.
 -   **Process Recurring Transactions Button**: Appears only in 'Manual' mode; triggers the app to check for and create any due recurring transactions.
 
-### Bill Reminders Section
--   **Input Fields & Add Reminder Button**: Allows users to set reminders for upcoming bills, which are displayed in a list.
+---
+
+## 🔔 Reminders Tab
+
+This tab is dedicated to managing upcoming bill reminders to help users stay on top of their payments.
+
+-   **Bill Name Input**: Field to enter the name of the bill (e.g., 'Credit Card Payment').
+-   **Amount Input**: Field for the bill's amount.
+-   **Due Date Input**: A date picker to set the bill's due date.
+-   **Add/Update Reminder Button**: Saves a new reminder or updates an existing one.
+-   **Cancel Edit Button**: Appears only during an edit; discards changes and clears the form.
+-   **Upcoming Bills List**: A list of all saved reminders, sorted by the nearest due date.
+    -   **Edit Button (Pencil Icon)**: Loads the reminder's data into the form for editing.
+    -   **Delete Button (Trash Icon)**: Permanently removes the reminder.
 
 ---
 
