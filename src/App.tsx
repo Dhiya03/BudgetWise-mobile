@@ -3684,8 +3684,8 @@ const renderAnalyticsTab = () => {
 
       {/* Fund Transfer Modal */}
       {showTransferModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={() => setShowTransferModal(false)}>
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl overflow-y-auto max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-xl font-bold text-gray-800 mb-4">Transfer Funds</h2>
             <div className="space-y-4">
               <div>
