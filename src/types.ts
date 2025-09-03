@@ -33,7 +33,7 @@ export interface CustomBudget {
   remainingAmount: number;
   deadline: string | null;
   priority: 'low' | 'medium' | 'high';
-  status: 'active' | 'completed' | 'archived' | 'paused';
+  status: 'active' | 'completed' | 'archived' | 'paused' | 'locked';
   categories: string[];
   categoryBudgets: { [category: string]: number };
   createdAt: string;

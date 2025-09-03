@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Plus, TrendingUp, Settings, Download, Upload, Trash2, Edit3, List, PieChart, ArrowUpDown, BarChart3, TrendingDown, AlertCircle, FileText, Pause, Play, Save, Link2, ArrowRight, Repeat, FileSpreadsheet, FileJson, Bell, Unlock, X, XCircle } from 'lucide-react';
+import { Plus, TrendingUp, Settings, Download, Upload, Trash2, Edit3, List, PieChart, ArrowUpDown, BarChart3, TrendingDown, AlertCircle, FileText, Pause, Play, Save, Link2, ArrowRight, Repeat, FileSpreadsheet, FileJson, Bell, Unlock, X, XCircle, Lock } from 'lucide-react';
 
 // Add these to your project:
 // npm install xlsx jspdf jspdf-autotable
@@ -530,6 +530,15 @@ const App = () => {
     if (formData.budgetType === 'monthly' && !formData.category) return;
     if (formData.budgetType === 'custom' && (!formData.customBudgetId || !formData.customCategory)) return;
 
+    // Prevent adding a transaction to a locked or paused budget
+    if (formData.budgetType === 'custom' && formData.customBudgetId) {
+      const budget = customBudgets.find(b => b.id === formData.customBudgetId);
+      if (budget && (budget.status === 'locked' || budget.status === 'paused')) {
+        alert(`Cannot add new transactions to a '${budget.status}' budget. Please set it to 'active' first.`);
+        return; // Stop the addition
+      }
+    }
+
     const transaction: Transaction = {
       id: Date.now(),
       ...formData,
@@ -563,6 +572,25 @@ const App = () => {
     if (formData.budgetType === 'monthly' && !formData.category) return;
     if (formData.budgetType === 'custom' && (!formData.customBudgetId || !formData.customCategory)) return;
 
+    // New check: Prevent moving a transaction TO a locked or paused budget
+    if (formData.budgetType === 'custom' && formData.customBudgetId) {
+      const targetBudget = customBudgets.find(b => b.id === formData.customBudgetId);
+      if (targetBudget && (targetBudget.status === 'locked' || targetBudget.status === 'paused')) {
+        alert(`Cannot assign transaction to a '${targetBudget.status}' budget. Please set it to 'active' first.`);
+        return;
+      }
+    }
+
+    // Safeguard: Check the status of the original budget before updating
+    if (editingTransaction.budgetType === 'custom' && editingTransaction.customBudgetId) {
+      const budget = customBudgets.find(b => b.id === editingTransaction.customBudgetId);
+      if (budget && (budget.status === 'paused' || budget.status === 'locked')) {
+        alert(`Cannot update transactions from a '${budget.status}' budget.`);
+        handleCancelTransactionEdit(); // Clear the form and exit edit mode
+        return;
+      }
+    }
+
     const newAmount = parseFloat(formData.amount) * (formData.type === 'expense' ? -1 : 1);
 
     const updatedTransactions = transactions.map(t => 
@@ -595,13 +623,23 @@ const App = () => {
     recalculateCustomBudgetSpending(updatedTransactions, customBudgets); };
 
   const deleteTransaction = (id: number) => {
+    const transactionToDelete = transactions.find(t => t.id === id);
+    if (!transactionToDelete) return;
+
+    // Check if it's a custom budget transaction
+    if (transactionToDelete.budgetType === 'custom' && transactionToDelete.customBudgetId) {
+      const budget = customBudgets.find(b => b.id === transactionToDelete.customBudgetId);
+      // Prevent deletion if budget is paused or locked
+      if (budget && (budget.status === 'paused' || budget.status === 'locked')) {
+        alert(`Cannot delete transactions from a '${budget.status}' budget. Please set the budget to 'active' first.`);
+        return; // Stop the deletion
+      }
+    }
+
     showConfirmation(
       'Confirm Deletion',
       'Are you sure you want to delete this transaction?',
       () => {
-        const transactionToDelete = transactions.find(t => t.id === id);
-        if (!transactionToDelete) return;
-
         const newTransactions = transactions.filter((t) => t.id !== id);
         setTransactions(newTransactions);
         recalculateCustomBudgetSpending(newTransactions, customBudgets);
@@ -610,6 +648,16 @@ const App = () => {
   };
 
   const editTransaction = (transaction: Transaction) => {
+    // Check if it's a custom budget transaction
+    if (transaction.budgetType === 'custom' && transaction.customBudgetId) {
+      const budget = customBudgets.find(b => b.id === transaction.customBudgetId);
+      // Prevent editing if budget is paused or locked
+      if (budget && (budget.status === 'paused' || budget.status === 'locked')) {
+        alert(`Cannot edit transactions from a '${budget.status}' budget. Please set the budget to 'active' first.`);
+        return; // Stop the edit
+      }
+    }
+
     setEditingTransaction(transaction);
     setFormData({
       category: transaction.category || '',
@@ -878,8 +926,9 @@ const App = () => {
 
       const remaining = budget.totalAmount - spent + income;
 
-      const newStatus: 'active' | 'completed' | 'archived' | 'paused' = budget.status === 'paused' || budget.status === 'archived'
-        ? budget.status
+      const newStatus: CustomBudget['status'] =
+        budget.status === 'paused' || budget.status === 'archived' || budget.status === 'locked'
+        ? budget.status // Preserve these states
         : spent >= budget.totalAmount ? 'completed' : 'active';
 
       return {
@@ -909,6 +958,15 @@ const App = () => {
         : budget
     ));
   };
+
+  const handleLockBudget = (budgetId: number) => {
+    setCustomBudgets(customBudgets.map(budget =>
+      budget.id === budgetId
+        ? { ...budget, status: budget.status === 'locked' ? 'active' : 'locked', updatedAt: new Date().toISOString() }
+        : budget
+    ));
+  };
+
 
   const deleteCustomBudget = (budgetId: number) => {
     showConfirmation(
@@ -3060,6 +3118,9 @@ const renderAnalyticsTab = () => {
                 sortedAndFilteredHistory.map(item => {
                   if (item.itemType === 'transaction') {
                     const transaction = item as Transaction;
+                    const budget = transaction.customBudgetId ? customBudgets.find(b => b.id === transaction.customBudgetId) : null;
+                    const isLockedOrPaused = !!(budget && (budget.status === 'locked' || budget.status === 'paused'));
+
                     return (
                       <div key={`txn-${transaction.id}`} className="bg-gray-50 rounded-xl p-4 flex justify-between items-start gap-4">
                         <div className="flex-1 min-w-0">
@@ -3087,8 +3148,18 @@ const renderAnalyticsTab = () => {
                           </div>
                         </div>
                         <div className="flex-shrink-0 flex space-x-1">
-                          <button onClick={() => editTransaction(transaction)} className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg" title="Edit Transaction"><Edit3 size={16} /></button>
-                          <button onClick={() => deleteTransaction(transaction.id)} className="p-2 text-red-600 hover:bg-red-100 rounded-lg" title="Delete Transaction"><Trash2 size={16} /></button>
+                          <button
+                            onClick={() => editTransaction(transaction)}
+                            disabled={isLockedOrPaused}
+                            className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                            title={isLockedOrPaused ? `Cannot edit from a ${budget?.status} budget` : "Edit Transaction"}
+                          ><Edit3 size={16} /></button>
+                          <button
+                            onClick={() => deleteTransaction(transaction.id)}
+                            disabled={isLockedOrPaused}
+                            className="p-2 text-red-600 hover:bg-red-100 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                            title={isLockedOrPaused ? `Cannot delete from a ${budget?.status} budget` : "Delete Transaction"}
+                          ><Trash2 size={16} /></button>
                         </div>
                       </div>
                     );
@@ -3436,20 +3507,24 @@ const renderAnalyticsTab = () => {
             </div>
 
             {/* Active Custom Budgets */}
-            {customBudgets.filter(budget => budget.status === 'active').length > 0 && (
+            {customBudgets.filter(budget => ['active', 'locked'].includes(budget.status)).length > 0 && (
               <div className="bg-white rounded-2xl p-6 shadow-lg">
-                <h2 className="text-xl font-bold text-gray-800 mb-4">Active Custom Budgets</h2>
+                <h2 className="text-xl font-bold text-gray-800 mb-4">Active & Locked Budgets</h2>
                 
                 <div className="space-y-4">
-                  {customBudgets.filter(budget => budget.status === 'active').map(budget => {
+                  {customBudgets.filter(budget => ['active', 'locked'].includes(budget.status)).map(budget => {
                     const percentage = budget.totalAmount > 0 ? (budget.spentAmount / budget.totalAmount) * 100 : 0;
                     const isOverBudget = budget.spentAmount > budget.totalAmount;
+                    const isLocked = budget.status === 'locked';
 
                     return (
-                      <div key={budget.id} className="border border-gray-200 rounded-xl p-4">
+                      <div key={budget.id} className={`border border-gray-200 rounded-xl p-4 ${isLocked ? 'bg-gray-100 opacity-80' : ''}`}>
                         <div className="flex justify-between items-start mb-3">
                           <div>
-                            <h3 className="font-semibold text-gray-800">{budget.name}</h3>
+                            <h3 className="font-semibold text-gray-800 flex items-center">
+                              {isLocked && <Lock size={16} className="mr-2 text-gray-500" />}
+                              {budget.name}
+                            </h3>
                             {budget.description && (
                               <p className="text-sm text-gray-600 mt-1">{budget.description}</p>
                             )}
@@ -3467,13 +3542,20 @@ const renderAnalyticsTab = () => {
                             }`}>
                               {budget.priority}
                             </span>
-                            <button onClick={() => pauseCustomBudget(budget.id)} className="p-1 text-gray-400 hover:text-blue-600 rounded" title="Pause Budget">
+                            <button
+                              onClick={() => handleLockBudget(budget.id)}
+                              className="p-1 text-gray-400 hover:text-yellow-600 rounded"
+                              title={isLocked ? "Unlock Budget" : "Lock Budget"}
+                            >
+                              {isLocked ? <Unlock size={16} /> : <Lock size={16} />}
+                            </button>
+                            <button onClick={() => pauseCustomBudget(budget.id)} disabled={isLocked} className="p-1 text-gray-400 hover:text-blue-600 rounded disabled:opacity-50 disabled:cursor-not-allowed" title="Pause Budget">
                               <Pause size={16} />
                             </button>
-                            <button onClick={() => handleEditCustomBudget(budget)} className="p-1 text-gray-400 hover:text-blue-600 rounded" title="Edit Budget">
+                            <button onClick={() => handleEditCustomBudget(budget)} disabled={isLocked} className="p-1 text-gray-400 hover:text-blue-600 rounded disabled:opacity-50 disabled:cursor-not-allowed" title="Edit Budget">
                               <Edit3 size={16} />
                             </button>
-                            <button onClick={() => deleteCustomBudget(budget.id)} className="p-1 text-gray-400 hover:text-red-600 rounded" title="Delete Budget">
+                            <button onClick={() => deleteCustomBudget(budget.id)} disabled={isLocked} className="p-1 text-gray-400 hover:text-red-600 rounded disabled:opacity-50 disabled:cursor-not-allowed" title="Delete Budget">
                               <Trash2 size={16} />
                             </button>
                           </div>
@@ -3885,7 +3967,7 @@ const renderAnalyticsTab = () => {
                   className="w-full p-3 border border-gray-300 rounded-xl"
                 >
                   <option value="">Select source</option>
-                  {customBudgets.filter(b => b.status === 'active').map(b => (
+        {customBudgets.filter(b => b.status === 'active').map(b => (
                     <option key={b.id} value={b.id}>{b.name}</option>
                   ))}
                 </select>
