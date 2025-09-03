@@ -356,7 +356,7 @@ const App = () => {
 
   // --- Back Button Handling for Mobile ---
   useEffect(() => {
-    const handleBackButton = (event: PopStateEvent) => {
+    const handleBackButton = (_event: PopStateEvent) => {
       // This event fires when the user navigates back (e.g., via mobile back button).
       // We intercept it to implement custom back-navigation logic.
 
