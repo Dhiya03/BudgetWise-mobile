@@ -8,8 +8,6 @@ import { Plus, TrendingUp, Settings, Download, Upload, Trash2, Edit3, List, PieC
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
-import {Capacitor} from '@capacitor/core';
-import {Filesystem, Directory, Encoding} from '@capacitor/filesystem';
 import {
   Transaction,
   MonthlyBudgets,
@@ -358,7 +356,7 @@ const App = () => {
 
   // --- Back Button Handling for Mobile ---
   useEffect(() => {
-    const handleBackButton = (_event: PopStateEvent) => {
+    const handleBackButton = (event: PopStateEvent) => {
       // This event fires when the user navigates back (e.g., via mobile back button).
       // We intercept it to implement custom back-navigation logic.
 
@@ -1182,36 +1180,29 @@ const App = () => {
       type = 'text/csv';
     }
 
-    if (Capacitor.isNativePlatform()) {
-      Filesystem.writeFile({
-        path: filename,
-        data: content,
-        directory: Directory.Documents,
-        encoding: Encoding.UTF8,
-      }).then(() => {
-        alert(`Export saved to Documents: ${filename}`);
-      }).catch((e: any) => {
-        alert(`Error saving export: ${(e as Error).message}`);
-      });
-    } else {
-      // Web fallback
+    try {
       const blob = new Blob([content], { type });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       link.download = filename;
+      link.style.display = 'none';
+      
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      URL.revokeObjectURL(url);
+      
+      // Reset form and close modal
+      setShowExportModal(false);
+      setExportStartDate('');
+      setExportEndDate('');
+      setExportFormat('json');
+      setExportType('all');
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert('Export failed. Please try again.');
     }
-
-    // Reset form and close modal
-    setShowExportModal(false);
-    setExportStartDate('');
-    setExportEndDate('');
-    setExportFormat('json');
-    setExportType('all');
   };
 
   const generateHTMLReport = () => {
@@ -1371,31 +1362,22 @@ const App = () => {
     `;
 
     // Create and download the HTML report
-    const filename = `BudgetWise_Report_${new Date().toISOString().split('T')[0]}.html`;
-    if (Capacitor.isNativePlatform()) {
-      Filesystem.writeFile({
-        path: filename,
-        data: reportHTML,
-        directory: Directory.Documents,
-        encoding: Encoding.UTF8,
-      }).then(() => {
-        alert(`HTML report saved to Documents: ${filename}`);
-      }).catch((e: any) => {
-        console.error('HTML report generation failed:', e);
-        alert(`Report generation failed: ${(e as Error).message}`);
-      });
-    } else {
-      // Web fallback
+    try {
       const blob = new Blob([reportHTML], { type: 'text/html' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = filename;
+      link.download = `BudgetWise_Report_${new Date().toISOString().split('T')[0]}.html`;
       link.style.display = 'none';
+      
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      
       setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) {
+      console.error('HTML report generation failed:', error);
+      alert('Report generation failed. Please try again.');
     }
   };
 
@@ -1645,35 +1627,15 @@ const App = () => {
     return budget ? budget.categories : [];
   };
   const backupData = () => {
-    showConfirmation('Backup Data', 'Do you want to create a backup file of all your data?', async () => {
-      const stateToBackup = { transactions, budgets, customBudgets, categories, budgetTemplates, budgetRelationships, billReminders, transferLog, recurringProcessingMode };
-      const dataStr = JSON.stringify(stateToBackup, null, 2);
-      const filename = `budgetwise_backup_${new Date().toISOString().split('T')[0]}.json`;
-
-      if (Capacitor.isNativePlatform()) {
-        try {
-          await Filesystem.writeFile({
-            path: filename,
-            data: dataStr,
-            directory: Directory.Documents,
-            encoding: Encoding.UTF8,
-          });
-          alert(`Backup saved to your device's Documents folder: ${filename}`);
-        } catch (e) {
-          console.error('Unable to write file', e);
-          alert(`Error saving backup: ${(e as Error).message}`);
-        }
-      } else {
-        // Web fallback
-        const blob = new Blob([dataStr], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.download = filename;
-        link.href = url;
-        link.click();
-        URL.revokeObjectURL(url);
-      }
-    });
+    const stateToBackup = { transactions, budgets, customBudgets, categories, budgetTemplates, budgetRelationships, billReminders, transferLog, recurringProcessingMode };
+    const dataStr = JSON.stringify(stateToBackup, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.download = `budgetwise_backup_${new Date().toISOString().split('T')[0]}.json`;
+    link.href = url;
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleRestore = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -1723,7 +1685,6 @@ const App = () => {
 
   const exportToExcel = () => {
     try {
-      const filename = `BudgetWise_Export_${new Date().toISOString().split('T')[0]}.xlsx`;
       // 1. Transactions Sheet
       const transactionData = sortedAndFilteredHistory
         .filter(item => item.itemType === 'transaction')
@@ -1779,20 +1740,9 @@ const App = () => {
       XLSX.utils.book_append_sheet(wb, customBudgetSheet, 'Custom Budgets');
       XLSX.utils.book_append_sheet(wb, transferLogSheet, 'Fund Transfers');
 
-      if (Capacitor.isNativePlatform()) {
-        const data = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
-        Filesystem.writeFile({
-          path: filename,
-          data: data,
-          directory: Directory.Documents,
-        }).then(() => {
-          alert(`Excel report saved to Documents: ${filename}`);
-        }).catch((e: any) => {
-          alert(`Error saving Excel file: ${(e as Error).message}`);
-        });
-      } else {
-        XLSX.writeFile(wb, filename);
-      }
+      // Download the file
+      XLSX.writeFile(wb, `BudgetWise_Export_${new Date().toISOString().split('T')[0]}.xlsx`);
+
     } catch (error) {
       console.error("Failed to export to Excel", error);
       alert("An error occurred while exporting to Excel.");
@@ -1849,42 +1799,29 @@ const App = () => {
 
   const quickCSVExport = () => {
     try {
-      const filename = `BudgetWise_Quick_Export_${new Date().toISOString().split('T')[0]}.csv`;
       // Enhanced CSV format with budget type information
       const headers = 'Date,BudgetType,Category,CustomBudget,CustomCategory,Description,Amount,Type,Tags,TransactionID\n';
       const rows = transactions.map(t => {
         const budgetName = t.budgetType === 'custom' ? getCustomBudgetName(t.customBudgetId) : '';
         const category = t.budgetType === 'custom' ? '' : t.category;
         const customCategory = t.budgetType === 'custom' ? t.customCategory : '';
-        const tags = t.tags?.join('; ') || ''; // Use semicolon to avoid CSV issues with commas // prettier-ignore
-        return `${t.date},${t.budgetType || 'monthly'},"${category}","${budgetName}","${customCategory}","${t.description || ''}",${t.amount},${t.amount < 0 ? 'Expense' : 'Income'},"${tags}",${t.id}`; // prettier-ignore
+        const tags = t.tags?.join('; ') || ''; // Use semicolon to avoid CSV issues with commas
+        return `${t.date},${t.budgetType || 'monthly'},"${category}","${budgetName}","${customCategory}","${t.description || ''}",${t.amount},${t.amount < 0 ? 'Expense' : 'Income'},"${tags}",${t.id}`;
       }).join('\n');
       
       const content = headers + rows;
+      const filename = `BudgetWise_Quick_Export_${new Date().toISOString().split('T')[0]}.csv`;
+      const type = 'text/csv';
 
-      if (Capacitor.isNativePlatform()) {
-        Filesystem.writeFile({
-          path: filename,
-          data: content,
-          directory: Directory.Documents,
-          encoding: Encoding.UTF8,
-        }).then(() => {
-          alert(`CSV saved to Documents: ${filename}`);
-        }).catch((e: any) => {
-          alert(`Error saving CSV: ${(e as Error).message}`);
-        });
-      } else {
-        const type = 'text/csv';
-        const blob = new Blob([content], { type });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-      }
+      const blob = new Blob([content], { type });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (error) {
       console.error('Quick CSV Export failed:', error);
       alert('Quick CSV Export failed. Please try again.');
@@ -1928,7 +1865,6 @@ const App = () => {
   const generatePDFReport = () => {
     try {
       const doc = new jsPDF();
-      const filename = `BudgetWise_Report_${new Date().toISOString().split('T')[0]}.pdf`;
       const stats = getMonthlyStats(currentYear, currentMonth);
 
       // Title
@@ -1991,20 +1927,7 @@ const App = () => {
         }
       });
 
-      if (Capacitor.isNativePlatform()) {
-        const pdfData = doc.output('datauristring').split(',')[1];
-        Filesystem.writeFile({
-          path: filename,
-          data: pdfData,
-          directory: Directory.Documents,
-        }).then(() => {
-          alert(`PDF report saved to Documents: ${filename}`);
-        }).catch((e: any) => {
-          alert(`Error saving PDF: ${(e as Error).message}`);
-        });
-      } else {
-        doc.save(filename);
-      }
+      doc.save(`BudgetWise_Report_${new Date().toISOString().split('T')[0]}.pdf`);
     } catch (error) {
       console.error("Failed to generate PDF report", error);
       alert("An error occurred while generating the PDF report.");
