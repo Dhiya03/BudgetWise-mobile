@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Plus, TrendingUp, Settings, Download, Upload, Trash2, Edit3, List, PieChart, ArrowUpDown, BarChart3, TrendingDown, AlertCircle, FileText, Pause, Play, Save, Link2, ArrowRight, Repeat, FileSpreadsheet, FileJson, Bell, Unlock, X } from 'lucide-react';
+import { Plus, TrendingUp, Settings, Download, Upload, Trash2, Edit3, List, PieChart, ArrowUpDown, BarChart3, TrendingDown, AlertCircle, FileText, Pause, Play, Save, Link2, ArrowRight, Repeat, FileSpreadsheet, FileJson, Bell, Unlock, X, XCircle } from 'lucide-react';
 
 // Add these to your project:
 // npm install xlsx jspdf jspdf-autotable
@@ -2820,39 +2820,52 @@ const renderAnalyticsTab = () => {
                   placeholder="Search transactions..."
                   className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
                 />
-                
-                <select
-                  value={filterCategory}
-                  onChange={(e) => setFilterCategory(e.target.value)}
-                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
-                >
-                  <option value="">All Transactions</option>
-                  <optgroup label="Monthly Categories">
-                    {categories.map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="Custom Budget Categories">
-                    {customBudgets.filter(budget => budget.status === 'active').map(budget => 
-                      budget.categories?.map(category => (
-                        <option key={`custom-${budget.id}-${category}`} value={`custom-${budget.id}-${category}`}>
-                          {budget.name} - {category}
-                        </option>
-                      ))
-                    ).flat()}
-                  </optgroup>
-                </select>
+                <div className="relative">
+                  <select
+                    value={filterCategory}
+                    onChange={(e) => setFilterCategory(e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 appearance-none pr-8"
+                  >
+                    <option value="">All Transactions</option>
+                    <optgroup label="Monthly Categories">
+                      {categories.map(cat => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Custom Budget Categories">
+                      {customBudgets.filter(budget => budget.status === 'active').map(budget => 
+                        budget.categories?.map(category => (
+                          <option key={`custom-${budget.id}-${category}`} value={`custom-${budget.id}-${category}`}>
+                            {budget.name} - {category}
+                          </option>
+                        ))
+                      ).flat()}
+                    </optgroup>
+                  </select>
+                  {filterCategory && (
+                    <button onClick={() => setFilterCategory('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600" aria-label="Clear category filter">
+                      <XCircle size={18} />
+                    </button>
+                  )}
+                </div>
 
-                <select
-                  value={filterTag}
-                  onChange={(e) => setFilterTag(e.target.value)}
-                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
-                >
-                  <option value="">Filter by Tag</option>
-                  {allTags.map(tag => (
-                    <option key={tag} value={tag}>{tag}</option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <select
+                    value={filterTag}
+                    onChange={(e) => setFilterTag(e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 appearance-none pr-8"
+                  >
+                    <option value="">Filter by Tag</option>
+                    {allTags.map(tag => (
+                      <option key={tag} value={tag}>{tag}</option>
+                    ))}
+                  </select>
+                  {filterTag && (
+                    <button onClick={() => setFilterTag('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600" aria-label="Clear tag filter">
+                      <XCircle size={18} />
+                    </button>
+                  )}
+                </div>
               </div>
 
                <div className="space-y-3 max-h-96 overflow-y-auto" style={{ paddingRight: '8px' }}>
