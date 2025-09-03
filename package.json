@@ -11,6 +11,7 @@
     "android": "npm run build && npx cap sync android"
   },
   "dependencies": {
+    "@capacitor/filesystem": "^7.1.4",
     "jspdf": "^2.5.1",
     "jspdf-autotable": "^3.8.2",
     "lucide-react": "^0.395.0",
@@ -19,9 +20,9 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
-  "@capacitor/android": "^6.0.0",
-  "@capacitor/cli": "^6.0.0",
-  "@capacitor/core": "^6.0.0",
+    "@capacitor/android": "^7.4.3",
+    "@capacitor/cli": "^7.4.3",
+    "@capacitor/core": "^7.4.3",
     "@testing-library/jest-dom": "^6.8.0",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",
