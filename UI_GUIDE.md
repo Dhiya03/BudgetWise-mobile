@@ -114,13 +114,20 @@ This is the hub for creating, viewing, and managing all budgets.
 
 ## 📈 Analytics Tab
 
-This tab provides visualizations and insights into spending habits.
+This tab provides a dashboard of advanced analytics and personalized insights into spending habits.
 
--   **Timeframe Buttons (7, 30, 90 Days)**: Adjusts the date range for all analytics on the page.
--   **Comparative Analytics Card**: Shows a side-by-side comparison of total spending in monthly vs. custom budgets.
--   **Spending Trend Chart**: A bar chart that visualizes spending over several consecutive periods.
--   **Show/Hide Predictive Analytics Button**: Toggles the visibility of the forecasting and recommendations section.
--   **Predictive Analytics Card**: Displays AI-driven spending forecasts and provides actionable financial recommendations.
+-   **Timeframe Buttons (30, 60, 90 Days)**: Adjusts the date range for all analytics on the page.
+-   **Financial Health Score**: A gauge chart showing a score from 0-100 with a status (e.g., "Thriving", "Caution") and an "Improve Score" button.
+-   **Cash Flow Reality Check**:
+    -   A waterfall chart visualizing the flow from Income → Expenses → Savings.
+    -   Cards for "Projected Monthly Savings", "Budget Burn Rate", and "Income Optimization".
+    -   An editable "Monthly Savings Goal" input field to make analytics more personal.
+-   **Your Habits**:
+    -   **Spending Personality**: A card that identifies the user's spending type (e.g., "Weekend Spender", "Weekday Warrior").
+    -   **Daily Spending Goal**: A card showing the user's streak of staying under a daily spending limit, with an editable goal amount.
+-   **Emergency Preparedness**: A card displaying the user's "Financial Runway" in months, indicating how long their savings would last.
+-   **Budget Scenario Planning**: An interactive section with sliders that allow the user to see how hypothetical changes to their monthly budgets would affect their Financial Health Score in real-time.
+-   **Smart Category Breakdown**: A list of spending categories showing total spend, trend vs. the last period, the largest single transaction, and actionable smart text insights.
 
 ---
 
@@ -137,6 +144,7 @@ This section contains app-level configurations and data management tools.
 -   **Export to Excel Button**: Generates and downloads a multi-sheet `.xlsx` file with detailed financial data.
 -   **Generate PDF Report Button**: Creates and downloads a summarized financial report in PDF format.
 -   **Generate HTML Report Button**: Creates and downloads a highly detailed, styled report in HTML format.
+-   **Generate Tax Report Button**: Opens a modal to map transaction categories to tax-relevant categories and export a specialized Excel report.
 
 ### Recurring Transactions Section
 -   **Automatic / Manual Buttons**: Allows the user to choose how recurring transactions are processed. 'Automatic' processes them on app launch, while 'Manual' requires the user to press a button.
@@ -175,38 +183,42 @@ These are pop-up dialogs for specific actions.
 -   **Transfer Button**: Executes the fund transfer, creating corresponding transactions in the history.
 
 
+-------------------------------------------------------------------------------------------------------------------------------------
 
+## 🛠️ Developer Guide: Building for Android
 
-Prerequisites
-Before you start, make sure you have the following installed on your system:
+This guide outlines the steps to wrap the BudgetWise web application into a native Android APK using Capacitor.
 
-Node.js
-Android Studio with the Android SDK.
-Step 1: Install Capacitor
-First, navigate to your project's directory and install the Capacitor CLI and its core packages as development dependencies.
+### Prerequisites
 
-bash
- Show full code block 
-# Navigate to your budget-app directory
-cd /Users/dhiviyalakshmi.athoughtworks.com/Downloads/All\ files\ -\ financial/financial_management_tool/budget-app/
+Before you begin, ensure you have the following installed on your system:
+-   **Node.js** (LTS version recommended)
+-   **Android Studio** with the Android SDK
 
-# Install Capacitor dependencies
+### Step 1: Install Dependencies
+
+Navigate to your project's root directory in the terminal and install the necessary Capacitor dependencies.
+
+```bash
 npm install @capacitor/cli @capacitor/core --save-dev
 npm install @capacitor/android --save-dev
-Step 2: Initialize Capacitor
-Now, run the Capacitor init command. This will create a configuration file for your project.
+```
 
-bash
+### Step 2: Initialize Capacitor
+
+If this is the first time setting up Capacitor for the project, run the `init` command.
+
+```bash
 npx cap init
-It will ask you for your app name and a package ID. You can use the following:
+```
 
-App Name: BudgetWise
-App ID: com.budgetwise.app (This is a unique identifier for your app, like a domain name in reverse).
-This command creates a capacitor.config.ts file. Open it and ensure its content looks like this. The most important part is setting webDir to 'dist', which is where Vite places your built web files.
+You will be prompted for the following:
+-   **App Name**: `BudgetWise`
+-   **App ID**: `com.budgetwise.app` (a unique identifier for your app)
 
-New file: capacitor.config.ts
-+12
- Show full code block 
+This creates a `capacitor.config.ts` file. Ensure the `webDir` is set to `'dist'`, which is Vite's default output directory.
+
+```typescript
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
@@ -219,33 +231,61 @@ const config: CapacitorConfig = {
 };
 
 export default config;
+```
 
-Step 3: Add the Android Platform
-Next, add the native Android platform to your project. This command will create an android folder in your project root.
+### Step 3: Add the Android Platform
 
-bash
+This command creates the native Android project in an `android/` directory at the root of your project.
+
+```bash
 npx cap add android
-Step 4: Build Your Web App
-You need to create a production build of your React application. This compiles your code and assets into the dist directory that Capacitor will use.
+```
 
-bash
+### Step 4: Build and Sync the Web App
+
+Whenever you make changes to the web application code (in the `src` folder), you must create a production build and sync it with the native project.
+
+1.  **Build the web assets:**
+    ```bash
 npm run build
-Step 5: Sync Your Web App with the Native Project
-The sync command is a crucial step. It copies your built web assets from the dist folder into the native Android project. You should run this command every time you make changes to your web code and rebuild.
-
-bash
+    ```
+2.  **Sync with Android:** This copies the web files from `dist/` into the native project.
+    ```bash
 npx cap sync
-Step 6: Open and Build in Android Studio
-Now you are ready to open the native project in Android Studio and build your APK.
+    ```
 
-Open Android Studio:
+### Step 5: Build the APK in Android Studio
 
-bash
+1.  **Open the project in Android Studio:**
+    ```bash
 npx cap open android
-This will launch Android Studio and load your new Android project. It may take some time to download dependencies (Gradle) the first time.
+    ```
+    Android Studio will launch and load the native project. The initial Gradle sync may take a few moments.
 
-Build the APK:
+2.  **Build the APK:**
+    -   From the Android Studio menu bar, select **Build > Build Bundle(s) / APK(s) > Build APK(s)**.
+    -   Once the build is complete, a notification will appear with a link to the generated `app-debug.apk` file.
+    -   You can install this APK on an Android emulator or a physical device for testing.
 
-Once the project is open and synced in Android Studio, go to the menu bar and select Build > Build Bundle(s) / APK(s) > Build APK(s).
-After the build is complete, Android Studio will show a notification with a link to locate the generated APK file. You can then install this file on an Android device or emulator.
-That's it! You have successfully wrapped your web application in a native container and built an APK.
+
+--------------------------------------------------------------------------------------------------------------------------------------
+---
+
+## 🌐 Developer Guide: Running as a Web App
+
+The BudgetWise application can also be run as a standard web application locally for testing and development purposes. This leverages Vite's built-in development server.
+
+### Steps to Run Locally
+
+1.  **Navigate to the project directory** in your terminal.
+
+2.  **Install dependencies** (if you haven't already):
+    ```bash
+    npm install
+    ```
+
+3.  **Start the development server**:
+    ```bash
+    npm run dev
+    ```
+    After running this command, your terminal will display a local URL (e.g., `http://localhost:5173/`). Open this URL in your web browser to access the application. Changes to your code will automatically update in the browser due to Hot Module Replacement (HMR).
