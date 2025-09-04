@@ -16,7 +16,6 @@ import {
   BudgetRelationship,
   BillReminder,
   TransferEvent,
-  TaxCategoryMapping,
 } from '../types';
 
 interface DataManagementProps {
@@ -61,9 +60,6 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
   } = props;
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [showTaxModal, setShowTaxModal] = useState(false);
-  const [taxMapping, setTaxMapping] = useState<TaxCategoryMapping>({});
-  const [taxYear, setTaxYear] = useState(new Date().getFullYear());
 
   // Analytics Calculations
   const healthScore = useMemo(() => getFinancialHealthScore(transactions, analyticsTimeframe, getCustomBudgetName), [transactions, analyticsTimeframe, getCustomBudgetName]);
@@ -411,59 +407,6 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
     }
   };
 
-  const generateTaxReport = () => {
-    const taxCategories: { [key: string]: number } = {
-      "80C Deductions": 0,
-      "Medical Expenses (80D)": 0,
-      "Home Loan Interest (24b)": 0,
-      "Business Expenses": 0,
-      "Other Income": 0,
-      "Uncategorized": 0,
-    };
-
-    transactions.forEach(t => {
-      if (new Date(t.date).getFullYear() === taxYear) {
-        const userCategory = t.budgetType === 'custom' ? `${getCustomBudgetName(t.customBudgetId)} - ${t.customCategory}` : t.category;
-        const taxCategory = taxMapping[userCategory] || "Uncategorized";
-        if (taxCategories[taxCategory] !== undefined) {
-          taxCategories[taxCategory] += Math.abs(t.amount);
-        }
-      }
-    });
-
-    const reportData = Object.entries(taxCategories).map(([category, amount]) => ({
-      "Tax Category": category,
-      "Amount (₹)": amount.toFixed(2),
-    }));
-
-    const worksheet = XLSX.utils.json_to_sheet(reportData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, `Tax Report ${taxYear}`);
-
-    const filename = `Tax_Report_${taxYear}.xlsx`;
-
-    if (Capacitor.isNativePlatform()) {
-      const data = XLSX.write(workbook, { bookType: 'xlsx', type: 'base64' });
-      Filesystem.writeFile({
-        path: filename,
-        data: data,
-        directory: Directory.Documents,
-      }).then(() => {
-        alert(`Tax report saved to Documents: ${filename}`);
-      }).catch((e: any) => {
-        alert(`Error saving tax report: ${(e as Error).message}`);
-      });
-    } else {
-      XLSX.writeFile(workbook, filename);
-    }
-
-    setShowTaxModal(false);
-  };
-
-  const handleTaxMappingChange = (userCategory: string, taxCategory: string) => {
-    setTaxMapping({ ...taxMapping, [userCategory]: taxCategory });
-  };
-
   const generateHTMLReport = () => {
     const getScoreDescription = (score: number) => {
       if (score >= 75) return { text: "Thriving", color: "#10B981" };
@@ -636,52 +579,6 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
 
   return (
     <div className="bg-white rounded-2xl p-6 shadow-lg">
-      {/* Tax Report Modal */}
-      {showTaxModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-bold text-gray-800 mb-4">Generate Tax Report</h2>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Tax Year</label>
-              <select
-                value={taxYear}
-                onChange={(e) => setTaxYear(parseInt(e.target.value))}
-                className="w-full p-2 border border-gray-300 rounded-lg"
-              >
-                {[...new Array(5)].map((_, i) => new Date().getFullYear() - i).map(year => (
-                  <option key={year} value={year}>{year}</option>
-                ))}
-              </select>
-            </div>
-            <h3 className="text-lg font-semibold mb-2">Map Your Categories</h3>
-            <div className="space-y-2">
-              {[...categories, ...customBudgets.flatMap(b => b.categories.map(c => `${b.name} - ${c}`))].map(cat => (
-                <div key={cat} className="grid grid-cols-2 gap-2 items-center">
-                  <span className="text-sm truncate" title={cat}>{cat}</span>
-                  <select
-                    value={taxMapping[cat] || ''}
-                    onChange={(e) => handleTaxMappingChange(cat, e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded-lg text-sm"
-                  >
-                    <option value="">Select Tax Category</option>
-                    <option value="80C Deductions">80C Deductions</option>
-                    <option value="Medical Expenses (80D)">Medical Expenses (80D)</option>
-                    <option value="Home Loan Interest (24b)">Home Loan Interest (24b)</option>
-                    <option value="Business Expenses">Business Expenses</option>
-                    <option value="Other Income">Other Income</option>
-                    <option value="Uncategorized">Uncategorized</option>
-                  </select>
-                </div>
-              ))}
-            </div>
-            <div className="flex justify-end space-x-3 mt-6">
-              <button onClick={() => setShowTaxModal(false)} className="px-4 py-2 bg-gray-200 rounded-lg">Cancel</button>
-              <button onClick={generateTaxReport} className="px-4 py-2 bg-green-600 text-white rounded-lg">Generate Report</button>
-            </div>
-          </div>
-        </div>
-      )}
-
       <h2 className="text-xl font-bold text-gray-800 mb-4">Data Management</h2>
       <div className="space-y-3">
         <button
@@ -721,13 +618,6 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
         >
           <FileText size={18} className="mr-2" />
           Generate HTML Report
-        </button>
-        <button
-          onClick={() => setShowTaxModal(true)}
-          className="w-full p-3 bg-green-100 text-green-800 rounded-xl font-semibold hover:bg-green-200 flex items-center justify-center"
-        >
-          <FileSpreadsheet size={18} className="mr-2" />
-          Generate Tax Report
         </button>
       </div>
     </div>

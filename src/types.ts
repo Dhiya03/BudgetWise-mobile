@@ -111,8 +111,3 @@ export interface TransferEvent {
   toBudgetId: number;
   toCategoryAllocations: { [key: string]: number };
 }
-
-// Describes the mapping for tax categories
-export interface TaxCategoryMapping {
-  [userCategory: string]: string; // e.g., { "Hospital": "Medical Expenses", "Petrol": "Travel" }
-}

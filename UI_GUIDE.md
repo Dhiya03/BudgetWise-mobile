@@ -144,7 +144,6 @@ This section contains app-level configurations and data management tools.
 -   **Export to Excel Button**: Generates and downloads a multi-sheet `.xlsx` file with detailed financial data.
 -   **Generate PDF Report Button**: Creates and downloads a summarized financial report in PDF format.
 -   **Generate HTML Report Button**: Creates and downloads a highly detailed, styled report in HTML format.
--   **Generate Tax Report Button**: Opens a modal to map transaction categories to tax-relevant categories and export a specialized Excel report.
 
 ### Recurring Transactions Section
 -   **Automatic / Manual Buttons**: Allows the user to choose how recurring transactions are processed. 'Automatic' processes them on app launch, while 'Manual' requires the user to press a button.
