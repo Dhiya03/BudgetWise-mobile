@@ -66,7 +66,7 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
   const cashFlow = useMemo(() => getCashFlowAnalysis(transactions, analyticsTimeframe, budgets, savingsGoal), [transactions, analyticsTimeframe, budgets, savingsGoal]);
   const categoryInsights = useMemo(() => getCategoryInsights(transactions, analyticsTimeframe, getCustomBudgetName), [transactions, analyticsTimeframe, getCustomBudgetName]);
   const personality = useMemo(() => getSpendingPersonality(transactions), [transactions]);
-  const streak = useMemo(() => getDailySpendingStreak(transactions, dailySpendingGoal), [transactions, dailySpendingGoal]);
+  const streak = useMemo(() => getDailySpendingStreak(transactions, dailySpendingGoal, analyticsTimeframe), [transactions, dailySpendingGoal, analyticsTimeframe]);
   const runway = useMemo(() => getFinancialRunway(transactions), [transactions]);
 
 
@@ -266,7 +266,7 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
       const filename = `BudgetWise_Report_${new Date().toISOString().split('T')[0]}.pdf`;
 
       const healthScore = getFinancialHealthScore(transactions, analyticsTimeframe, getCustomBudgetName);
-      const cashFlow = getCashFlowAnalysis(transactions, analyticsTimeframe, budgets, 15000);
+      const cashFlow = getCashFlowAnalysis(transactions, analyticsTimeframe, budgets, savingsGoal);
       const categoryInsights = getCategoryInsights(transactions, analyticsTimeframe, getCustomBudgetName);
 
       const getScoreDescription = (score: number) => {
@@ -282,12 +282,14 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
         return '#000000';
       };
 
+       const reportTitle = analyticsTimeframe === 'This Month' ? 'Report for This Month' : `Report for the last ${analyticsTimeframe} days`;
+
       // Title
       doc.setFontSize(18);
       doc.text('BudgetWise Financial Report', 14, 22);
       doc.setFontSize(11);
       doc.setTextColor(100);  
-      doc.text(`Report for the last ${analyticsTimeframe} days, generated on: ${new Date().toLocaleDateString()}`, 14, 29);
+      doc.text(`${reportTitle}, generated on: ${new Date().toLocaleDateString()}`, 14, 29);
 
       // Health Score
       doc.setFontSize(16);
@@ -307,7 +309,9 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
         body: [
            ['Total Income', `₹${cashFlow.totalIncome.toFixed(2)}`],
           ['Total Expenses', `₹${cashFlow.totalExpenses.toFixed(2)}`],
-          ['Net Savings', `₹${cashFlow.savings.toFixed(2)}`],
+          ['Net Savings (Period)', `₹${cashFlow.savings.toFixed(2)}`],
+          ['Projected Monthly Savings', `₹${cashFlow.projectedMonthlySavings.toFixed(2)}`],
+          ['Budget Burn Rate', isFinite(cashFlow.burnRateDays) ? `~${cashFlow.burnRateDays.toFixed(0)} days` : 'N/A'],
           ['Financial Runway', isFinite(runway.runwayMonths) ? `${runway.runwayMonths} months` : '∞'],
        ],
         theme: 'striped',
@@ -410,6 +414,7 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
       if (score >= 50) return { text: "Caution", color: "#F59E0B" };
       return { text: "Action Needed", color: "#EF4444" };
     };
+    const reportTitle = analyticsTimeframe === 'This Month' ? 'For This Month' : `For the last ${analyticsTimeframe} days`;
 
     const scoreDescription = getScoreDescription(healthScore.score);
 
@@ -446,7 +451,7 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
         <div class="container">
           <div class="header">
             <h1>BudgetWise Financial Report</h1>
-            <p>For the last ${analyticsTimeframe} days, generated on ${new Date().toLocaleDateString()}</p>
+            <p>${reportTitle}, generated on ${new Date().toLocaleDateString()}</p>
           </div>
 
           <div class="section">
@@ -473,9 +478,32 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
                 <div class="card-value ${cashFlow.savings >= 0 ? 'positive' : 'negative'}">₹${cashFlow.savings.toFixed(0)}</div>
               </div>
               
-<div class="card">
+              <div class="card">
                 <div class="card-title">Financial Runway</div>
                 <div class="card-value">${isFinite(runway.runwayMonths) ? `${runway.runwayMonths} months` : '∞'}</div>
+              </div>
+            </div>
+            <div class="chart-container" style="display: flex; align-items: stretch; gap: 0.5rem; height: 10rem; padding-top: 1rem; border-top: 1px solid #e5e7eb; margin-top: 1rem;">
+              <div class="chart-bar-container" style="flex: 1; display: flex; flex-direction: column; text-align: center;">
+                <div class="bar-wrapper" style="flex: 1; display: flex; align-items: flex-end;">
+                  <div class="bar" style="margin: 0 auto; width: 60%; border-radius: 4px 4px 0 0; background-color: #22c55e; height: ${Math.min(100, (cashFlow.totalIncome / (cashFlow.totalIncome || 1)) * 100)}%;"></div>
+                </div>
+                <p style="font-size: 0.75rem; margin-top: 0.25rem;">Income</p>
+                <p style="font-size: 0.8rem; font-weight: bold;">₹${cashFlow.totalIncome.toFixed(0)}</p>
+              </div>
+              <div class="chart-bar-container" style="flex: 1; display: flex; flex-direction: column; text-align: center;">
+                <div class="bar-wrapper" style="flex: 1; display: flex; align-items: flex-end;">
+                  <div class="bar" style="margin: 0 auto; width: 60%; border-radius: 4px 4px 0 0; background-color: #ef4444; height: ${Math.min(100, (cashFlow.totalExpenses / (cashFlow.totalIncome || 1)) * 100)}%;"></div>
+                </div>
+                <p style="font-size: 0.75rem; margin-top: 0.25rem;">Expenses</p>
+                <p style="font-size: 0.8rem; font-weight: bold;">₹${cashFlow.totalExpenses.toFixed(0)}</p>
+              </div>
+              <div class="chart-bar-container" style="flex: 1; display: flex; flex-direction: column; text-align: center;">
+                <div class="bar-wrapper" style="flex: 1; display: flex; align-items: flex-end;">
+                  <div class="bar" style="margin: 0 auto; width: 60%; border-radius: 4px 4px 0 0; background-color: #3b82f6; height: ${Math.min(100, (Math.max(0, cashFlow.savings) / (cashFlow.totalIncome || 1)) * 100)}%;"></div>
+                </div>
+                <p style="font-size: 0.75rem; margin-top: 0.25rem;">Savings</p>
+                <p style="font-size: 0.8rem; font-weight: bold;">₹${cashFlow.savings.toFixed(0)}</p>
               </div>
             </div>
           </div>

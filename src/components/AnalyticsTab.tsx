@@ -1,6 +1,6 @@
 import  { useState, useMemo, FC } from 'react';
 import { TrendingUp, TrendingDown, DollarSign, Target, Activity, HelpCircle, ShieldCheck, ShieldAlert, Shield, CalendarDays, Flame, SlidersHorizontal, AlertTriangle, X, Lightbulb } from 'lucide-react';
-import { Transaction, MonthlyBudgets } from '../types';
+import { Transaction, MonthlyBudgets, SpendingAlert } from '../types';
 import { getCategoryInsights, getFinancialHealthScore, getCashFlowAnalysis, getSpendingPersonality, getDailySpendingStreak, getFinancialRunway, simulateBudgetScenario } from '../utils/analytics';
 
 interface AnalyticsTabProps {
@@ -13,6 +13,20 @@ interface AnalyticsTabProps {
   setAnalyticsTimeframe: (timeframe: string) => void;
   setDailySpendingGoal: (goal: number) => void;
   setSavingsGoal: (goal: number) => void;
+  handleNavigationRequest: (request: any) => void;
+  onSetAlert: (alert: Omit<SpendingAlert, 'id' | 'lastNotifiedMonth'>) => void;
+}
+
+interface ActionableTip {
+  text: string;
+  icon: React.ReactNode;
+  action?: {
+    type: 'navigate';
+    payload: {
+      tab: string;
+      filterCategory?: string;
+    };
+  };
 }
 
 const FinancialHealthScore: FC<{ score: number; color: string }> = ({ score, color }) => (
@@ -44,8 +58,9 @@ const FinancialHealthScore: FC<{ score: number; color: string }> = ({ score, col
 const ImproveScoreModal: FC<{
   isOpen: boolean;
   onClose: () => void;
-  tips: string[];
-}> = ({ isOpen, onClose, tips }) => {
+  tips: ActionableTip[];
+  onAction: (action: any) => void;
+}> = ({ isOpen, onClose, tips, onAction }) => {
   if (!isOpen) return null;
 
   return (
@@ -62,11 +77,16 @@ const ImproveScoreModal: FC<{
         </div>
         <div className="space-y-3">
           {tips.length > 0 ? (
-            <ul className="list-disc list-inside space-y-2 text-gray-700">
+            <div className="space-y-2">
               {tips.map((tip, index) => (
-                <li key={index}>{tip}</li>
+                <div key={index} className="flex items-start p-3 bg-gray-50 rounded-lg">
+                  <div className="flex-shrink-0 text-purple-600 mt-1">{tip.icon}</div>
+                  <div className="ml-3 flex-1">
+                    <p className="text-sm text-gray-700">{tip.text}</p>
+                  </div>
+                </div>
               ))}
-            </ul>
+            </div>
           ) : (
             <p className="text-center text-gray-500 py-4">
               Your financial health looks great! Keep up the good work.
@@ -86,37 +106,100 @@ const ImproveScoreModal: FC<{
   );
 };
 
-const AnalyticsTab: FC<AnalyticsTabProps> = ({ transactions, budgets, getCustomBudgetName, savingsGoal, setSavingsGoal, dailySpendingGoal, setDailySpendingGoal, analyticsTimeframe, setAnalyticsTimeframe }) => {
+const SetAlertModal: FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  category: string | null;
+  onSetAlert: (alert: Omit<SpendingAlert, 'id' | 'lastNotifiedMonth'>) => void;
+}> = ({ isOpen, onClose, category, onSetAlert }) => {
+  const [threshold, setThreshold] = useState('');
+
+  if (!isOpen || !category) return null;
+
+  const handleSave = () => {
+    const thresholdAmount = parseFloat(threshold);
+    if (isNaN(thresholdAmount) || thresholdAmount <= 0) {
+      alert('Please enter a valid positive number for the threshold.');
+      return;
+    }
+    onSetAlert({
+      category,
+      threshold: thresholdAmount,
+      condition: 'above',
+    });
+    onClose();
+    setThreshold('');
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={onClose}>
+      <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-xl font-bold text-gray-800 mb-2">Set Alert for "{category}"</h2>
+        <p className="text-sm text-gray-600 mb-4">Get a notification when spending in this category goes above a certain amount this month.</p>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Spending Threshold (₹)</label>
+            <input type="number" value={threshold} onChange={(e) => setThreshold(e.target.value)} placeholder="e.g., 5000" className="w-full p-3 border border-gray-300 rounded-xl" />
+          </div>
+          <div className="flex justify-end space-x-3">
+            <button onClick={onClose} className="px-4 py-2 bg-gray-200 rounded-lg">Cancel</button>
+            <button onClick={handleSave} className="px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold">Save Alert</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const AnalyticsTab: FC<AnalyticsTabProps> = ({ transactions, budgets, getCustomBudgetName, savingsGoal, setSavingsGoal, dailySpendingGoal, setDailySpendingGoal, analyticsTimeframe, setAnalyticsTimeframe, handleNavigationRequest, onSetAlert }) => {
   const categoryInsights = useMemo(() => getCategoryInsights(transactions, analyticsTimeframe, getCustomBudgetName), [transactions, analyticsTimeframe, getCustomBudgetName]);
   const healthScore = useMemo(() => getFinancialHealthScore(transactions, analyticsTimeframe, getCustomBudgetName), [transactions, analyticsTimeframe, getCustomBudgetName]);
   const cashFlow = useMemo(() => getCashFlowAnalysis(transactions, analyticsTimeframe, budgets, savingsGoal), [transactions, analyticsTimeframe, budgets, savingsGoal]);
   const personality = useMemo(() => getSpendingPersonality(transactions), [transactions]);
-  const streak = useMemo(() => getDailySpendingStreak(transactions, dailySpendingGoal), [transactions, dailySpendingGoal]);
+  const streak = useMemo(() => getDailySpendingStreak(transactions, dailySpendingGoal, analyticsTimeframe), [transactions, dailySpendingGoal, analyticsTimeframe]);
   const runway = useMemo(() => getFinancialRunway(transactions), [transactions]);
 
   const [scenarioChanges, setScenarioChanges] = useState<{ [key: string]: number }>({});
   const simulatedSavingsResult = useMemo(() => simulateBudgetScenario(transactions, budgets, scenarioChanges, analyticsTimeframe), [transactions, budgets, scenarioChanges, analyticsTimeframe]);
   const [isImproveModalOpen, setIsImproveModalOpen] = useState(false);
+  const [isAlertModalOpen, setIsAlertModalOpen] = useState(false);
+  const [alertCategory, setAlertCategory] = useState<string | null>(null);
+
 
   const improvementTips = useMemo(() => {
-    const tips: string[] = [];
+    const tips: ActionableTip[] = [];
     const { breakdown } = healthScore;
 
     if (breakdown.budgetScore < 25) {
       const highestCategory = categoryInsights[0];
-      tips.push(`Your spending is high compared to your income. Review your largest category, "${highestCategory?.category || 'expenses'}", to find potential savings.`);
+      if (highestCategory) {
+        tips.push({
+          text: `Your spending is high compared to your income. Review your largest category, "${highestCategory.category}", to find potential savings.`,
+          icon: <DollarSign size={18} />,
+        });
+      }
     }
 
     if (breakdown.savingsScore < 15 && cashFlow.savings < savingsGoal) {
-      tips.push(`Your savings rate is low. Try setting a more aggressive savings goal or creating a 'Rollover Rule' in the Budget tab to automatically save surpluses.`);
+      tips.push({
+        text: `Your savings rate is low. Try creating a 'Rollover Rule' in the Budget tab to automatically save any monthly surpluses to a savings goal.`,
+        icon: <Target size={18} />,
+      });
     }
 
     if (breakdown.trendScore < 10) {
-      tips.push(`Your spending has been increasing. Check the 'Smart Category Breakdown' for categories with a high upward trend.`);
+      const highTrendCategory = categoryInsights.find(c => c.trend > 20);
+      tips.push({
+        text: `Your spending has been increasing. ${highTrendCategory ? `Focus on your '${highTrendCategory.category}' spending which is up ${highTrendCategory.trend.toFixed(0)}%.` : "Check the 'Smart Category Breakdown' for categories with a high upward trend."}`,
+        icon: <TrendingUp size={18} />,
+      });
     }
 
     if (isFinite(runway.runwayMonths) && runway.runwayMonths < 3) {
-      tips.push(`Your financial runway is short (${runway.runwayMonths} months). Focus on building an emergency fund of 3-6 months of expenses.`);
+      tips.push({
+        text: `Your financial runway is short (${runway.runwayMonths} months). Focus on building an emergency fund of 3-6 months of expenses.`,
+        icon: <AlertTriangle size={18} />
+      });
     }
     return tips;
   }, [healthScore, categoryInsights, cashFlow, runway, savingsGoal]);
@@ -139,15 +222,15 @@ const AnalyticsTab: FC<AnalyticsTabProps> = ({ transactions, budgets, getCustomB
       <div className="bg-white rounded-2xl p-6 shadow-lg">
         <h2 className="text-xl font-bold text-gray-800 mb-4">Analytics Dashboard</h2>
         <div className="flex justify-center space-x-2 mb-4">
-          {['30', '60', '90'].map(day => (
+          {['This Month', '30', '60', '90'].map(period => (
             <button
-              key={day}
-              onClick={() => setAnalyticsTimeframe(day)}
-              className={`px-4 py-2 rounded-full text-sm font-medium ${
-                analyticsTimeframe === day ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700'
+              key={period}
+              onClick={() => setAnalyticsTimeframe(period)}
+              className={`px-4 py-2 rounded-full text-xs font-medium ${
+                analyticsTimeframe === period ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700'
               }`}
             >
-              Last {day} Days
+              {period === 'This Month' ? 'This Month' : `Last ${period} Days`}
             </button>
           ))}
         </div>
@@ -155,7 +238,16 @@ const AnalyticsTab: FC<AnalyticsTabProps> = ({ transactions, budgets, getCustomB
 
       {/* Financial Health Score */}
       <div className="bg-white rounded-2xl p-6 shadow-lg text-center">
-        <h3 className="text-lg font-bold text-gray-800 mb-2">Financial Health Score</h3>
+        <div className="flex justify-center items-center mb-2">
+          <h3 className="text-lg font-bold text-gray-800">Financial Health Score</h3>
+          <div className="relative group ml-2">
+            <HelpCircle size={16} className="text-gray-400 opacity-50 cursor-help" />
+            <div className="absolute bottom-full mb-2 w-64 p-3 bg-gray-800 text-white text-xs text-left rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 transform -translate-x-1/2 left-1/2">
+              Your financial wellness score (0-100). It's calculated from your income, expenses, savings, and spending trends to provide a simple summary.
+              <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-800"></div>
+            </div>
+          </div>
+        </div>
         <FinancialHealthScore score={healthScore.score} color={healthScore.color} />
         <div className={`mt-4 flex items-center justify-center font-semibold ${scoreDescription.color}`}>
           <scoreDescription.icon size={20} className="mr-2" />
@@ -251,19 +343,25 @@ const AnalyticsTab: FC<AnalyticsTabProps> = ({ transactions, budgets, getCustomB
             </div>
           </div>
           <div className={`p-4 rounded-lg flex items-center ${streak.isTodayUnder ? 'bg-green-50' : 'bg-yellow-50'}`}>
-            <Flame size={24} className={`mr-4 ${streak.isTodayUnder ? 'text-green-600' : 'text-yellow-600'}`} />
+            <Flame size={12} className={`flex-shrink-0 mr-4 ${streak.isTodayUnder ? 'text-green-600' : 'text-yellow-600'}`} />
             <div>
-              <p className="text-sm font-medium">Daily Spending Goal</p>
+              <p className="text-sm font-medium">
+                Daily Spending Goal
+                <span className="relative group ml-1.5 inline-block align-middle">
+                  <HelpCircle size={14} className="text-gray-500 cursor-help" />
+                  <div className="absolute bottom-full mb-2 w-60 p-2 bg-gray-800 text-white text-xs text-center rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 transform -translate-x-1/2 left-1/2">
+                    Challenge yourself with a daily spending goal! The streak shows how many consecutive days you've stayed under your goal.
+                    <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-800"></div>
+                  </div>
+                </span>
+              </p>
               <p className="text-lg font-bold">{streak.streak}-Day Streak</p>
               <div className="flex items-center text-xs text-gray-600">
-                Under ₹
-                <input
+                <span className="mr-1">Under ₹<input
                   type="number"
                   value={dailySpendingGoal}
                   onChange={(e) => setDailySpendingGoal(parseInt(e.target.value) || 0)}
-                  className="w-16 bg-transparent focus:bg-white focus:ring-1 focus:ring-purple-400 rounded-md p-0.5 text-center"
-                />
-                 / day
+                 className="w-9 bg-transparent focus:bg-white focus:ring-1 focus:ring-purple-400 rounded-md p-0.5 text-center font-medium hide-arrows"/>/ day</span>
               </div>
             </div>
           </div>
@@ -274,7 +372,16 @@ const AnalyticsTab: FC<AnalyticsTabProps> = ({ transactions, budgets, getCustomB
       <div className="bg-white rounded-2xl p-6 shadow-lg">
         <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center"><AlertTriangle size={20} className="mr-2 text-orange-500" />Emergency Preparedness</h3>
         <div className="text-center">
-          <p className="text-sm text-gray-600">Financial Runway</p>
+          <div className="flex justify-center items-center text-sm text-gray-600">
+            <span>Financial Runway</span>
+            <div className="relative group ml-1.5">
+              <HelpCircle size={14} className="text-gray-500 cursor-help" />
+              <div className="absolute bottom-full mb-2 w-64 p-2 bg-gray-800 text-white text-xs text-left rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 transform -translate-x-1/2 left-1/2">
+                Your financial safety net. It's calculated by dividing your total savings by your net spending over the last 30 days. An infinite (∞) runway means you are saving money.
+                <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-800"></div>
+              </div>
+            </div>
+          </div>
           <p className="text-4xl font-bold my-2">{isFinite(runway.runwayMonths) ? `${runway.runwayMonths} months` : '∞'}</p>
           <p className="text-xs text-gray-500">Based on your current savings and a 30-day net cash flow of <span className={runway.monthlyNet < 0 ? 'text-red-600' : 'text-green-600'}>₹{runway.monthlyNet.toFixed(0)}</span>.</p>
         </div>
@@ -284,15 +391,15 @@ const AnalyticsTab: FC<AnalyticsTabProps> = ({ transactions, budgets, getCustomB
       <div className="bg-white rounded-2xl p-6 shadow-lg">
         <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center"><SlidersHorizontal size={20} className="mr-2 text-purple-600" />Budget Scenario Planning</h3>
         <div className="space-y-3">
-          {Object.keys(budgets).slice(0, 3).map(category => (
+          {Object.entries(budgets).sort(([, a], [, b]) => b - a).slice(0, 3).map(([category]) => (
             <div key={category}>
               <label className="block text-sm font-medium text-gray-700">{category}</label>
               <div className="flex items-center space-x-2">
                 <span className="text-sm">₹{budgets[category]}</span>
                 <input
                   type="range"
-                  min="-5000"
-                  max="5000"
+                  min={-budgets[category]}
+                  max={budgets[category]}
                   step="500"
                   value={scenarioChanges[category] || 0}
                   onChange={(e) => handleScenarioChange(category, e.target.value)}
@@ -306,7 +413,16 @@ const AnalyticsTab: FC<AnalyticsTabProps> = ({ transactions, budgets, getCustomB
           ))}
         </div>
         <div className="mt-4 pt-4 border-t text-center">
-          <p className="text-sm text-gray-600">Simulated Monthly Savings</p>
+          <div className="flex justify-center items-center text-sm text-gray-600">
+            <span>Simulated Monthly Savings</span>
+            <div className="relative group ml-1.5">
+              <HelpCircle size={14} className="text-gray-400 opacity-50 cursor-help" />
+              <div className="absolute bottom-full mb-2 w-64 p-2 bg-gray-800 text-white text-xs text-center rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 transform -translate-x-1/2 left-1/2">
+                A quick way to simulate how changes to your main budgets can affect your monthly savings.
+                <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-800"></div>
+              </div>
+            </div>
+          </div>
           <div className={`mt-2 text-2xl font-bold ${simulatedSavingsColor}`}>
             ₹{simulatedSavingsResult.simulatedSavings.toFixed(0)}
           </div>
@@ -329,7 +445,10 @@ const AnalyticsTab: FC<AnalyticsTabProps> = ({ transactions, budgets, getCustomB
                   {insight.trend > 10 ? <TrendingUp size={16} className="mr-1" /> : <TrendingDown size={16} className="mr-1" />}
                   <span>{insight.trend > 0 ? '+' : ''}{insight.trend.toFixed(0)}%</span>
                 </div>
-                <button className="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-full hover:bg-gray-300">
+                <button onClick={() => {
+                  setAlertCategory(insight.category);
+                  setIsAlertModalOpen(true);
+                }} className="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-full hover:bg-gray-300 flex items-center">
                   Set Alert
                 </button>
               </div>
@@ -360,7 +479,18 @@ const AnalyticsTab: FC<AnalyticsTabProps> = ({ transactions, budgets, getCustomB
       <ImproveScoreModal
         isOpen={isImproveModalOpen}
         onClose={() => setIsImproveModalOpen(false)}
+        onAction={(action) => {
+          handleNavigationRequest(action);
+          setIsImproveModalOpen(false);
+        }}
         tips={improvementTips}
+      />
+
+      <SetAlertModal
+        isOpen={isAlertModalOpen}
+        onClose={() => setIsAlertModalOpen(false)}
+        category={alertCategory}
+        onSetAlert={onSetAlert}
       />
     </div>
   );

@@ -68,6 +68,15 @@ export interface BillReminder {
   dueDate: string;
 }
 
+// Describes a spending alert
+export interface SpendingAlert {
+  id: number;
+  category: string; // Can be a monthly category or a custom budget category string
+  threshold: number;
+  condition: 'above'; // Currently only supports 'spending goes above'
+  lastNotifiedMonth?: string; // e.g., "2024-07" to prevent re-notifying in the same month
+}
+
 // Describes the data structure for the transaction form
 export interface TransactionFormData {
   category: string;

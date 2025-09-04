@@ -11,6 +11,7 @@ import {
   BudgetRelationship,
   BillReminder,
   TransactionFormData,
+  SpendingAlert,
   CustomBudgetFormData,
   RelationshipFormData,
   TransferEvent,
@@ -18,6 +19,7 @@ import {
 import AnalyticsTab from './components/AnalyticsTab';
 import DataManagement from './components/DataManagement';
 import SecuritySettings from './components/SecuritySettings';
+import AlertManagement from './components/AlertManagement';
 import BillReminderTab from './components/BillReminderTab';
 import { LocalNotifications } from '@capacitor/local-notifications';
 
@@ -94,6 +96,12 @@ const App = () => {
     onConfirm: null,
   });
 
+  // --- Navigation State ---
+  const [navigationRequest, setNavigationRequest] = useState<{
+    tab: string;
+    filterCategory?: string;
+    focus?: string;
+  } | null>(null);
 
   // Security & Persistence
   const [appPassword, setAppPassword] = useState<string | null>(null);
@@ -116,6 +124,7 @@ const App = () => {
 
   // Bill Reminders - State is kept here for persistence
   const [billReminders, setBillReminders] = useState<BillReminder[]>([]);
+  const [spendingAlerts, setSpendingAlerts] = useState<SpendingAlert[]>([]);
 
 
   // --- Form States ---
@@ -210,6 +219,11 @@ const App = () => {
       onConfirm: null,
     });
   };
+  const getCustomBudgetName = useCallback((customBudgetId: number | null) => {
+    if (customBudgetId === null) return 'N/A';
+    const budget = customBudgets.find(b => b.id === customBudgetId);
+    return budget ? budget.name : 'Unknown Budget';
+  }, [customBudgets]);
 
   // --- Data Persistence and Security Hooks ---
 
@@ -227,7 +241,7 @@ const App = () => {
                 setBudgetTemplates(appState.budgetTemplates || []);
                 setBudgetRelationships(appState.budgetRelationships || []);
                 setBillReminders(appState.billReminders || []);
-                setTransferLog(appState.transferLog || []);
+                setSpendingAlerts(appState.spendingAlerts || []);
                 setRecurringProcessingMode(appState.recurringProcessingMode || 'automatic');
                 setDailySpendingGoal(appState.dailySpendingGoal || 500);
                 setAnalyticsTimeframe(appState.analyticsTimeframe || '30');
@@ -261,7 +275,7 @@ const App = () => {
       // Only save if the app is not locked to prevent saving empty initial state
       if (isLocked) return;
       
-      const appState = { transactions, budgets, customBudgets, categories, budgetTemplates, budgetRelationships, billReminders, transferLog, recurringProcessingMode, savingsGoal, dailySpendingGoal, analyticsTimeframe };
+      const appState = { transactions, budgets, customBudgets, categories, budgetTemplates, budgetRelationships, billReminders, spendingAlerts, transferLog, recurringProcessingMode, savingsGoal, dailySpendingGoal, analyticsTimeframe };
       const jsonString = JSON.stringify(appState);
       const encryptedData = appPassword ? btoa(jsonString) : jsonString; // Simple Base64 "encryption"
       localStorage.setItem('budgetWiseData_v2', encryptedData);
@@ -278,7 +292,7 @@ const App = () => {
       }, 1000); // Save 1 second after the last change
       return () => clearTimeout(handler); // Add this cleanup
     }
-  }, [transactions, budgets, customBudgets, categories, budgetTemplates, budgetRelationships, billReminders, transferLog, recurringProcessingMode, savingsGoal, dailySpendingGoal, analyticsTimeframe]);
+  }, [transactions, budgets, customBudgets, categories, budgetTemplates, budgetRelationships, billReminders, spendingAlerts, transferLog, recurringProcessingMode, savingsGoal, dailySpendingGoal, analyticsTimeframe]);
 
   // Automatically process recurring transactions if in automatic mode and app is unlocked
   useEffect(() => {
@@ -324,6 +338,7 @@ const App = () => {
           setBudgetTemplates(appState.budgetTemplates || []);
           setBudgetRelationships(appState.budgetRelationships || []);
           setBillReminders(appState.billReminders || []);
+          setSpendingAlerts(appState.spendingAlerts || []);
           setRecurringProcessingMode(appState.recurringProcessingMode || 'automatic');
           setTransferLog(appState.transferLog || []);
           setDailySpendingGoal(appState.dailySpendingGoal || 500);
@@ -379,6 +394,17 @@ const App = () => {
       handleCancelTransactionEdit();
     }
   }, [activeTab]);
+
+  // --- Navigation Effect ---
+  useEffect(() => {
+    if (navigationRequest) {
+      setActiveTab(navigationRequest.tab);
+      if (navigationRequest.filterCategory) {
+        setFilterCategory(navigationRequest.filterCategory);
+      }
+      setNavigationRequest(null); // Reset after navigation
+    }
+  }, [navigationRequest]);
 
   const handleCancelTransactionEdit = () => {
     setEditingTransaction(null);
@@ -451,7 +477,7 @@ const App = () => {
         category: 'Food',
         amount: -150,
         description: 'Groceries',
-        date: new Date().toISOString().split('T')[0],
+        date: (() => { const d = new Date(); d.setDate(d.getDate() - 2); return d.toISOString().split('T')[0]; })(), // 2 days ago
         type: 'expense',
         budgetType: 'monthly',
         customBudgetId: null,
@@ -466,7 +492,7 @@ const App = () => {
         category: '',
         amount: -500,
         description: 'Flight booking',
-        date: new Date().toISOString().split('T')[0],
+        date: (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().split('T')[0]; })(), // Yesterday
         type: 'expense',
         budgetType: 'custom',
         customBudgetId: 1,
@@ -479,9 +505,9 @@ const App = () => {
       {
         id: 3,
         category: '',
-        amount: -1200,
-        description: 'Hotel advance booking',
-        date: new Date().toISOString().split('T')[0],
+        amount: -400,
+        description: 'Dinner with friends',
+        date: new Date().toISOString().split('T')[0], // Today
         type: 'expense',
         budgetType: 'custom',
         customBudgetId: 1,
@@ -557,6 +583,61 @@ const App = () => {
       setBudgets(sampleBudgets);
     }
   };
+
+   const handleNavigationRequest = (request: any) => {
+    if (request && request.type === 'navigate') {
+      setNavigationRequest(request.payload);
+    }
+  };
+
+  const handleSetSpendingAlert = (alertData: Omit<SpendingAlert, 'id' | 'lastNotifiedMonth'>) => {
+    const newAlert: SpendingAlert = {
+      id: Date.now(),
+      ...alertData,
+    };
+    setSpendingAlerts([...spendingAlerts, newAlert]);
+    alert(`Alert set for "${alertData.category}"!`);
+  };
+
+  const handleDeleteSpendingAlert = (alertId: number) => {
+    showConfirmation('Delete Alert', 'Are you sure you want to delete this spending alert?', () => {
+      setSpendingAlerts(spendingAlerts.filter(a => a.id !== alertId));
+    });
+  };
+
+  const checkSpendingAlerts = useCallback((currentTransactions: Transaction[]) => {
+    const currentMonthKey = `${new Date().getFullYear()}-${new Date().getMonth()}`;
+    const updatedAlerts = [...spendingAlerts];
+    let notificationFired = false;
+
+    spendingAlerts.forEach((alert, index) => {
+      if (alert.lastNotifiedMonth === currentMonthKey) {
+        return; // Already notified this month
+      }
+
+      const categorySpending = currentTransactions
+        .filter(t => {
+          const transactionDate = new Date(t.date);
+          const categoryName = t.budgetType === 'custom' ? `${getCustomBudgetName(t.customBudgetId)} - ${t.customCategory}` : t.category;
+          return categoryName === alert.category && transactionDate.getMonth() === new Date().getMonth() && transactionDate.getFullYear() === new Date().getFullYear();
+        })
+        .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+
+      if (categorySpending > alert.threshold) {
+        LocalNotifications.schedule({
+          notifications: [{
+            title: 'BudgetWise Alert',
+            body: `You've spent ₹${categorySpending.toFixed(0)} in "${alert.category}", which is over your set threshold of ₹${alert.threshold}.`,
+            id: alert.id,
+          }]
+        });
+        updatedAlerts[index] = { ...alert, lastNotifiedMonth: currentMonthKey };
+        notificationFired = true;
+      }
+    });
+
+    if (notificationFired) setSpendingAlerts(updatedAlerts);
+  }, [spendingAlerts, getCustomBudgetName]);
 
   const deleteTransaction = (id: number) => {
     const transactionToDelete = transactions.find(t => t.id === id);
@@ -812,6 +893,7 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
       );
       setTransactions(updatedTransactions);
       recalculateCustomBudgetSpending(updatedTransactions, budgetsForRecalculation);
+      checkSpendingAlerts(updatedTransactions); // Check alerts after updating a transaction
       handleCancelTransactionEdit();
     } else {
       // Add logic
@@ -826,6 +908,7 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
       const newTransactions = [...transactions, transaction];
       setTransactions(newTransactions);
       recalculateCustomBudgetSpending(newTransactions, budgetsForRecalculation);
+      checkSpendingAlerts(newTransactions); // Check alerts after adding transactions
       // Reset form
       setFormData({
         category: '', amount: '', description: '', date: new Date().toISOString().split('T')[0],
@@ -1442,12 +1525,6 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
       .reduce((sum, t) => sum + Math.abs(t.amount), 0);
   };
 
-  const getCustomBudgetName = useCallback((customBudgetId: number | null) => {
-    if (customBudgetId === null) return 'N/A';
-    const budget = customBudgets.find(b => b.id === customBudgetId);
-    return budget ? budget.name : 'Unknown Budget';
-  }, [customBudgets]);
-
   const sortedAndFilteredHistory = useMemo(() => {
     const transactionItems = transactions.map(t => ({ ...t, itemType: 'transaction' as const, sortDate: new Date(t.timestamp) }));
     const transferItems = transferLog.map(t => ({ ...t, itemType: 'transfer' as const, sortDate: new Date(t.date) }));
@@ -1762,6 +1839,11 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
           dailySpendingGoal={dailySpendingGoal}
           analyticsTimeframe={analyticsTimeframe}
           savingsGoal={savingsGoal}
+        />
+
+        <AlertManagement
+          spendingAlerts={spendingAlerts}
+          onDeleteAlert={handleDeleteSpendingAlert}
         />
 
         {/* Recurring Transactions */}
@@ -2434,7 +2516,13 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
                   <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
                   <select
                     value={budgetForm.category}
-                    onChange={(e) => setBudgetForm({ ...budgetForm, category: e.target.value })}
+                    onChange={(e) => {
+                      const selectedCategory = e.target.value;
+                      setBudgetForm({
+                        category: selectedCategory,
+                        amount: budgets[selectedCategory]?.toString() || ''
+                      });
+                    }}
                     className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
                   >
                     <option value="">Select Category</option>
@@ -3323,6 +3411,8 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
                   setDailySpendingGoal={setDailySpendingGoal}
                   analyticsTimeframe={analyticsTimeframe}
                   setAnalyticsTimeframe={setAnalyticsTimeframe}
+                  onSetAlert={handleSetSpendingAlert}
+                  handleNavigationRequest={handleNavigationRequest}
                 />
               )}
         {activeTab === 'reminders' && (

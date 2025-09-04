@@ -1,5 +1,33 @@
 import { Transaction, MonthlyBudgets } from '../types';
 
+const getPeriodDates = (timeframe: string) => {
+  const now = new Date();
+  let currentStartDate: Date, currentEndDate: Date, previousStartDate: Date, previousEndDate: Date, currentPeriodDays: number, isThisMonth: boolean;
+
+  currentEndDate = new Date();
+
+  if (timeframe === 'This Month') {
+    isThisMonth = true;
+    currentStartDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    previousEndDate = new Date(now.getFullYear(), now.getMonth(), 0); // Last day of previous month
+    previousStartDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    currentPeriodDays = now.getDate(); // Number of days so far this month
+  } else {
+    isThisMonth = false;
+    const timeframeDays = parseInt(timeframe, 10);
+    currentStartDate = new Date();
+    currentStartDate.setDate(now.getDate() - timeframeDays);
+    currentPeriodDays = timeframeDays;
+
+    previousEndDate = new Date(currentStartDate);
+    previousEndDate.setDate(previousEndDate.getDate() - 1);
+    previousStartDate = new Date(previousEndDate);
+    previousStartDate.setDate(previousEndDate.getDate() - (timeframeDays - 1));
+  }
+
+  return { currentStartDate, currentEndDate, previousStartDate, previousEndDate, currentPeriodDays, isThisMonth };
+};
+
 const getPeriodData = (transactions: Transaction[], startDate: Date, endDate: Date, getCustomBudgetName?: (id: number | null) => string) => {
   const filtered = transactions.filter(t => {
     const transactionDate = new Date(t.date);
@@ -40,18 +68,7 @@ const getPeriodData = (transactions: Transaction[], startDate: Date, endDate: Da
 };
 
 export const getCategoryInsights = (transactions: Transaction[], analyticsTimeframe: string, getCustomBudgetName: (id: number | null) => string) => {
-  const timeframeDays = parseInt(analyticsTimeframe, 10);
-  const now = new Date();
-
-  const currentEndDate = new Date();
-  const currentStartDate = new Date();
-  currentStartDate.setDate(now.getDate() - timeframeDays);
-
-  const previousEndDate = new Date(currentStartDate);
-  previousEndDate.setDate(previousEndDate.getDate() - 1);
-  const previousStartDate = new Date(previousEndDate);
-  previousStartDate.setDate(previousEndDate.getDate() - (timeframeDays - 1));
-
+  const { currentStartDate, currentEndDate, previousStartDate, previousEndDate } = getPeriodDates(analyticsTimeframe);
   const currentPeriod = getPeriodData(transactions, currentStartDate, currentEndDate, getCustomBudgetName);
   const previousPeriod = getPeriodData(transactions, previousStartDate, previousEndDate, getCustomBudgetName);
 
@@ -97,12 +114,8 @@ export const getFinancialHealthScore = (
   analyticsTimeframe: string,
   getCustomBudgetName?: (id: number | null) => string
 ) => {
-  const timeframeDays = parseInt(analyticsTimeframe, 10);
-  const now = new Date();
-  const startDate = new Date();
-  startDate.setDate(now.getDate() - timeframeDays);
-
-  const periodData = getPeriodData(transactions, startDate, now, getCustomBudgetName);
+  const { currentStartDate, currentEndDate, previousStartDate, previousEndDate } = getPeriodDates(analyticsTimeframe);
+  const periodData = getPeriodData(transactions, currentStartDate, currentEndDate, getCustomBudgetName);
 
   // 1. Spending vs Income (40 points) - NEW LOGIC
   // This is a more accurate health metric. Are you spending less than you earn?
@@ -110,7 +123,7 @@ export const getFinancialHealthScore = (
   if (periodData.totalIncome > 0) {
     const ratio = periodData.totalExpenses / periodData.totalIncome;
     // Score is 40 if you spend 80% or less of income. It's 0 if you spend 120% or more.
-    spendingScore = Math.max(0, 40 * (1 - (ratio - 0.8) / 0.4));
+    spendingScore = Math.min(40, Math.max(0, 40 * (1 - (ratio - 0.8) / 0.4)));
   } else if (periodData.totalExpenses === 0) {
     spendingScore = 40; // No income, no expenses
   }
@@ -124,10 +137,6 @@ export const getFinancialHealthScore = (
   }
 
   // 3. Trend Consistency (30 points)
-  const previousEndDate = new Date(startDate);
-  previousEndDate.setDate(previousEndDate.getDate() - 1);
-  const previousStartDate = new Date(previousEndDate);
-  previousStartDate.setDate(previousEndDate.getDate() - (timeframeDays - 1));
   const previousPeriodData = getPeriodData(transactions, previousStartDate, previousEndDate, getCustomBudgetName);
   const trend = previousPeriodData.totalExpenses > 0
     ? (periodData.totalExpenses - previousPeriodData.totalExpenses) / previousPeriodData.totalExpenses
@@ -158,20 +167,16 @@ export const getCashFlowAnalysis = (
   budgets: MonthlyBudgets,
   savingsGoal: number = 15000
 ) => {
-  const timeframeDays = parseInt(analyticsTimeframe, 10);
-  const now = new Date();
-  const startDate = new Date();
-  startDate.setDate(now.getDate() - timeframeDays);
-
-  const periodData = getPeriodData(transactions, startDate, now);
+  const { currentStartDate, currentEndDate, currentPeriodDays, isThisMonth } = getPeriodDates(analyticsTimeframe);
+  const periodData = getPeriodData(transactions, currentStartDate, currentEndDate);
   const { totalIncome, totalExpenses, expensesByCategory } = periodData;
 
   const savings = totalIncome - totalExpenses;
-  const projectedMonthlySavings = savings * (30 / timeframeDays);
+  const projectedMonthlySavings = isThisMonth ? savings : savings * (30 / currentPeriodDays);
 
   const totalMonthlyBudget = Object.values(budgets).reduce((sum, b) => sum + b, 0);
-  const avgDailySpending = totalExpenses / timeframeDays;
-  const burnRateDays = avgDailySpending > 0 ? (totalMonthlyBudget * (timeframeDays / 30)) / avgDailySpending : Infinity;
+  const avgDailySpending = totalExpenses / currentPeriodDays;
+  const burnRateDays = avgDailySpending > 0 ? (totalMonthlyBudget * (currentPeriodDays / 30)) / avgDailySpending : Infinity;
 
   const incomeNeeded = Math.max(0, (totalExpenses + savingsGoal) - totalIncome);
 
@@ -216,8 +221,15 @@ export const getSpendingPersonality = (transactions: Transaction[]) => {
   return { personality: "Balanced Spender", insight: "Your spending is evenly distributed throughout the week." };
 };
 
-export const getDailySpendingStreak = (transactions: Transaction[], threshold: number) => {
+export const getDailySpendingStreak = (transactions: Transaction[], threshold: number, analyticsTimeframe: string) => {
   if (transactions.length === 0) return { streak: 0, isTodayUnder: false };
+
+  // Find the date of the first transaction ever to provide a realistic start for the streak.
+  const firstTransactionDate = transactions.reduce((earliest, t) => {
+    const tDate = new Date(t.date);
+    return tDate < earliest ? tDate : earliest;
+  }, new Date());
+  firstTransactionDate.setHours(0, 0, 0, 0);
 
   const spendingByDay: { [key: string]: number } = {};
   // Ensure threshold is a valid number, defaulting to 0 if not
@@ -236,10 +248,15 @@ export const getDailySpendingStreak = (transactions: Transaction[], threshold: n
   let currentDate = new Date();
   currentDate.setHours(0, 0, 0, 0);
 
+  const { currentPeriodDays } = getPeriodDates(analyticsTimeframe);
   let loopCounter = 0;
-  const MAX_DAYS_TO_CHECK = 365 * 5; // Check up to 5 years back to prevent infinite loops
 
-  while (loopCounter < MAX_DAYS_TO_CHECK) {
+  while (loopCounter < currentPeriodDays) {
+    // Stop counting if we go past the user's first transaction.
+    if (currentDate < firstTransactionDate) {
+      break;
+    }
+
     let dateStr;
     try {
       dateStr = currentDate.toISOString().split('T')[0];
@@ -293,16 +310,14 @@ export const simulateBudgetScenario = (
   scenarioChanges: { [category: string]: number },
   analyticsTimeframe: string,
 ) => {
-  const simulatedBudgets = { ...currentBudgets, ...scenarioChanges };
+  const { currentStartDate, currentEndDate, currentPeriodDays, isThisMonth } = getPeriodDates(analyticsTimeframe);
+  const periodData = getPeriodData(transactions, currentStartDate, currentEndDate);
+  const monthlyIncome = isThisMonth ? periodData.totalIncome : periodData.totalIncome * (30 / currentPeriodDays);
+  const simulatedBudgets = { ...currentBudgets };
+  Object.keys(scenarioChanges).forEach(category => {
+    simulatedBudgets[category] = (currentBudgets[category] || 0) + (scenarioChanges[category] || 0);
+  });
   const simulatedTotalBudget = Object.values(simulatedBudgets).reduce((sum, b) => sum + b, 0);
-
-  const timeframeDays = parseInt(analyticsTimeframe, 10);
-  const now = new Date();
-  const startDate = new Date();
-  startDate.setDate(now.getDate() - timeframeDays);
-
-  const periodData = getPeriodData(transactions, startDate, now);
-  const monthlyIncome = periodData.totalIncome * (30 / timeframeDays);
 
   const simulatedSavings = monthlyIncome - simulatedTotalBudget;
   return { simulatedSavings, monthlyIncome, simulatedTotalBudget };
