@@ -66,7 +66,7 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
   const [taxYear, setTaxYear] = useState(new Date().getFullYear());
 
   // Analytics Calculations
-  const healthScore = useMemo(() => getFinancialHealthScore(transactions, budgets, analyticsTimeframe), [transactions, budgets, analyticsTimeframe]);
+  const healthScore = useMemo(() => getFinancialHealthScore(transactions, analyticsTimeframe, getCustomBudgetName), [transactions, analyticsTimeframe, getCustomBudgetName]);
   const cashFlow = useMemo(() => getCashFlowAnalysis(transactions, analyticsTimeframe, budgets, savingsGoal), [transactions, analyticsTimeframe, budgets, savingsGoal]);
   const categoryInsights = useMemo(() => getCategoryInsights(transactions, analyticsTimeframe, getCustomBudgetName), [transactions, analyticsTimeframe, getCustomBudgetName]);
   const personality = useMemo(() => getSpendingPersonality(transactions), [transactions]);
@@ -269,7 +269,7 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
       const doc = new jsPDF() as jsPDF & { lastAutoTable: { finalY: number } };
       const filename = `BudgetWise_Report_${new Date().toISOString().split('T')[0]}.pdf`;
 
-      const healthScore = getFinancialHealthScore(transactions, budgets, analyticsTimeframe);
+      const healthScore = getFinancialHealthScore(transactions, analyticsTimeframe, getCustomBudgetName);
       const cashFlow = getCashFlowAnalysis(transactions, analyticsTimeframe, budgets, 15000);
       const categoryInsights = getCategoryInsights(transactions, analyticsTimeframe, getCustomBudgetName);
 

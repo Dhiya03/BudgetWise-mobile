@@ -94,25 +94,25 @@ export const getCategoryInsights = (transactions: Transaction[], analyticsTimefr
 
 export const getFinancialHealthScore = (
   transactions: Transaction[],
-  budgets: MonthlyBudgets,
-  analyticsTimeframe: string
+  analyticsTimeframe: string,
+  getCustomBudgetName?: (id: number | null) => string
 ) => {
   const timeframeDays = parseInt(analyticsTimeframe, 10);
   const now = new Date();
   const startDate = new Date();
   startDate.setDate(now.getDate() - timeframeDays);
 
-  const periodData = getPeriodData(transactions, startDate, now);
-  const totalBudget = Object.values(budgets).reduce((sum, b) => sum + b, 0);
-  const monthlyBudget = totalBudget * (timeframeDays / 30);
+  const periodData = getPeriodData(transactions, startDate, now, getCustomBudgetName);
 
-  // 1. Spending vs Budget (40 points)
-  let budgetScore = 0;
-  if (monthlyBudget > 0) {
-    const ratio = periodData.totalExpenses / monthlyBudget;
-    budgetScore = Math.max(0, 40 * (1 - ratio));
+  // 1. Spending vs Income (40 points) - NEW LOGIC
+  // This is a more accurate health metric. Are you spending less than you earn?
+  let spendingScore = 0;
+  if (periodData.totalIncome > 0) {
+    const ratio = periodData.totalExpenses / periodData.totalIncome;
+    // Score is 40 if you spend 80% or less of income. It's 0 if you spend 120% or more.
+    spendingScore = Math.max(0, 40 * (1 - (ratio - 0.8) / 0.4));
   } else if (periodData.totalExpenses === 0) {
-    budgetScore = 40;
+    spendingScore = 40; // No income, no expenses
   }
 
   // 2. Savings Rate (30 points)
@@ -128,7 +128,7 @@ export const getFinancialHealthScore = (
   previousEndDate.setDate(previousEndDate.getDate() - 1);
   const previousStartDate = new Date(previousEndDate);
   previousStartDate.setDate(previousEndDate.getDate() - (timeframeDays - 1));
-  const previousPeriodData = getPeriodData(transactions, previousStartDate, previousEndDate);
+  const previousPeriodData = getPeriodData(transactions, previousStartDate, previousEndDate, getCustomBudgetName);
   const trend = previousPeriodData.totalExpenses > 0
     ? (periodData.totalExpenses - previousPeriodData.totalExpenses) / previousPeriodData.totalExpenses
     : (periodData.totalExpenses > 0 ? 1 : 0);
@@ -139,7 +139,7 @@ export const getFinancialHealthScore = (
   else if (trend > 0.2) trendScore = 0; // Significantly increasing
   else if (trend > 0) trendScore = 10; // Increasing
 
-  const totalScore = Math.round(budgetScore + savingsScore + trendScore);
+  const totalScore = Math.round(spendingScore + savingsScore + trendScore);
 
   let scoreColor = 'text-red-500';
   if (totalScore >= 75) scoreColor = 'text-green-500';
@@ -148,7 +148,7 @@ export const getFinancialHealthScore = (
   return {
     score: totalScore,
     color: scoreColor,
-    breakdown: { budgetScore, savingsScore, trendScore },
+    breakdown: { budgetScore: spendingScore, savingsScore, trendScore },
   };
 };
 
@@ -220,6 +220,12 @@ export const getDailySpendingStreak = (transactions: Transaction[], threshold: n
   if (transactions.length === 0) return { streak: 0, isTodayUnder: false };
 
   const spendingByDay: { [key: string]: number } = {};
+  // Ensure threshold is a valid number, defaulting to 0 if not
+  if (typeof threshold !== 'number' || isNaN(threshold)) {
+    console.warn("getDailySpendingStreak: Invalid 'threshold' value, defaulting to 0.", threshold);
+    threshold = 0;
+  }
+
   transactions.forEach(t => {
     if (t.amount < 0) {
       spendingByDay[t.date] = (spendingByDay[t.date] || 0) + Math.abs(t.amount);
@@ -230,14 +236,30 @@ export const getDailySpendingStreak = (transactions: Transaction[], threshold: n
   let currentDate = new Date();
   currentDate.setHours(0, 0, 0, 0);
 
-  while (true) {
-    const dateStr = currentDate.toISOString().split('T')[0];
-    if ((spendingByDay[dateStr] || 0) <= threshold) {
-      streak++;
-      currentDate.setDate(currentDate.getDate() - 1);
-    } else {
-      break;
+  let loopCounter = 0;
+  const MAX_DAYS_TO_CHECK = 365 * 5; // Check up to 5 years back to prevent infinite loops
+
+  while (loopCounter < MAX_DAYS_TO_CHECK) {
+    let dateStr;
+    try {
+      dateStr = currentDate.toISOString().split('T')[0];
+    } catch (e) {
+      console.error("getDailySpendingStreak: Error converting date to string. Breaking loop.", currentDate, e);
+      break; // Break if date conversion fails
     }
+
+    try {
+      if ((spendingByDay[dateStr] || 0) <= threshold) {
+        streak++;
+        currentDate.setDate(currentDate.getDate() - 1);
+      } else {
+        break; // Streak broken
+      }
+    } catch (e) {
+      console.error("getDailySpendingStreak: Uncaught error during streak calculation. Breaking loop.", { dateStr, spendingByDayValue: spendingByDay[dateStr], threshold, error: e });
+      break; // Stop processing on error
+    }
+    loopCounter++;
   }
   const todayStr = new Date().toISOString().split('T')[0];
   return { streak, isTodayUnder: (spendingByDay[todayStr] || 0) <= threshold };
@@ -264,11 +286,24 @@ export const getFinancialRunway = (transactions: Transaction[]) => {
   return { runwayMonths, monthlyNet };
 };
 
+// REFACTORED: This now simulates potential savings, not a health score.
 export const simulateBudgetScenario = (
   transactions: Transaction[],
   currentBudgets: MonthlyBudgets,
-  scenarioChanges: { [category: string]: number }
+  scenarioChanges: { [category: string]: number },
+  analyticsTimeframe: string,
 ) => {
   const simulatedBudgets = { ...currentBudgets, ...scenarioChanges };
-  return getFinancialHealthScore(transactions, simulatedBudgets, '30');
+  const simulatedTotalBudget = Object.values(simulatedBudgets).reduce((sum, b) => sum + b, 0);
+
+  const timeframeDays = parseInt(analyticsTimeframe, 10);
+  const now = new Date();
+  const startDate = new Date();
+  startDate.setDate(now.getDate() - timeframeDays);
+
+  const periodData = getPeriodData(transactions, startDate, now);
+  const monthlyIncome = periodData.totalIncome * (30 / timeframeDays);
+
+  const simulatedSavings = monthlyIncome - simulatedTotalBudget;
+  return { simulatedSavings, monthlyIncome, simulatedTotalBudget };
 };

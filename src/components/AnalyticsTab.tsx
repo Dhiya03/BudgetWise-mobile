@@ -43,14 +43,14 @@ const FinancialHealthScore: FC<{ score: number; color: string }> = ({ score, col
 
 const AnalyticsTab: FC<AnalyticsTabProps> = ({ transactions, budgets, getCustomBudgetName, savingsGoal, setSavingsGoal, dailySpendingGoal, setDailySpendingGoal, analyticsTimeframe, setAnalyticsTimeframe }) => {
   const categoryInsights = useMemo(() => getCategoryInsights(transactions, analyticsTimeframe, getCustomBudgetName), [transactions, analyticsTimeframe, getCustomBudgetName]);
-  const healthScore = useMemo(() => getFinancialHealthScore(transactions, budgets, analyticsTimeframe), [transactions, budgets, analyticsTimeframe]);
+  const healthScore = useMemo(() => getFinancialHealthScore(transactions, analyticsTimeframe, getCustomBudgetName), [transactions, analyticsTimeframe, getCustomBudgetName]);
   const cashFlow = useMemo(() => getCashFlowAnalysis(transactions, analyticsTimeframe, budgets, savingsGoal), [transactions, analyticsTimeframe, budgets, savingsGoal]);
   const personality = useMemo(() => getSpendingPersonality(transactions), [transactions]);
   const streak = useMemo(() => getDailySpendingStreak(transactions, dailySpendingGoal), [transactions, dailySpendingGoal]);
   const runway = useMemo(() => getFinancialRunway(transactions), [transactions]);
 
   const [scenarioChanges, setScenarioChanges] = useState<{ [key: string]: number }>({});
-  const simulatedScore = useMemo(() => simulateBudgetScenario(transactions, budgets, scenarioChanges), [transactions, budgets, scenarioChanges]);
+  const simulatedSavingsResult = useMemo(() => simulateBudgetScenario(transactions, budgets, scenarioChanges, analyticsTimeframe), [transactions, budgets, scenarioChanges, analyticsTimeframe]);
 
   const getScoreDescription = (score: number) => {
     if (score >= 75) return { text: "Thriving", icon: ShieldCheck, color: "text-green-600" };
@@ -59,7 +59,7 @@ const AnalyticsTab: FC<AnalyticsTabProps> = ({ transactions, budgets, getCustomB
   };
 
   const scoreDescription = getScoreDescription(healthScore.score);
-  const simulatedScoreDescription = getScoreDescription(simulatedScore.score);
+  const simulatedSavingsColor = simulatedSavingsResult.simulatedSavings >= savingsGoal ? "text-green-600" : simulatedSavingsResult.simulatedSavings > 0 ? "text-yellow-600" : "text-red-600";
 
   const handleScenarioChange = (category: string, value: string) => {
       setScenarioChanges({ ...scenarioChanges, [category]: parseInt(value) || 0 });
@@ -228,11 +228,11 @@ const AnalyticsTab: FC<AnalyticsTabProps> = ({ transactions, budgets, getCustomB
           ))}
         </div>
         <div className="mt-4 pt-4 border-t text-center">
-          <p className="text-sm text-gray-600">Simulated Financial Health Score</p>
-          <div className={`mt-2 flex items-center justify-center font-semibold ${simulatedScoreDescription.color}`}>
-            <simulatedScoreDescription.icon size={20} className="mr-2" />
-            <span>{simulatedScore.score} / 100</span>
+          <p className="text-sm text-gray-600">Simulated Monthly Savings</p>
+          <div className={`mt-2 text-2xl font-bold ${simulatedSavingsColor}`}>
+            ₹{simulatedSavingsResult.simulatedSavings.toFixed(0)}
           </div>
+          <p className="text-xs text-gray-500">Based on projected income of ₹{simulatedSavingsResult.monthlyIncome.toFixed(0)} and a budget of ₹{simulatedSavingsResult.simulatedTotalBudget.toFixed(0)}</p>
         </div>
       </div>
 

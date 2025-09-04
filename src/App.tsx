@@ -2027,6 +2027,21 @@ const App = () => {
     );
   };
 
+  const monthlyIncome = useMemo(() => {
+    return transactions
+      .filter(t => {
+        const transactionDate = new Date(t.date);
+        return t.type === 'income' &&
+               transactionDate.getFullYear() === currentYear &&
+               transactionDate.getMonth() === currentMonth;
+      })
+      .reduce((sum, t) => sum + t.amount, 0);
+  }, [transactions, currentYear, currentMonth]);
+
+  const totalMonthlyBudget = useMemo(() => {
+    return Object.values(budgets).reduce((sum, b) => sum + b, 0);
+  }, [budgets]);
+
   const stats = getMonthlyStats(currentYear, currentMonth);
 
   return (
@@ -2165,7 +2180,7 @@ const App = () => {
                     Expense
                   </button>
                   <button
-                    onClick={() => setFormData({ ...formData, type: 'income' })}
+                    onClick={() => setFormData({ ...formData, type: 'income', budgetType: 'monthly', category: 'Income' })}
                     className={`flex-1 p-3 rounded-xl font-medium transition-colors ${ 
                       formData.type === 'income'
                         ? 'bg-green-100 text-green-700 border-2 border-green-300'
@@ -2176,39 +2191,41 @@ const App = () => {
                   </button>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Budget Type</label>
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() => {
-                        setFormData({ ...formData, budgetType: 'monthly', customBudgetId: null, customCategory: '' });
-                        setCategorySuggestion(null);
-                      }}
-                      className={`flex-1 p-3 rounded-xl font-medium transition-colors ${ 
-                        formData.budgetType === 'monthly'
-                          ? 'bg-blue-100 text-blue-700 border-2 border-blue-300'
-                          : 'bg-gray-100 text-gray-600'
-                      }`}
-                    >
-                      Monthly Budget
-                    </button>
-                    <button
-                      onClick={() => {
-                        setFormData({ ...formData, budgetType: 'custom', category: '' });
-                        setCategorySuggestion(null);
-                      }}
-                      className={`flex-1 p-3 rounded-xl font-medium transition-colors ${ 
-                        formData.budgetType === 'custom'
-                          ? 'bg-purple-100 text-purple-700 border-2 border-purple-300'
-                          : 'bg-gray-100 text-gray-600'
-                      }`}
-                    >
-                      Custom Budget
-                    </button>
+                {formData.type === 'expense' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Budget Type</label>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => {
+                          setFormData({ ...formData, budgetType: 'monthly', customBudgetId: null, customCategory: '' });
+                          setCategorySuggestion(null);
+                        }}
+                        className={`flex-1 p-3 rounded-xl font-medium transition-colors ${ 
+                          formData.budgetType === 'monthly'
+                            ? 'bg-blue-100 text-blue-700 border-2 border-blue-300'
+                            : 'bg-gray-100 text-gray-600'
+                        }`}
+                      >
+                        Monthly Budget
+                      </button>
+                      <button
+                        onClick={() => {
+                          setFormData({ ...formData, budgetType: 'custom', category: '' });
+                          setCategorySuggestion(null);
+                        }}
+                        className={`flex-1 p-3 rounded-xl font-medium transition-colors ${ 
+                          formData.budgetType === 'custom'
+                            ? 'bg-purple-100 text-purple-700 border-2 border-purple-300'
+                            : 'bg-gray-100 text-gray-600'
+                        }`}
+                      >
+                        Custom Budget
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
 
-                {formData.budgetType === 'monthly' ? (
+                {formData.type === 'expense' && formData.budgetType === 'monthly' ? (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
                     <div className="space-y-2">
@@ -2255,7 +2272,7 @@ const App = () => {
                       )}
                     </div>
                   </div>
-                ) : (
+                ) : formData.type === 'expense' && (
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Custom Budget</label>
@@ -2612,6 +2629,31 @@ const App = () => {
         {/* Budget Management Tab */}
         {activeTab === 'budget' && (
           <div className="p-4 space-y-6">
+            {/* NEW: Monthly Income vs Budgeted Summary */}
+            <div className="bg-white rounded-2xl p-6 shadow-lg">
+              <h2 className="text-xl font-bold text-gray-800 mb-4">Monthly Financial Plan</h2>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="font-medium text-green-700">Total Monthly Income</span>
+                  <span className="font-bold text-lg text-green-700">₹{monthlyIncome.toFixed(0)}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="font-medium text-red-700">Total Budgeted Expenses</span>
+                  <span className="font-bold text-lg text-red-700">₹{totalMonthlyBudget.toFixed(0)}</span>
+                </div>
+                <hr className="my-2"/>
+                <div className="flex justify-between items-center">
+                  <span className="font-semibold text-blue-800">Potential Savings</span>
+                  <span className={`font-bold text-xl ${monthlyIncome - totalMonthlyBudget >= 0 ? 'text-blue-800' : 'text-red-600'}`}>
+                    ₹{(monthlyIncome - totalMonthlyBudget).toFixed(0)}
+                  </span>
+                </div>
+                {totalMonthlyBudget > monthlyIncome && (
+                  <p className="text-xs text-center text-red-600 bg-red-50 p-2 rounded-lg">⚠️ Your budgeted expenses are higher than your income.</p>
+                )}
+              </div>
+            </div>
+
             {/* Monthly Budget Section */}
             <div className="bg-white rounded-2xl p-6 shadow-lg">
               <h2 className="text-xl font-bold text-gray-800 mb-4">Monthly Budget</h2>
