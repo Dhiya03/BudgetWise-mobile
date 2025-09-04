@@ -44,6 +44,9 @@ interface DataManagementProps {
 
   showConfirmation: (title: string, message: string, onConfirm: () => void | Promise<void>) => void;
   getCustomBudgetName: (id: number | null) => string;
+  savingsGoal: number;
+  analyticsTimeframe: string;
+  dailySpendingGoal: number;
 }
 
 const DataManagement: React.FC<DataManagementProps> = (props) => {
@@ -53,22 +56,21 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
     currentYear, currentMonth,
     setTransactions, setBudgets, setCustomBudgets, setCategories,
     setBudgetTemplates, setBudgetRelationships, setBillReminders,
-    setTransferLog, setRecurringProcessingMode,
-    showConfirmation, getCustomBudgetName
+    setTransferLog, setRecurringProcessingMode, showConfirmation, getCustomBudgetName,
+    savingsGoal, dailySpendingGoal, analyticsTimeframe
   } = props;
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const analyticsTimeframe = '30'; // days
   const [showTaxModal, setShowTaxModal] = useState(false);
   const [taxMapping, setTaxMapping] = useState<TaxCategoryMapping>({});
   const [taxYear, setTaxYear] = useState(new Date().getFullYear());
 
   // Analytics Calculations
   const healthScore = useMemo(() => getFinancialHealthScore(transactions, budgets, analyticsTimeframe), [transactions, budgets, analyticsTimeframe]);
-  const cashFlow = useMemo(() => getCashFlowAnalysis(transactions, analyticsTimeframe, budgets, 15000), [transactions, analyticsTimeframe, budgets]);
+  const cashFlow = useMemo(() => getCashFlowAnalysis(transactions, analyticsTimeframe, budgets, savingsGoal), [transactions, analyticsTimeframe, budgets, savingsGoal]);
   const categoryInsights = useMemo(() => getCategoryInsights(transactions, analyticsTimeframe, getCustomBudgetName), [transactions, analyticsTimeframe, getCustomBudgetName]);
   const personality = useMemo(() => getSpendingPersonality(transactions), [transactions]);
-  const streak = useMemo(() => getDailySpendingStreak(transactions, 500), [transactions]);
+  const streak = useMemo(() => getDailySpendingStreak(transactions, dailySpendingGoal), [transactions, dailySpendingGoal]);
   const runway = useMemo(() => getFinancialRunway(transactions), [transactions]);
 
 
@@ -322,7 +324,7 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
         head: [['Personal Habits', 'Insight']],
         body: [
           ['Spending Personality', personality.personality],
-          ['Daily Goal Streak', `${streak.streak} days under ₹500`],
+          ['Daily Goal Streak', `${streak.streak} days under ₹${dailySpendingGoal}`],
         ],
         theme: 'striped',
         headStyles: { fillColor: [15, 118, 110] }, // Teal color
@@ -549,7 +551,7 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
               <div class="card">
                 <div class="card-title">Daily Goal Streak</div>
                 <div class="card-value">${streak.streak} Days</div>
-                <p style="font-size: 0.8em; color: #6b7280;">Under ₹500 / day</p>
+                <p style="font-size: 0.8em; color: #6b7280;">Under ₹${dailySpendingGoal} / day</p>
               </div>
             </div>
           </div>

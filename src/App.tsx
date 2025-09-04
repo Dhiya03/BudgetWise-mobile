@@ -73,6 +73,9 @@ const App = () => {
   const [editingCustomBudget, setEditingCustomBudget] = useState<CustomBudget | null>(null);
   const [filterTag, setFilterTag] = useState('');
   const [recurringProcessingMode, setRecurringProcessingMode] = useState<'automatic' | 'manual'>('automatic');
+  const [dailySpendingGoal, setDailySpendingGoal] = useState(500);
+  const [analyticsTimeframe, setAnalyticsTimeframe] = useState('30');
+  const [savingsGoal, setSavingsGoal] = useState(15000);
 
   // --- New State for Advanced Features ---
 
@@ -224,6 +227,9 @@ const App = () => {
                 setBillReminders(appState.billReminders || []);
                 setTransferLog(appState.transferLog || []);
                 setRecurringProcessingMode(appState.recurringProcessingMode || 'automatic');
+                setDailySpendingGoal(appState.dailySpendingGoal || 500);
+                setAnalyticsTimeframe(appState.analyticsTimeframe || '30');
+                setSavingsGoal(appState.savingsGoal || 15000);
                 return; // Exit after successful load
             }
         } catch (e) {
@@ -253,7 +259,7 @@ const App = () => {
       // Only save if the app is not locked to prevent saving empty initial state
       if (isLocked) return;
       
-      const appState = { transactions, budgets, customBudgets, categories, budgetTemplates, budgetRelationships, billReminders, transferLog, recurringProcessingMode };
+      const appState = { transactions, budgets, customBudgets, categories, budgetTemplates, budgetRelationships, billReminders, transferLog, recurringProcessingMode, savingsGoal, dailySpendingGoal, analyticsTimeframe };
       const jsonString = JSON.stringify(appState);
       const encryptedData = appPassword ? btoa(jsonString) : jsonString; // Simple Base64 "encryption"
       localStorage.setItem('budgetWiseData_v2', encryptedData);
@@ -270,7 +276,7 @@ const App = () => {
       }, 1000); // Save 1 second after the last change
       return () => clearTimeout(handler); // Add this cleanup
     }
-  }, [transactions, budgets, customBudgets, categories, budgetTemplates, budgetRelationships, billReminders, transferLog, recurringProcessingMode]);
+  }, [transactions, budgets, customBudgets, categories, budgetTemplates, budgetRelationships, billReminders, transferLog, recurringProcessingMode, savingsGoal, dailySpendingGoal, analyticsTimeframe]);
 
   // Automatically process recurring transactions if in automatic mode and app is unlocked
   useEffect(() => {
@@ -318,6 +324,9 @@ const App = () => {
           setBillReminders(appState.billReminders || []);
           setRecurringProcessingMode(appState.recurringProcessingMode || 'automatic');
           setTransferLog(appState.transferLog || []);
+          setDailySpendingGoal(appState.dailySpendingGoal || 500);
+          setAnalyticsTimeframe(appState.analyticsTimeframe || '30');
+          setSavingsGoal(appState.savingsGoal || 15000);
           
           // Successfully unlocked and loaded
           setIsLocked(false);
@@ -847,15 +856,15 @@ const App = () => {
       if (Capacitor.isNativePlatform()) {
         try {
           await LocalNotifications.cancel({ notifications: [{ id: editingBillReminder.id }] });
-          const scheduleDate = new Date(updatedReminder.dueDate);
-          scheduleDate.setHours(9, 0, 0, 0);
+          const [year, month, day] = updatedReminder.dueDate.split('-').map(Number);
+          const scheduleDate = new Date(year, month - 1, day, 9, 0, 0);
           if (scheduleDate > new Date()) {
             await LocalNotifications.schedule({
               notifications: [{
                 title: `Bill Reminder: ${updatedReminder.name}`,
                 body: `Your bill of ₹${updatedReminder.amount.toFixed(2)} is due today!`,
                 id: updatedReminder.id,
-                schedule: { at: scheduleDate },
+                schedule: { on: { year, month, day, hour: 9, minute: 0 }, repeats: false },
                 sound: undefined, attachments: undefined, actionTypeId: "", extra: null
               }]
             });
@@ -878,10 +887,11 @@ const App = () => {
 
       if (Capacitor.isNativePlatform()) {
         try {
-          const scheduleDate = new Date(newReminder.dueDate);
-          scheduleDate.setHours(9, 0, 0, 0);
+          const [year, month, day] = newReminder.dueDate.split('-').map(Number);
+          const scheduleDate = new Date(year, month - 1, day, 9, 0, 0);
+
           if (scheduleDate > new Date()) {
-            await LocalNotifications.schedule({ notifications: [{ title: `Bill Reminder: ${newReminder.name}`, body: `Your bill of ₹${newReminder.amount.toFixed(2)} is due today!`, id: newReminder.id, schedule: { at: scheduleDate }, sound: undefined, attachments: undefined, actionTypeId: "", extra: null }] });
+            await LocalNotifications.schedule({ notifications: [{ title: `Bill Reminder: ${newReminder.name}`, body: `Your bill of ₹${newReminder.amount.toFixed(2)} is due today!`, id: newReminder.id, schedule: { on: { year, month, day, hour: 9, minute: 0 }, repeats: false }, sound: undefined, attachments: undefined, actionTypeId: "", extra: null }] });
             alert('Bill reminder and notification added successfully!');
           } else {
             alert('Bill reminder added, but the due date is in the past. No notification was scheduled.');
@@ -1336,7 +1346,7 @@ const App = () => {
       
       content = '\uFEFF' + headers + rows;
       filename = `budget_export_${exportStartDate}_to_${exportEndDate}_${exportType}.csv`;
-      type = 'text/csv';
+      type = 'text/csv;charset=utf-8;';
     }
 
     if (Capacitor.isNativePlatform()) {
@@ -1718,7 +1728,7 @@ const App = () => {
           alert(`Error saving CSV: ${(e as Error).message}`);
         });
       } else {
-        const type = 'text/csv';
+        const type = 'text/csv;charset=utf-8;';
         const blob = new Blob([content], { type });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -1978,6 +1988,9 @@ const App = () => {
           setBillReminders={setBillReminders} setTransferLog={setTransferLog} setRecurringProcessingMode={setRecurringProcessingMode}
           showConfirmation={showConfirmation}
           getCustomBudgetName={getCustomBudgetName}
+          dailySpendingGoal={dailySpendingGoal}
+          analyticsTimeframe={analyticsTimeframe}
+          savingsGoal={savingsGoal}
         />
 
         {/* Recurring Transactions */}
@@ -2143,7 +2156,7 @@ const App = () => {
                 <div className="flex space-x-2">
                   <button
                     onClick={() => setFormData({ ...formData, type: 'expense' })}
-                    className={`flex-1 p-3 rounded-xl font-medium transition-colors ${
+                    className={`flex-1 p-3 rounded-xl font-medium transition-colors ${ 
                       formData.type === 'expense'
                         ? 'bg-red-100 text-red-700 border-2 border-red-300'
                         : 'bg-gray-100 text-gray-600'
@@ -2153,7 +2166,7 @@ const App = () => {
                   </button>
                   <button
                     onClick={() => setFormData({ ...formData, type: 'income' })}
-                    className={`flex-1 p-3 rounded-xl font-medium transition-colors ${
+                    className={`flex-1 p-3 rounded-xl font-medium transition-colors ${ 
                       formData.type === 'income'
                         ? 'bg-green-100 text-green-700 border-2 border-green-300'
                         : 'bg-gray-100 text-gray-600'
@@ -2171,7 +2184,7 @@ const App = () => {
                         setFormData({ ...formData, budgetType: 'monthly', customBudgetId: null, customCategory: '' });
                         setCategorySuggestion(null);
                       }}
-                      className={`flex-1 p-3 rounded-xl font-medium transition-colors ${
+                      className={`flex-1 p-3 rounded-xl font-medium transition-colors ${ 
                         formData.budgetType === 'monthly'
                           ? 'bg-blue-100 text-blue-700 border-2 border-blue-300'
                           : 'bg-gray-100 text-gray-600'
@@ -2184,7 +2197,7 @@ const App = () => {
                         setFormData({ ...formData, budgetType: 'custom', category: '' });
                         setCategorySuggestion(null);
                       }}
-                      className={`flex-1 p-3 rounded-xl font-medium transition-colors ${
+                      className={`flex-1 p-3 rounded-xl font-medium transition-colors ${ 
                         formData.budgetType === 'custom'
                           ? 'bg-purple-100 text-purple-700 border-2 border-purple-300'
                           : 'bg-gray-100 text-gray-600'
@@ -3491,6 +3504,12 @@ const App = () => {
                   transactions={transactions}
                   budgets={budgets}
                   getCustomBudgetName={getCustomBudgetName}
+                  savingsGoal={savingsGoal}
+                  setSavingsGoal={setSavingsGoal}
+                  dailySpendingGoal={dailySpendingGoal}
+                  setDailySpendingGoal={setDailySpendingGoal}
+                  analyticsTimeframe={analyticsTimeframe}
+                  setAnalyticsTimeframe={setAnalyticsTimeframe}
                 />
               )}
         {/* Reminders Tab */}

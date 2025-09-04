@@ -7,6 +7,12 @@ interface AnalyticsTabProps {
   transactions: Transaction[];
   budgets: MonthlyBudgets;
   getCustomBudgetName: (id: number | null) => string;
+  savingsGoal: number;
+  dailySpendingGoal: number;
+  analyticsTimeframe: string;
+  setAnalyticsTimeframe: (timeframe: string) => void;
+  setDailySpendingGoal: (goal: number) => void;
+  setSavingsGoal: (goal: number) => void;
 }
 
 const FinancialHealthScore: FC<{ score: number; color: string }> = ({ score, color }) => (
@@ -35,14 +41,12 @@ const FinancialHealthScore: FC<{ score: number; color: string }> = ({ score, col
   </div>
 );
 
-const AnalyticsTab: FC<AnalyticsTabProps> = ({ transactions, budgets, getCustomBudgetName }) => {
-  const [analyticsTimeframe, setAnalyticsTimeframe] = useState('30'); // days
-
+const AnalyticsTab: FC<AnalyticsTabProps> = ({ transactions, budgets, getCustomBudgetName, savingsGoal, setSavingsGoal, dailySpendingGoal, setDailySpendingGoal, analyticsTimeframe, setAnalyticsTimeframe }) => {
   const categoryInsights = useMemo(() => getCategoryInsights(transactions, analyticsTimeframe, getCustomBudgetName), [transactions, analyticsTimeframe, getCustomBudgetName]);
   const healthScore = useMemo(() => getFinancialHealthScore(transactions, budgets, analyticsTimeframe), [transactions, budgets, analyticsTimeframe]);
-  const cashFlow = useMemo(() => getCashFlowAnalysis(transactions, analyticsTimeframe, budgets, 15000), [transactions, analyticsTimeframe, budgets]);
+  const cashFlow = useMemo(() => getCashFlowAnalysis(transactions, analyticsTimeframe, budgets, savingsGoal), [transactions, analyticsTimeframe, budgets, savingsGoal]);
   const personality = useMemo(() => getSpendingPersonality(transactions), [transactions]);
-  const streak = useMemo(() => getDailySpendingStreak(transactions, 500), [transactions]);
+  const streak = useMemo(() => getDailySpendingStreak(transactions, dailySpendingGoal), [transactions, dailySpendingGoal]);
   const runway = useMemo(() => getFinancialRunway(transactions), [transactions]);
 
   const [scenarioChanges, setScenarioChanges] = useState<{ [key: string]: number }>({});
@@ -58,8 +62,8 @@ const AnalyticsTab: FC<AnalyticsTabProps> = ({ transactions, budgets, getCustomB
   const simulatedScoreDescription = getScoreDescription(simulatedScore.score);
 
   const handleScenarioChange = (category: string, value: string) => {
-    setScenarioChanges({ ...scenarioChanges, [category]: parseInt(value) || 0 });
-  };
+      setScenarioChanges({ ...scenarioChanges, [category]: parseInt(value) || 0 });
+    };
 
   return (
     <div className="p-4 space-y-6">
@@ -140,6 +144,19 @@ const AnalyticsTab: FC<AnalyticsTabProps> = ({ transactions, budgets, getCustomB
               </div>
             </div>
           )}
+           <div className="pt-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Monthly Savings Goal</label>
+            <div className="flex items-center">
+                <span className="text-gray-500 mr-2">₹</span>
+                <input
+                    type="number"
+                    value={savingsGoal}
+                    onChange={(e) => setSavingsGoal(parseInt(e.target.value) || 0)}
+                    className="w-full p-2 border border-gray-300 rounded-lg"
+                    placeholder="e.g., 15000"
+                />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -160,7 +177,16 @@ const AnalyticsTab: FC<AnalyticsTabProps> = ({ transactions, budgets, getCustomB
             <div>
               <p className="text-sm font-medium">Daily Spending Goal</p>
               <p className="text-lg font-bold">{streak.streak}-Day Streak</p>
-              <p className="text-xs text-gray-600">Under ₹500 / day</p>
+              <div className="flex items-center text-xs text-gray-600">
+                Under ₹
+                <input
+                  type="number"
+                  value={dailySpendingGoal}
+                  onChange={(e) => setDailySpendingGoal(parseInt(e.target.value) || 0)}
+                  className="w-16 bg-transparent focus:bg-white focus:ring-1 focus:ring-purple-400 rounded-md p-0.5 text-center"
+                />
+                 / day
+              </div>
             </div>
           </div>
         </div>
