@@ -1,4 +1,4 @@
-import React, { useRef, useState, useMemo } from 'react';
+import React, { useRef, useMemo } from 'react';
 import { FileJson, FileSpreadsheet, FileText } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -339,21 +339,23 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
         });
 
       if (goalData.length > 0) {
+        const goalTableStartY = (doc as any).lastAutoTable.finalY + 15;
+        doc.setFontSize(16);
+        doc.text('Goal Progress', 14, goalTableStartY);
         (doc as any).autoTable({
-          startY: (doc as any).lastAutoTable.finalY + 15,
+          startY: goalTableStartY + 2,
           head: [['Active Goals', 'Progress', '% Funded']],
           body: goalData,
           headStyles: { fillColor: [190, 70, 120] }, // Pink/Purple color
-          didDrawPage: (data: any) => {
-            doc.setFontSize(16);
-            doc.text('Goal Progress', 14, data.cursor.y - 10);
-          }
         });
       }
 
         // Top Spending Categories
+      const insightsStartY = (doc as any).lastAutoTable.finalY + 15;
+      doc.setFontSize(16);
+      doc.text('Spending Insights', 14, insightsStartY);
       (doc as any).autoTable({
-        startY: (doc as any).lastAutoTable.finalY + 15,
+        startY: insightsStartY + 2,
         head: [['Top Spending Categories', 'Amount (₹)', 'Trend (%)']],
         body: categoryInsights.slice(0, 5).map(insight => [
             insight.category,
@@ -361,10 +363,6 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
             `${insight.trend > 0 ? '+' : ''}${insight.trend.toFixed(0)}%`
         ]),
         headStyles: { fillColor: [22, 163, 74] },
-        didDrawPage: (data: any) => {
-          doc.setFontSize(16);
-          doc.text('Spending Insights', 14, data.cursor.y - 10);
-        }
       });
 
       const transactionData = [...transactions]
@@ -376,15 +374,14 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
           ];
         });
 
+      const transactionsStartY = (doc as any).lastAutoTable.finalY + 15;
+      doc.setFontSize(16);
+      doc.text('Recent Transactions', 14, transactionsStartY);
       (doc as any).autoTable({
-        startY: (doc as any).lastAutoTable.finalY + 15,
+        startY: transactionsStartY + 2,
         head: [['Date', 'Description', 'Category', 'Amount (₹)']],
         body: transactionData,
         headStyles: { fillColor: [217, 119, 6] },
-        didDrawPage: (data: any) => {
-          doc.setFontSize(16);
-          doc.text('Recent Transactions', 14, data.cursor.y - 10);
-        }
       });
 
       if (Capacitor.isNativePlatform()) {
@@ -524,8 +521,8 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
               <thead>
                 <tr>
                   <th>Category</th>
-                  <th>Spending</th>
-                  <th>Trend vs. Last Period</th>
+                  <th>Total Spending</th>
+                  <th>Trend (%)</th>
                   <th>Largest Transaction</th>
                 </tr>
               </thead>
@@ -538,7 +535,7 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
                       ${insight.trend > 0 ? '+' : ''}${insight.trend.toFixed(0)}%
                     </td>
                     <td>
-                      ${insight.largestTransaction ? `₹${Math.abs(insight.largestTransaction.amount).toFixed(0)} - ${insight.largestTransaction.description}` : 'N/A'}
+                      ${insight.largestTransaction ? `₹${Math.abs(insight.largestTransaction.amount).toFixed(0)}${insight.largestTransaction.description ? ` - ${insight.largestTransaction.description}` : ''}` : 'N/A'}
                     </td>
                   </tr>
                 `).join('')}
