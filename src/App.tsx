@@ -17,6 +17,7 @@ import {
 } from './types';
 import AnalyticsTab from './components/AnalyticsTab';
 import DataManagement from './components/DataManagement';
+import SecuritySettings from './components/SecuritySettings';
 import { LocalNotifications } from '@capacitor/local-notifications';
 
 const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }: {
@@ -855,6 +856,20 @@ const App = () => {
 
       if (Capacitor.isNativePlatform()) {
         try {
+          // --- TEST CHANGE: 2-MINUTE NOTIFICATION ---
+          await LocalNotifications.cancel({ notifications: [{ id: editingBillReminder.id }] });
+          await LocalNotifications.schedule({
+            notifications: [{
+              title: `TEST: ${updatedReminder.name}`,
+              body: `Your bill of ₹${updatedReminder.amount.toFixed(2)} is due now!`,
+              id: updatedReminder.id,
+              schedule: { at: new Date(Date.now() + 2 * 60 * 1000) }, // Schedule for 2 minutes from now
+            }]
+          });
+          alert('Reminder and notification updated for test (2 min delay)!');
+          // --- END TEST CHANGE ---
+
+          /* --- ACTUAL CODE TO UNCOMMENT AFTER TESTING ---
           await LocalNotifications.cancel({ notifications: [{ id: editingBillReminder.id }] });
           const [year, month, day] = updatedReminder.dueDate.split('-').map(Number);
           const scheduleDate = new Date(year, month - 1, day, 9, 0, 0);
@@ -864,14 +879,14 @@ const App = () => {
                 title: `Bill Reminder: ${updatedReminder.name}`,
                 body: `Your bill of ₹${updatedReminder.amount.toFixed(2)} is due today!`,
                 id: updatedReminder.id,
-                schedule: { on: { year, month, day, hour: 9, minute: 0 }, repeats: false },
-                sound: undefined, attachments: undefined, actionTypeId: "", extra: null
+                schedule: { on: { year, month, day, hour: 9, minute: 0 }, repeats: false }
               }]
             });
             alert('Reminder and notification updated successfully!');
           } else {
             alert('Reminder updated, but the due date is in the past. No new notification was scheduled.');
           }
+          --- END ACTUAL CODE --- */
         } catch (e) {
           console.error("Error updating notification", e);
           alert('Reminder updated, but failed to update the notification.');
@@ -882,20 +897,37 @@ const App = () => {
       handleCancelBillEdit();
     } else {
       // --- Add Logic ---
-      const newReminder: BillReminder = { id: Date.now(), name: billForm.name, amount: parseFloat(billForm.amount), dueDate: billForm.dueDate };
+      const newReminder: BillReminder = { id: Math.floor(Math.random() * 2147483647), name: billForm.name, amount: parseFloat(billForm.amount), dueDate: billForm.dueDate };
       setBillReminders([...billReminders, newReminder]);
 
       if (Capacitor.isNativePlatform()) {
         try {
+          // --- TEST CHANGE: 2-MINUTE NOTIFICATION ---
+          await LocalNotifications.schedule({ notifications: [{
+            title: `TEST: ${newReminder.name}`,
+            body: `Your bill of ₹${newReminder.amount.toFixed(2)} is due now!`,
+            id: newReminder.id,
+            schedule: { at: new Date(Date.now() + 2 * 60 * 1000) }, // Schedule for 2 minutes from now
+          }] });
+          alert('Bill reminder and notification added for test (2 min delay)!');
+          // --- END TEST CHANGE ---
+
+          /* --- ACTUAL CODE TO UNCOMMENT AFTER TESTING ---
           const [year, month, day] = newReminder.dueDate.split('-').map(Number);
           const scheduleDate = new Date(year, month - 1, day, 9, 0, 0);
 
           if (scheduleDate > new Date()) {
-            await LocalNotifications.schedule({ notifications: [{ title: `Bill Reminder: ${newReminder.name}`, body: `Your bill of ₹${newReminder.amount.toFixed(2)} is due today!`, id: newReminder.id, schedule: { on: { year, month, day, hour: 9, minute: 0 }, repeats: false }, sound: undefined, attachments: undefined, actionTypeId: "", extra: null }] });
+            await LocalNotifications.schedule({ notifications: [{
+              title: `Bill Reminder: ${newReminder.name}`,
+              body: `Your bill of ₹${newReminder.amount.toFixed(2)} is due today!`,
+              id: newReminder.id,
+              schedule: { on: { year, month, day, hour: 9, minute: 0 }, repeats: false }
+            }] });
             alert('Bill reminder and notification added successfully!');
           } else {
             alert('Bill reminder added, but the due date is in the past. No notification was scheduled.');
           }
+          --- END ACTUAL CODE --- */
         } catch (e) { console.error("Error scheduling notification", e); alert('Bill reminder added, but failed to schedule the notification.'); }
       } else {
         alert('Bill reminder added successfully! (Notifications only work on mobile devices)');
@@ -1902,74 +1934,23 @@ const App = () => {
   const renderSettingsTab = () => {
     return (
       <div className="p-4 space-y-6">
-        {/* Security Section */}
-        <div className="bg-white rounded-2xl p-6 shadow-lg">
-          <h2 className="text-xl font-bold text-gray-800 mb-4">Security</h2>
-          {appPassword ? (
-            <div>
-              <p className="text-gray-600 mb-2">App password is set.</p>
-              <button
-                onClick={() => showConfirmation(
-                  'Confirm Password Removal',
-                  'Are you sure you want to remove the password?',
-                  () => {
-                    // Atomically remove password and un-encrypt data, preserving all state
-                    const appState = { transactions, budgets, customBudgets, categories, budgetTemplates, budgetRelationships, billReminders, transferLog, recurringProcessingMode };
-                    const jsonString = JSON.stringify(appState);
-
-                    localStorage.removeItem('appPassword_v2');
-                    localStorage.setItem('budgetWiseData_v2', jsonString);
-
-                    setAppPassword(null);
-                    alert("Password removed.");
-                  }
-                )}
-                className="w-full p-3 bg-red-100 text-red-700 rounded-xl hover:bg-red-200 flex items-center justify-center"
-              >
-                <Unlock size={18} className="mr-2" />
-                Remove Password
-              </button>
-            </div>
-          ) : (
-            <div>
-              <p className="text-gray-600 mb-2">Set a password to lock your app.</p>
-              <div className="flex space-x-2">
-                <input
-                  type="password"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  maxLength={4}
-                  value={passwordInput}
-                  onChange={(e) => setPasswordInput(e.target.value)}
-                  placeholder="Enter 4-digit PIN"
-                  className="flex-1 p-3 border border-gray-300 rounded-xl"
-                />
-                <button
-                  onClick={() => {
-                    if (!/^\d{4}$/.test(passwordInput)) {
-                      alert("Please enter a valid 4-digit PIN.");
-                      return;
-                    }
-                    // Atomically set password and encrypt data
-                    const appState = { transactions, budgets, customBudgets, categories, budgetTemplates, budgetRelationships, billReminders, transferLog, recurringProcessingMode };
-                    const jsonString = JSON.stringify(appState);
-                    const encryptedData = btoa(jsonString);
-
-                    localStorage.setItem('appPassword_v2', passwordInput);
-                    localStorage.setItem('budgetWiseData_v2', encryptedData);
-
-                    setAppPassword(passwordInput);
-                    setPasswordInput('');
-                    alert('Password set successfully. The app will be locked on your next visit.');
-                  }}
-                  className="px-4 py-3 bg-purple-600 text-white rounded-xl font-semibold hover:bg-purple-700"
-                >
-                  Set
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+        <SecuritySettings
+          appPassword={appPassword}
+          setAppPassword={setAppPassword}
+          showConfirmation={showConfirmation}
+          transactions={transactions}
+          budgets={budgets}
+          customBudgets={customBudgets}
+          categories={categories}
+          budgetTemplates={budgetTemplates}
+          budgetRelationships={budgetRelationships}
+          billReminders={billReminders}
+          transferLog={transferLog}
+          recurringProcessingMode={recurringProcessingMode}
+          savingsGoal={savingsGoal}
+          dailySpendingGoal={dailySpendingGoal}
+          analyticsTimeframe={analyticsTimeframe}
+        />
 
         <DataManagement
           transactions={transactions}
