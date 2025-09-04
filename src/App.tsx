@@ -1,16 +1,6 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Plus, TrendingUp, Settings, Download, Trash2, Edit3, List, PieChart, ArrowUpDown, BarChart3, TrendingDown, AlertCircle, FileText, Pause, Play, Save, Link2, ArrowRight, Repeat, FileSpreadsheet, FileJson, Bell, Unlock, X, XCircle, Lock } from 'lucide-react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { Plus, Settings, Download, Trash2, Edit3, List, PieChart, ArrowUpDown, BarChart3, Pause, Play, Save, Link2, ArrowRight, Repeat, FileSpreadsheet, Bell, Unlock, X, XCircle, Lock } from 'lucide-react';
 
-// Add these to your project:
-// npm install xlsx jspdf jspdf-autotable
-// npm install @capacitor/local-notifications@^6.0.0
-// or
-// yarn add xlsx jspdf jspdf-autotable
-// yarn add @capacitor/local-notifications@^6.0.0
-import * as XLSX from 'xlsx';
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
-import { FilePicker } from '@capawesome/capacitor-file-picker';
 import {Capacitor} from '@capacitor/core';
 import {Filesystem, Directory, Encoding} from '@capacitor/filesystem';
 import {
@@ -25,6 +15,8 @@ import {
   RelationshipFormData,
   TransferEvent,
 } from './types';
+import AnalyticsTab from './components/AnalyticsTab';
+import DataManagement from './components/DataManagement';
 import { LocalNotifications } from '@capacitor/local-notifications';
 
 const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }: {
@@ -80,7 +72,6 @@ const App = () => {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [editingCustomBudget, setEditingCustomBudget] = useState<CustomBudget | null>(null);
   const [filterTag, setFilterTag] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [recurringProcessingMode, setRecurringProcessingMode] = useState<'automatic' | 'manual'>('automatic');
 
   // --- New State for Advanced Features ---
@@ -98,10 +89,6 @@ const App = () => {
     onConfirm: null,
   });
 
-
-  // Analytics state
-  const [analyticsTimeframe, setAnalyticsTimeframe] = useState('30'); // days
-  const [showPredictiveAnalytics, setShowPredictiveAnalytics] = useState(false);
 
   // Security & Persistence
   const [appPassword, setAppPassword] = useState<string | null>(null);
@@ -219,19 +206,6 @@ const App = () => {
     });
   };
 
-  const escapeCsvField = (field: any): string => {
-    if (field === null || field === undefined) {
-      return '';
-    }
-    const str = String(field);
-    // If the string contains a comma, a double quote, or a newline, it needs to be quoted.
-    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-      // Escape double quotes by doubling them
-      const escapedStr = str.replace(/"/g, '""');
-      return `"${escapedStr}"`;
-    }
-    return str;
-  };
   // --- Data Persistence and Security Hooks ---
 
   const loadAndInitializeData = () => {
@@ -1397,192 +1371,6 @@ const App = () => {
     setExportType('all');
   };
 
-  const generateHTMLReport = () => {
-    const analytics = getComparativeAnalytics();
-    const { periods, expenseTrend } = getTrendAnalysis();
-    const predictive = getPredictiveAnalytics();
-    
-    // Create a comprehensive HTML report
-    const reportHTML = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>BudgetWise Financial Report</title>
-        <meta charset="UTF-8" />
-        <style>
-          body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
-          .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #6B46C1; padding-bottom: 20px; }
-          .section { margin-bottom: 25px; padding: 15px; border: 1px solid #E5E7EB; border-radius: 8px; }
-          .metric { display: inline-block; margin: 10px; padding: 15px; background: #F9FAFB; border-radius: 8px; text-align: center; }
-          .metric-value { font-size: 24px; font-weight: bold; color: #6B46C1; }
-          .metric-label { font-size: 12px; color: #6B7280; margin-top: 5px; }
-          .trend-up { color: #EF4444; }
-          .trend-down { color: #10B981; }
-          .table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-          .table th, .table td { padding: 10px; border: 1px solid #E5E7EB; text-align: left; }
-          .table th { background: #F9FAFB; font-weight: bold; }
-          .warning { background: #FEF3C7; border: 1px solid #F59E0B; padding: 10px; border-radius: 8px; }
-          .success { background: #D1FAE5; border: 1px solid #10B981; padding: 10px; border-radius: 8px; }
-          .chart-placeholder { background: #F3F4F6; height: 200px; display: flex; align-items: center; justify-content: center; border-radius: 8px; margin: 15px 0; color: #6B7280; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1>BudgetWise Financial Report</h1>
-          <p>Generated on ${new Date().toLocaleDateString()} for ${analyticsTimeframe}-day period</p>
-        </div>
-
-        <div class="section">
-          <h2>Executive Summary</h2>
-          <div>
-            <div class="metric">
-              <div class="metric-value">₹${analytics.comparison.totalExpenses.toFixed(0)}</div>
-              <div class="metric-label">Total Expenses</div>
-            </div>
-            <div class="metric">
-              <div class="metric-value">₹${analytics.comparison.avgDailySpending.toFixed(0)}</div>
-              <div class="metric-label">Avg Daily Spending</div>
-            </div>
-            <div class="metric">
-              <div class="metric-value ${expenseTrend > 0 ? 'trend-up' : 'trend-down'}">${expenseTrend > 0 ? '+' : ''}${expenseTrend.toFixed(1)}%</div>
-              <div class="metric-label">Expense Trend</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="section">
-          <h2>Budget Type Comparison</h2>
-          <table class="table">
-            <tr>
-              <th>Budget Type</th>
-              <th>Total Spent</th>
-              <th>Transactions</th>
-              <th>Avg Transaction</th>
-            </tr>
-            <tr>
-              <td>Monthly Budget</td>
-              <td>₹${analytics.monthlyBudget.totalExpenses.toFixed(0)}</td>
-              <td>${analytics.monthlyBudget.transactionCount}</td>
-              <td>₹${analytics.monthlyBudget.transactionCount > 0 ? (analytics.monthlyBudget.totalExpenses / analytics.monthlyBudget.transactionCount).toFixed(0) : 0}</td>
-            </tr>
-            <tr>
-              <td>Custom Budget</td>
-              <td>₹${analytics.customBudget.totalExpenses.toFixed(0)}</td>
-              <td>${analytics.customBudget.transactionCount || 0}</td>
-              <td>₹${analytics.customBudget.transactionCount > 0 ? (analytics.customBudget.totalExpenses / analytics.customBudget.transactionCount).toFixed(0) : 0}</td>
-            </tr>
-          </table>
-        </div>
-
-        ${predictive ? `
-        <div class="section">
-          <h2>Predictive Analytics</h2>
-          <div class="${predictive.trendDirection === 'increasing' ? 'warning' : 'success'}">
-            <p><strong>Spending Trend:</strong> ${predictive.trendDirection}</p>
-            <p><strong>Next Period Prediction:</strong> ₹${predictive.nextPeriodPrediction.toFixed(0)}</p>
-            <p><strong>Monthly Projection:</strong> ₹${predictive.monthlyProjection.toFixed(0)}</p>
-            <p><strong>Confidence Level:</strong> ${predictive.confidence.toFixed(0)}%</p>
-          </div>
-        </div>
-        ` : ''}
-
-        <div class="section">
-          <h2>Monthly Category Breakdown</h2>
-          <table class="table">
-            <tr>
-              <th>Category</th>
-              <th>Spent</th>
-              <th>Budget</th>
-              <th>Remaining</th>
-              <th>% Used</th>
-            </tr>
-            ${Object.keys(analytics.monthlyBudget.categoryBreakdown).map(category => {
-              const spent = analytics.monthlyBudget.categoryBreakdown[category];
-              const budget = budgets[category] || 0;
-              const remaining = budget - spent;
-              const percentage = budget > 0 ? (spent / budget) * 100 : 0;
-              return `
-                <tr>
-                  <td>${category}</td>
-                  <td>₹${spent.toFixed(0)}</td>
-                  <td>₹${budget.toFixed(0)}</td>
-                  <td style="color: ${remaining >= 0 ? '#10B981' : '#EF4444'}">₹${remaining.toFixed(0)}</td>
-                  <td>${percentage.toFixed(1)}%</td>
-                </tr>
-              `;
-            }).join('')}
-          </table>
-        </div>
-
-        <div class="section">
-          <h2>Custom Budget Status</h2>
-          <table class="table">
-            <tr>
-              <th>Budget Name</th>
-              <th>Total Amount</th>
-              <th>Spent</th>
-              <th>Remaining</th>
-              <th>Status</th>
-            </tr>
-            ${customBudgets.filter(b => b.status === 'active').map(budget => {
-              // Bug Fix: Use the already calculated amounts from state for consistency
-              return `
-                <tr>
-                  <td>${budget.name}</td>
-                  <td>₹${budget.totalAmount.toFixed(0)}</td>
-                  <td>₹${budget.spentAmount.toFixed(0)}</td>
-                  <td style="color: ${budget.remainingAmount >= 0 ? '#10B981' : '#EF4444'}">₹${budget.remainingAmount.toFixed(0)}</td>
-                  <td>${budget.spentAmount >= budget.totalAmount ? 'Completed' : 'Active'}</td>
-                </tr>
-              `;
-            }).join('')}
-          </table>
-        </div>
-
-        <div class="section">
-          <h2>Transaction Trend (Last 6 Periods)</h2>
-          <div class="chart-placeholder">
-            <p>Spending Trend: ${periods.map(p => `${p.label}: ₹${p.totalExpenses.toFixed(0)}`).join(' → ')}</p>
-          </div>
-        </div>
-
-        <div class="section" style="font-size: 12px; color: #6B7280; text-align: center; border-top: 1px solid #E5E7EB; padding-top: 15px;">
-          <p>Report generated by BudgetWise on ${new Date().toLocaleString()}</p>
-          <p>Data period: ${new Date(Date.now() - parseInt(analyticsTimeframe) * 24 * 60 * 60 * 1000).toLocaleDateString()} to ${new Date().toLocaleDateString()}</p>
-        </div>
-      </body>
-      </html>
-    `;
-
-    // Create and download the HTML report
-    const filename = `BudgetWise_Report_${new Date().toISOString().split('T')[0]}.html`;
-    if (Capacitor.isNativePlatform()) {
-      Filesystem.writeFile({
-        path: filename,
-        data: reportHTML,
-        directory: Directory.Documents,
-        encoding: Encoding.UTF8,
-      }).then(() => {
-        alert(`HTML report saved to Documents: ${filename}`);
-      }).catch((e: any) => {
-        console.error('HTML report generation failed:', e);
-        alert(`Report generation failed: ${(e as Error).message}`);
-      });
-    } else {
-      // Web fallback
-      const blob = new Blob([reportHTML], { type: "text/html" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename;
-      link.style.display = 'none';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    }
-  };
-
   const handleDescriptionChange = (description: string) => {
     setFormData({ ...formData, description });
 
@@ -1828,186 +1616,6 @@ const App = () => {
     const budget = customBudgets.find(b => b.id === customBudgetId);
     return budget ? budget.categories : [];
   };
-  const backupData = () => {
-    showConfirmation('Backup Data', 'Do you want to create a backup file of all your data?', async () => {
-      const stateToBackup = { transactions, budgets, customBudgets, categories, budgetTemplates, budgetRelationships, billReminders, transferLog, recurringProcessingMode };
-      const dataStr = JSON.stringify(stateToBackup, null, 2);
-      const filename = `budgetwise_backup_${new Date().toISOString().split('T')[0]}.json`;
-
-      if (Capacitor.isNativePlatform()) {
-        try {
-          await Filesystem.writeFile({
-            path: filename,
-            data: dataStr,
-            directory: Directory.Documents,
-            encoding: Encoding.UTF8,
-          });
-          alert(`Backup saved to your device's Documents folder: ${filename}`);
-        } catch (e) {
-          console.error('Unable to write file', e);
-          alert(`Error saving backup: ${(e as Error).message}`);
-        }
-      } else {
-        // Web fallback
-        const blob = new Blob([dataStr], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.download = filename;
-        link.href = url;
-        link.click();
-        URL.revokeObjectURL(url);
-      }
-    });
-  };
-
-  const processRestoredData = (jsonString: string) => {
-    try {
-      const restoredState = JSON.parse(jsonString);
-
-      if (!restoredState.transactions || !restoredState.budgets) {
-          throw new Error("Invalid backup file format.");
-      }
-
-      setTransactions(restoredState.transactions || []);
-      setBudgets(restoredState.budgets || {});
-      setCustomBudgets(restoredState.customBudgets || []);
-      setCategories(restoredState.categories || ['Food', 'Transport', 'Entertainment', 'Shopping', 'Bills', 'Health']);
-      setBudgetTemplates(restoredState.budgetTemplates || []);
-      setBudgetRelationships(restoredState.budgetRelationships || []);
-      setBillReminders(restoredState.billReminders || []);
-      setTransferLog(restoredState.transferLog || []);
-      setRecurringProcessingMode(restoredState.recurringProcessingMode || 'automatic');
-      alert('Data restored successfully!');
-    } catch (error) {
-      console.error("Failed to restore data:", error);
-      alert(`Error restoring data: ${(error as Error).message}. Please ensure you are using a valid backup file.`);
-    }
-  };
-
-  const handleFileSelectedFromWeb = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    const fileInput = event.target;
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = e.target?.result;
-      if (typeof text === 'string') {
-        processRestoredData(text);
-      } else {
-        alert("Failed to read file content.");
-      }
-    };
-    reader.readAsText(file);
-
-    if (fileInput) {
-      fileInput.value = '';
-    }
-  };
-
-  const triggerRestore = async () => {
-    if (Capacitor.isNativePlatform()) {
-      try {
-        const result = await FilePicker.pickFiles({ types: ['application/json'], readData: true });
-        const file = result.files[0];
-        if (file && file.data) {
-          const jsonString = atob(file.data); // Data is base64 encoded
-          processRestoredData(jsonString);
-        }
-      } catch (e) {
-        console.log('File picker was cancelled or failed.', e);
-      }
-    } else {
-      fileInputRef.current?.click();
-    }
-  };
-
-  const handleRestore = (event: React.MouseEvent<HTMLLabelElement>) => {
-    event.preventDefault();
-    showConfirmation(
-      'Confirm Restore',
-      'Are you sure you want to restore? This will overwrite all current data.',
-      triggerRestore
-    );
-  };
-
-  const exportToExcel = () => {
-    try {
-      const filename = `BudgetWise_Export_${new Date().toISOString().split('T')[0]}.xlsx`;
-      // 1. Transactions Sheet
-      const transactionData = sortedAndFilteredHistory
-        .filter(item => item.itemType === 'transaction')
-        .map(item => {
-          const t = item as Transaction; // Cast to Transaction type
-          return {
-            Date: t.date,
-            Type: t.type,
-            'Budget Type': t.budgetType,
-            Category: t.budgetType === 'monthly' ? t.category : `${getCustomBudgetName(t.customBudgetId) || 'N/A'} - ${t.customCategory}`,
-            Amount: t.amount,
-            Description: t.description,
-            Tags: t.tags?.join(', ') || '',
-          };
-        });
-      const transactionSheet = XLSX.utils.json_to_sheet(transactionData);
-
-      // 2. Monthly Budgets Sheet
-      const monthlyBudgetsData = categories.map(cat => ({
-        Category: cat,
-        Budget: budgets[cat] || 0,
-        Spent: getSpentAmount(cat, currentYear, currentMonth),
-        Remaining: getRemainingBudget(cat, currentYear, currentMonth),
-      }));
-      const monthlyBudgetSheet = XLSX.utils.json_to_sheet(monthlyBudgetsData);
-
-      // 3. Custom Budgets Sheet
-      const customBudgetsData = customBudgets.map(b => ({
-        Name: b.name,
-        'Total Amount': b.totalAmount,
-        'Spent Amount': b.spentAmount,
-        'Remaining Amount': b.remainingAmount,
-        Status: b.status,
-        Deadline: b.deadline || 'N/A',
-      }));
-      const customBudgetSheet = XLSX.utils.json_to_sheet(customBudgetsData);
-
-      // 4. Fund Transfers Sheet
-      const transferLogData = transferLog.map(t => ({
-        Date: new Date(t.date).toLocaleString(),
-        Amount: t.amount,
-        'From Budget': getCustomBudgetName(t.fromBudgetId),
-        'From Category': t.fromCategory,
-        'To Budget': getCustomBudgetName(t.toBudgetId),
-        'To Category Allocations': JSON.stringify(t.toCategoryAllocations),
-      }));
-      const transferLogSheet = XLSX.utils.json_to_sheet(transferLogData);
-
-      // Create workbook and add sheets
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, transactionSheet, 'Transactions');
-      XLSX.utils.book_append_sheet(wb, monthlyBudgetSheet, 'Monthly Budgets');
-      XLSX.utils.book_append_sheet(wb, customBudgetSheet, 'Custom Budgets');
-      XLSX.utils.book_append_sheet(wb, transferLogSheet, 'Fund Transfers');
-
-      if (Capacitor.isNativePlatform()) {
-        const data = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
-        Filesystem.writeFile({
-          path: filename,
-          data: data,
-          directory: Directory.Documents,
-        }).then(() => {
-          alert(`Excel report saved to Documents: ${filename}`);
-        }).catch((e: any) => {
-          alert(`Error saving Excel file: ${(e as Error).message}`);
-        });
-      } else {
-        XLSX.writeFile(wb, filename);
-      }
-    } catch (error) {
-      console.error("Failed to export to Excel", error);
-      alert("An error occurred while exporting to Excel.");
-    }
-  };
 
   const processRecurringTransactions = (isSilent = false) => {
     const today = new Date();
@@ -2055,6 +1663,20 @@ const App = () => {
     } else if (!isSilent) {
       alert("No new recurring transactions are due.");
     }
+  };
+
+  const escapeCsvField = (field: any): string => {
+    if (field === null || field === undefined) {
+      return '';
+    }
+    const str = String(field);
+    // If the string contains a comma, a double quote, or a newline, it needs to be quoted.
+    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+      // Escape double quotes by doubling them
+      const escapedStr = str.replace(/"/g, '""');
+      return `"${escapedStr}"`;
+    }
+    return str;
   };
 
   const quickCSVExport = () => {
@@ -2147,93 +1769,6 @@ const App = () => {
     };
   };
 
-  const generatePDFReport = () => {
-    try {
-      const doc = new jsPDF();
-      const filename = `BudgetWise_Report_${new Date().toISOString().split('T')[0]}.pdf`;
-      const stats = getMonthlyStats(currentYear, currentMonth);
-
-      // Title
-      doc.setFontSize(18);
-      doc.text('BudgetWise Financial Report', 14, 22);
-      doc.setFontSize(11);
-      doc.setTextColor(100);
-      doc.text(`Report generated on: ${new Date().toLocaleDateString()}`, 14, 29);
-
-      // Summary Table
-      (doc as any).autoTable({
-        startY: 40,
-        head: [['Summary', 'Amount']],
-        body: [
-          ['Total Monthly Income', `₹${stats.totalIncome.toFixed(2)}`],
-          ['Total Monthly Expenses', `₹${stats.totalExpenses.toFixed(2)}`],
-          ['Net Monthly Balance', `₹${stats.balance.toFixed(2)}`],
-          ['Total Custom Budget Spent', `₹${stats.customBudgetSpent.toFixed(2)}`],
-        ],
-        theme: 'striped',
-        headStyles: { fillColor: [67, 72, 188] },
-      });
-
-      // Monthly Budget Breakdown Table
-      (doc as any).autoTable({
-        startY: (doc as any).lastAutoTable.finalY + 15,
-        head: [['Category', 'Budget (₹)', 'Spent (₹)', 'Remaining (₹)']],
-        body: categories.map(cat => {
-            const budget = budgets[cat] || 0;
-            const spent = getSpentAmount(cat, currentYear, currentMonth);
-            const remaining = budget - spent;
-            return [cat, budget.toFixed(2), spent.toFixed(2), remaining.toFixed(2)];
-        }),
-        headStyles: { fillColor: [22, 163, 74] }, // Green header
-        didDrawPage: (data: any) => {
-          doc.setFontSize(16);
-          doc.text('Monthly Budget Breakdown', 14, data.cursor.y - 10);
-        }
-      });
-
-      // Recent Transactions Table
-      const transactionData = sortedAndFilteredHistory
-        .filter(item => item.itemType === 'transaction')
-        .slice(0, 20)
-        .map((item) => {
-          const t = item as Transaction;
-          return [
-            t.date, t.description, t.budgetType === 'custom' && t.customBudgetId ? `${getCustomBudgetName(t.customBudgetId)} - ${t.customCategory}` : t.category, t.amount.toFixed(2)
-          ];
-        });
-
-      (doc as any).autoTable({
-        startY: (doc as any).lastAutoTable.finalY + 15,
-        head: [['Date', 'Description', 'Category', 'Amount (₹)']],
-        body: transactionData,
-        headStyles: { fillColor: [217, 119, 6] }, // Orange header
-        didDrawPage: (data: any) => {
-          doc.setFontSize(16);
-          doc.text('Recent Transactions', 14, data.cursor.y - 10);
-        }
-      });
-
-      if (Capacitor.isNativePlatform()) {
-        const pdfData = doc.output("datauristring").split(",")[1];
-        Filesystem.writeFile({
-          path: filename,
-          data: pdfData,
-          directory: Directory.Documents,
-        }).then(() => {
-          alert(`PDF report saved to Documents: ${filename}`);
-        }).catch((e: any) => {
-          alert(`Error saving PDF: ${(e as Error).message}`);
-        });
-      } else {
-        doc.save(filename);
-      }
-    } catch (error) {
-      console.error("Failed to generate PDF report", error);
-      alert("An error occurred while generating the PDF report.");
-    }
-  };
-
-
   // --- Memoized calculations ---
   const allTags = useMemo(() => {
     const staticTags = ['Monthly', 'Custom', 'Transfer', 'Recurring'];
@@ -2262,273 +1797,6 @@ const App = () => {
     return spendingMap;
   }, [transactions]);
 
-
-  // --- Enhanced Analytics Functions ---
-
-  const getComparativeAnalytics = () => {
-    const timeframeDays = parseInt(analyticsTimeframe);
-    const endDate = new Date();
-    const startDate = new Date();
-    startDate.setDate(endDate.getDate() - timeframeDays);
-
-    const filteredTransactions = transactions.filter(t => {
-      const transactionDate = new Date(t.date);
-      return transactionDate >= startDate && transactionDate <= endDate;
-    });
-
-    // Monthly Budget Analytics
-    const monthlyExpenses = filteredTransactions
-      .filter(t => (t.budgetType === 'monthly' || !t.budgetType) && t.amount < 0)
-      .reduce((acc, t) => {
-        acc[t.category] = (acc[t.category] || 0) + Math.abs(t.amount);
-        return acc;
-      }, {} as {[key: string]: number});
-
-    const monthlyIncome = filteredTransactions
-      .filter(t => (t.budgetType === 'monthly' || !t.budgetType) && t.amount > 0)
-      .reduce((sum, t) => sum + t.amount, 0);
-
-    // Custom Budget Analytics
-    const customExpenses = filteredTransactions
-      .filter(t => t.budgetType === 'custom' && t.amount < 0)
-      .reduce((acc, t) => {
-        const budgetName = t.customBudgetId ? getCustomBudgetName(t.customBudgetId) : 'Unassigned';
-        acc[budgetName] = (acc[budgetName] || 0) + Math.abs(t.amount);
-        return acc;
-      }, {} as {[key: string]: number});
-
-    const totalMonthlyExpenses = Object.values(monthlyExpenses).reduce((sum, amount) => sum + amount, 0);
-    const totalCustomExpenses = Object.values(customExpenses).reduce((sum, amount) => sum + amount, 0);
-
-    return {
-      timeframe: timeframeDays,
-      monthlyBudget: {
-        totalExpenses: totalMonthlyExpenses,
-        totalIncome: monthlyIncome,
-        categoryBreakdown: monthlyExpenses,
-        transactionCount: filteredTransactions.filter(t => t.budgetType === 'monthly' || !t.budgetType).length
-      },
-      customBudget: {
-        totalExpenses: totalCustomExpenses,
-        budgetBreakdown: customExpenses,
-        transactionCount: filteredTransactions.filter(t => t.budgetType === 'custom').length
-      },
-      comparison: {
-        monthlyVsCustomRatio: totalMonthlyExpenses > 0 ? totalCustomExpenses / totalMonthlyExpenses : 0,
-        totalExpenses: totalMonthlyExpenses + totalCustomExpenses,
-        avgDailySpending: (totalMonthlyExpenses + totalCustomExpenses) / (timeframeDays || 1)
-      }
-    };
-  };
-
-  const getTrendAnalysis = () => {
-    const now = new Date();
-    const periods = [];
-    
-    // Create 6 periods of the selected timeframe for trend analysis
-    for (let i = 5; i >= 0; i--) {
-      const periodEnd = new Date(now);
-      const periodStart = new Date(now);
-      periodStart.setDate(now.getDate() - ((i + 1) * parseInt(analyticsTimeframe)));
-      periodEnd.setDate(now.getDate() - (i * parseInt(analyticsTimeframe)));
-
-      const periodTransactions = transactions.filter(t => {
-        const transactionDate = new Date(t.date);
-        return transactionDate >= periodStart && transactionDate <= periodEnd;
-      });
-
-      const totalExpenses = periodTransactions
-        .filter(t => t.amount < 0)
-        .reduce((sum, t) => sum + Math.abs(t.amount), 0);
-
-      const monthlyExpenses = periodTransactions
-        .filter(t => (t.budgetType === 'monthly' || !t.budgetType) && t.amount < 0)
-        .reduce((sum, t) => sum + Math.abs(t.amount), 0);
-
-      const customExpenses = periodTransactions
-        .filter(t => t.budgetType === 'custom' && t.amount < 0)
-        .reduce((sum, t) => sum + Math.abs(t.amount), 0);
-
-      periods.push({
-        label: `${periodStart.getMonth() + 1}/${periodStart.getDate()}`,
-        totalExpenses,
-        monthlyExpenses,
-        customExpenses,
-        transactionCount: periodTransactions.length
-      });
-    }
-
-    // Calculate trends
-    const latestExpenses = periods[periods.length - 1]?.totalExpenses || 0;
-    const previousExpenses = periods[periods.length - 2]?.totalExpenses || 0;
-    const expenseTrend = previousExpenses > 0 ? ((latestExpenses - previousExpenses) / previousExpenses) * 100 : 0;
-
-    return { periods, expenseTrend };
-  };
-
-  const getPredictiveAnalytics = () => {
-    const { periods } = getTrendAnalysis();
-    const recentPeriods = periods.slice(-3); // Use last 3 periods for prediction
-    
-    if (recentPeriods.length < 2) return null;
-
-    // Simple linear regression for prediction
-    const avgExpenses = recentPeriods.reduce((sum, p) => sum + p.totalExpenses, 0) / recentPeriods.length;
-    const trend = recentPeriods.map((p, i) => ({ x: i, y: p.totalExpenses }));
-    
-    // Calculate slope
-    const n = trend.length;
-    const sumX = trend.reduce((sum, point) => sum + point.x, 0);
-    const sumY = trend.reduce((sum, point) => sum + point.y, 0);
-    const sumXY = trend.reduce((sum, point) => sum + point.x * point.y, 0);
-    const sumXX = trend.reduce((sum, point) => sum + point.x * point.x, 0);
-
-    const divisor = (n * sumXX - sumX * sumX);
-    if (divisor === 0) {
-      return {
-        nextPeriodPrediction: avgExpenses,
-        monthlyProjection: avgExpenses * (30 / parseInt(analyticsTimeframe)),
-        trendDirection: 'stable',
-        confidence: 50,
-      };
-    }
-    const slope = (n * sumXY - sumX * sumY) / divisor;
-    const intercept = (sumY - slope * sumX) / n;
-    
-    // Predict next period
-    const nextPeriodExpenses = slope * n + intercept;
-    const projectedMonthlyTotal = nextPeriodExpenses * (30 / parseInt(analyticsTimeframe));
-
-    return {
-      nextPeriodPrediction: Math.max(0, nextPeriodExpenses),
-      monthlyProjection: Math.max(0, projectedMonthlyTotal),
-      trendDirection: slope > 0 ? 'increasing' : slope < 0 ? 'decreasing' : 'stable',
-      confidence: Math.min(95, Math.max(60, 80 - Math.abs(slope) * 10)) // Basic confidence score
-    };
-  };
-  
-const renderAnalyticsTab = () => {
-    const comparativeData = getComparativeAnalytics();
-    const trendData = getTrendAnalysis();
-    const predictiveData = getPredictiveAnalytics();
-
-    return (
- <div className="p-4 space-y-6">
-        <div className="bg-white rounded-2xl p-6 shadow-lg">
-          <h2 className="text-xl font-bold text-gray-800 mb-4">Analytics Dashboard</h2>
-          <div className="flex justify-center space-x-2 mb-4">
-            {['7', '30', '90'].map(day => (
-              <button
-                key={day}
-                onClick={() => setAnalyticsTimeframe(day)}
-                className={`px-4 py-2 rounded-full text-sm font-medium ${
-                  analyticsTimeframe === day ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700'
-                }`}
-              >
-                {day} Days
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Comparative Analytics */}
-        <div className="bg-white rounded-2xl p-6 shadow-lg">
-          <h3 className="text-lg font-bold text-gray-800 mb-4">Comparative Analytics</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-blue-50 p-4 rounded-lg text-center">
-              <p className="text-sm text-blue-700">Monthly Expenses</p>
-              <p className="text-2xl font-bold text-blue-900">₹{comparativeData.monthlyBudget.totalExpenses.toFixed(0)}</p>
-            </div>
-            <div className="bg-purple-50 p-4 rounded-lg text-center">
-              <p className="text-sm text-purple-700">Custom Expenses</p>
-              <p className="text-2xl font-bold text-purple-900">₹{comparativeData.customBudget.totalExpenses.toFixed(0)}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Trend Analysis */}
-        <div className="bg-white rounded-2xl p-6 shadow-lg">
-          <h3 className="text-lg font-bold text-gray-800 mb-4">Spending Trend</h3>
-          <div className="space-y-2">
-            {trendData.periods.map((period, index) => {
-              const maxExpenses = Math.max(...trendData.periods.map(p => p.totalExpenses));
-              const barWidth = maxExpenses > 0 ? (period.totalExpenses / maxExpenses) * 100 : 0;
-              return (
-                <div key={index} className="flex items-center space-x-3">
-                  <span className="text-sm font-medium text-gray-600 w-16">{period.label}</span>
-                  <div className="flex-1 bg-gray-200 rounded-full h-6">
-                    <div
-                      className="bg-gradient-to-r from-blue-500 to-purple-500 h-6 rounded-full flex items-center justify-end pr-2"
-                      style={{ width: `${Math.max(barWidth, 2)}%` }}
-                    >
-                      <span className="text-white text-xs font-medium">₹{period.totalExpenses.toFixed(0)}</span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Predictive Analytics Toggle */}
-        <div className="flex justify-center">
-          <button
-            onClick={() => setShowPredictiveAnalytics(!showPredictiveAnalytics)}
-            className="p-3 bg-white rounded-xl font-semibold text-purple-700 shadow-md hover:bg-purple-50 transition-all"
-          >
-            {showPredictiveAnalytics ? 'Hide' : 'Show'} Predictive Analytics
-          </button>
-        </div>
-
-        {/* Predictive Analytics */}
-        {showPredictiveAnalytics && predictiveData && (
-          <div className="bg-white rounded-2xl p-6 shadow-lg">
-            <h3 className="text-lg font-bold text-gray-800 mb-4">Predictive Analytics</h3>
-            <div className={`p-4 rounded-xl border-2 ${
-              predictiveData.trendDirection === 'increasing' ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'
-            }`}>
-              <div className="flex items-center justify-between mb-3">
-                <h4 className="font-semibold">Spending Forecast</h4>
-                <div className={`flex items-center space-x-1 ${
-                  predictiveData.trendDirection === 'increasing' ? 'text-red-600' : 'text-green-600'
-                }`}>
-                  {predictiveData.trendDirection === 'increasing' ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
-                  <span className="text-sm font-medium">{predictiveData.trendDirection}</span>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-600">Next {analyticsTimeframe}-day period</p>
-                  <p className="text-xl font-bold">₹{predictiveData.nextPeriodPrediction.toFixed(0)}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Monthly projection</p>
-                  <p className="text-xl font-bold">₹{predictiveData.monthlyProjection.toFixed(0)}</p>
-                </div>
-              </div>
-            </div>
-            <div className="mt-4 bg-yellow-50 rounded-xl p-4 border border-yellow-200">
-              <h4 className="font-semibold text-gray-800 mb-3 flex items-center">
-                <AlertCircle size={16} className="mr-2 text-yellow-600" />
-                Smart Recommendations
-              </h4>
-              <ul className="list-disc list-inside text-sm space-y-1">
-                {predictiveData.trendDirection === 'increasing' && (
-                  <li>Consider reviewing high-spending categories to identify cost-cutting opportunities.</li>
-                )}
-                {predictiveData.trendDirection === 'decreasing' && (
-                  <li>Great job reducing spending! Consider allocating savings to custom budgets.</li>
-                )}
-                {predictiveData.monthlyProjection > stats.totalBudget && (
-                  <li className="text-red-700 font-medium">Warning: Projected monthly spending exceeds total budget.</li>
-                )}
-              </ul>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
 
   const renderRemindersTab = () => {
     return (
@@ -2693,50 +1961,24 @@ const renderAnalyticsTab = () => {
           )}
         </div>
 
-        {/* Data Management Section */}
-        <div className="bg-white rounded-2xl p-6 shadow-lg">
-          <h2 className="text-xl font-bold text-gray-800 mb-4">Data Management</h2>
-          <div className="space-y-3">
-            <button
-              onClick={backupData}
-              className="w-full p-3 bg-blue-100 text-blue-800 rounded-xl font-semibold hover:bg-blue-200 flex items-center justify-center"
-            >
-              <FileJson size={18} className="mr-2" />
-              Backup Data (JSON)
-            </button>
-            <div>
-              <label
-                onClick={handleRestore}
-                className="w-full text-center p-3 bg-blue-100 text-blue-800 rounded-xl font-semibold hover:bg-blue-200 flex items-center justify-center cursor-pointer"
-              >
-                <FileJson size={18} className="mr-2" />
-                Restore from Backup
-                <input type="file" accept=".json" ref={fileInputRef} onChange={handleFileSelectedFromWeb} className="hidden" />
-              </label>
-            </div>
-            <button
-              onClick={exportToExcel}
-              className="w-full p-3 bg-green-100 text-green-800 rounded-xl font-semibold hover:bg-green-200 flex items-center justify-center"
-            >
-              <FileSpreadsheet size={18} className="mr-2" />
-              Export to Excel
-            </button>
-            <button
-              onClick={generatePDFReport}
-              className="w-full p-3 bg-red-100 text-red-800 rounded-xl font-semibold hover:bg-red-200 flex items-center justify-center"
-            >
-              <FileText size={18} className="mr-2" />
-              Generate PDF Report
-            </button>
-            <button
-              onClick={generateHTMLReport}
-              className="w-full p-3 bg-teal-100 text-teal-800 rounded-xl font-semibold hover:bg-teal-200 flex items-center justify-center"
-            >
-              <FileText size={18} className="mr-2" />
-              Generate HTML Report
-            </button>
-          </div>
-        </div>
+        <DataManagement
+          transactions={transactions}
+          budgets={budgets}
+          customBudgets={customBudgets}
+          categories={categories}
+          budgetTemplates={budgetTemplates}
+          budgetRelationships={budgetRelationships}
+          billReminders={billReminders}
+          transferLog={transferLog}
+          recurringProcessingMode={recurringProcessingMode}
+          currentYear={currentYear}
+          currentMonth={currentMonth}
+          setTransactions={setTransactions} setBudgets={setBudgets} setCustomBudgets={setCustomBudgets}
+          setCategories={setCategories} setBudgetTemplates={setBudgetTemplates} setBudgetRelationships={setBudgetRelationships}
+          setBillReminders={setBillReminders} setTransferLog={setTransferLog} setRecurringProcessingMode={setRecurringProcessingMode}
+          showConfirmation={showConfirmation}
+          getCustomBudgetName={getCustomBudgetName}
+        />
 
         {/* Recurring Transactions */}
         <div className="bg-white rounded-2xl p-6 shadow-lg">
@@ -2825,7 +2067,7 @@ const renderAnalyticsTab = () => {
             <button
               onClick={quickCSVExport}
               className="p-2 bg-white/20 rounded-lg hover:bg-white/30 transition-colors"
-              title="Quick CSV Export (All Data)"
+              title="Quick CSV Export (All Transactions)"
             >
               <FileSpreadsheet size={20} />
             </button>
@@ -3730,19 +2972,28 @@ const renderAnalyticsTab = () => {
                           </span>
                         </div>
                         
-                        <div className="w-full bg-gray-200 rounded-full h-3 mb-2">
-                          <div
-                            className={`h-3 rounded-full transition-all ${
-                              isOverBudget ? 'bg-red-500' : 
-                              percentage > 80 ? 'bg-yellow-500' : 'bg-green-500'
-                            }`}
-                            style={{ width: `${Math.min(percentage, 100)}%` }}
-                          />
+                        <div className="relative pt-1">
+                          <div className="overflow-hidden h-4 text-xs flex rounded-full bg-gray-200">
+                            <div style={{ width: `${Math.min(percentage, 100)}%` }} className={`shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center transition-all duration-500 ${isOverBudget ? 'bg-red-500' : 'bg-gradient-to-r from-green-400 to-blue-500'}`}>
+                              {percentage >= 10 && <span className="text-xs font-semibold inline-block py-1">{percentage.toFixed(0)}%</span>}
+                            </div>
+                          </div>
+                          {/* Milestones */}
+                          {[25, 50, 75].map(milestone => (
+                            percentage >= milestone && (
+                              <div key={milestone} className="absolute top-0 h-4 flex items-center" style={{ left: `${milestone}%` }}>
+                                <div className="w-1 h-4 bg-white"></div>
+                                <div className="text-yellow-500 -mt-5 -ml-1.5">⭐</div>
+                              </div>
+                            )
+                          ))}
                         </div>
                         
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-600">
-                            {percentage.toFixed(0)}% used
+                            {percentage >= 100 && '🎉 '}
+                            {percentage.toFixed(0)}% funded
+                            {percentage >= 100 && ' 🎉'}
                           </span>
                           <span className={`${
                             budget.spentAmount >= budget.totalAmount ? 'text-blue-600' : 'text-green-600'
@@ -4235,9 +3486,13 @@ const renderAnalyticsTab = () => {
         </div>
       )}
 
-        {/* Analytics Tab */}
-        {activeTab === 'analytics' && renderAnalyticsTab()}
-
+      {activeTab === 'analytics' && (
+                <AnalyticsTab
+                  transactions={transactions}
+                  budgets={budgets}
+                  getCustomBudgetName={getCustomBudgetName}
+                />
+              )}
         {/* Reminders Tab */}
         {activeTab === 'reminders' && renderRemindersTab()}
 

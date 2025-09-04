@@ -1,0 +1,274 @@
+import { Transaction, MonthlyBudgets } from '../types';
+
+const getPeriodData = (transactions: Transaction[], startDate: Date, endDate: Date, getCustomBudgetName?: (id: number | null) => string) => {
+  const filtered = transactions.filter(t => {
+    const transactionDate = new Date(t.date);
+    return transactionDate >= startDate && transactionDate <= endDate;
+  });
+
+  const expensesByCategory: { [key: string]: number } = {};
+  let largestTransaction: Transaction | null = null;
+  let totalExpenses = 0;
+  let totalIncome = 0;
+
+  filtered.forEach(t => {
+    if (t.amount < 0) {
+      const expense = Math.abs(t.amount);
+      totalExpenses += expense;
+      let category = t.category;
+      if (t.budgetType === 'custom' && t.customBudgetId && getCustomBudgetName) {
+        category = `${getCustomBudgetName(t.customBudgetId)} - ${t.customCategory}`;
+      }
+      if (category) {
+        expensesByCategory[category] = (expensesByCategory[category] || 0) + expense;
+      }
+      if (!largestTransaction || expense > Math.abs(largestTransaction.amount)) {
+        largestTransaction = t;
+      }
+    } else {
+      totalIncome += t.amount;
+    }
+  });
+
+  return {
+    transactions: filtered,
+    totalExpenses,
+    totalIncome,
+    expensesByCategory,
+    largestTransaction,
+  };
+};
+
+export const getCategoryInsights = (transactions: Transaction[], analyticsTimeframe: string, getCustomBudgetName: (id: number | null) => string) => {
+  const timeframeDays = parseInt(analyticsTimeframe, 10);
+  const now = new Date();
+
+  const currentEndDate = new Date();
+  const currentStartDate = new Date();
+  currentStartDate.setDate(now.getDate() - timeframeDays);
+
+  const previousEndDate = new Date(currentStartDate);
+  previousEndDate.setDate(previousEndDate.getDate() - 1);
+  const previousStartDate = new Date(previousEndDate);
+  previousStartDate.setDate(previousEndDate.getDate() - (timeframeDays - 1));
+
+  const currentPeriod = getPeriodData(transactions, currentStartDate, currentEndDate, getCustomBudgetName);
+  const previousPeriod = getPeriodData(transactions, previousStartDate, previousEndDate, getCustomBudgetName);
+
+  const allCategories = new Set([
+    ...Object.keys(currentPeriod.expensesByCategory),
+    ...Object.keys(previousPeriod.expensesByCategory),
+  ]);
+
+  const insights = Array.from(allCategories).map(category => {
+    const currentSpending = currentPeriod.expensesByCategory[category] || 0;
+    const previousSpending = previousPeriod.expensesByCategory[category] || 0;
+    const trend = previousSpending > 0 ? ((currentSpending - previousSpending) / previousSpending) * 100 : (currentSpending > 0 ? 100 : 0);
+
+    const categoryTransactions = currentPeriod.transactions.filter(t => {
+        if (t.budgetType === 'custom' && t.customBudgetId) {
+            return `${getCustomBudgetName(t.customBudgetId)} - ${t.customCategory}` === category && t.amount < 0;
+        }
+        return t.category === category && t.amount < 0
+    });
+    const largestTx = categoryTransactions.reduce((max, t) => (Math.abs(t.amount) > Math.abs(max?.amount || 0) ? t : max), null as Transaction | null);
+
+    let smartText = '';
+    if (trend > 30) {
+      smartText = `⚠️ Spending is up ${trend.toFixed(0)}% from the last period.`;
+    } else if (trend < -10) {
+      smartText = `✅ Great job! Spending is down ${Math.abs(trend).toFixed(0)}%.`;
+    }
+
+    return {
+      category,
+      spending: currentSpending,
+      trend,
+      largestTransaction: largestTx,
+      smartText,
+    };
+  });
+
+  return insights.sort((a, b) => b.spending - a.spending);
+};
+
+export const getFinancialHealthScore = (
+  transactions: Transaction[],
+  budgets: MonthlyBudgets,
+  analyticsTimeframe: string
+) => {
+  const timeframeDays = parseInt(analyticsTimeframe, 10);
+  const now = new Date();
+  const startDate = new Date();
+  startDate.setDate(now.getDate() - timeframeDays);
+
+  const periodData = getPeriodData(transactions, startDate, now);
+  const totalBudget = Object.values(budgets).reduce((sum, b) => sum + b, 0);
+  const monthlyBudget = totalBudget * (timeframeDays / 30);
+
+  // 1. Spending vs Budget (40 points)
+  let budgetScore = 0;
+  if (monthlyBudget > 0) {
+    const ratio = periodData.totalExpenses / monthlyBudget;
+    budgetScore = Math.max(0, 40 * (1 - ratio));
+  } else if (periodData.totalExpenses === 0) {
+    budgetScore = 40;
+  }
+
+  // 2. Savings Rate (30 points)
+  let savingsScore = 0;
+  if (periodData.totalIncome > 0) {
+    const savingsRate = (periodData.totalIncome - periodData.totalExpenses) / periodData.totalIncome;
+    // Scale from -1 (or lower) to 1 (or higher) to 0-30 points. 0.2 is a good target.
+    savingsScore = Math.max(0, Math.min(30, 30 * (savingsRate + 0.1) / 0.5));
+  }
+
+  // 3. Trend Consistency (30 points)
+  const previousEndDate = new Date(startDate);
+  previousEndDate.setDate(previousEndDate.getDate() - 1);
+  const previousStartDate = new Date(previousEndDate);
+  previousStartDate.setDate(previousEndDate.getDate() - (timeframeDays - 1));
+  const previousPeriodData = getPeriodData(transactions, previousStartDate, previousEndDate);
+  const trend = previousPeriodData.totalExpenses > 0
+    ? (periodData.totalExpenses - previousPeriodData.totalExpenses) / previousPeriodData.totalExpenses
+    : (periodData.totalExpenses > 0 ? 1 : 0);
+
+  let trendScore = 15; // Start at neutral
+  if (trend < -0.1) trendScore = 30; // Significantly decreasing
+  else if (trend < 0) trendScore = 20; // Decreasing
+  else if (trend > 0.2) trendScore = 0; // Significantly increasing
+  else if (trend > 0) trendScore = 10; // Increasing
+
+  const totalScore = Math.round(budgetScore + savingsScore + trendScore);
+
+  let scoreColor = 'text-red-500';
+  if (totalScore >= 75) scoreColor = 'text-green-500';
+  else if (totalScore >= 50) scoreColor = 'text-yellow-500';
+
+  return {
+    score: totalScore,
+    color: scoreColor,
+    breakdown: { budgetScore, savingsScore, trendScore },
+  };
+};
+
+export const getCashFlowAnalysis = (
+  transactions: Transaction[],
+  analyticsTimeframe: string,
+  budgets: MonthlyBudgets,
+  savingsGoal: number = 15000
+) => {
+  const timeframeDays = parseInt(analyticsTimeframe, 10);
+  const now = new Date();
+  const startDate = new Date();
+  startDate.setDate(now.getDate() - timeframeDays);
+
+  const periodData = getPeriodData(transactions, startDate, now);
+  const { totalIncome, totalExpenses, expensesByCategory } = periodData;
+
+  const savings = totalIncome - totalExpenses;
+  const projectedMonthlySavings = savings * (30 / timeframeDays);
+
+  const totalMonthlyBudget = Object.values(budgets).reduce((sum, b) => sum + b, 0);
+  const avgDailySpending = totalExpenses / timeframeDays;
+  const burnRateDays = avgDailySpending > 0 ? (totalMonthlyBudget * (timeframeDays / 30)) / avgDailySpending : Infinity;
+
+  const incomeNeeded = Math.max(0, (totalExpenses + savingsGoal) - totalIncome);
+
+  return {
+    totalIncome,
+    totalExpenses,
+    savings,
+    expensesByCategory,
+    projectedMonthlySavings,
+    burnRateDays,
+    incomeNeeded,
+    savingsGoal,
+  };
+};
+
+export const getSpendingPersonality = (transactions: Transaction[]) => {
+  const dayOfWeekSpending: { [key: number]: number } = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
+  let totalSpending = 0;
+
+  transactions.forEach(t => {
+    if (t.amount < 0) {
+      const day = new Date(t.date).getDay(); // 0 = Sunday, 6 = Saturday
+      const expense = Math.abs(t.amount);
+      dayOfWeekSpending[day] += expense;
+      totalSpending += expense;
+    }
+  });
+
+  if (totalSpending === 0) return { personality: "Not Enough Data", insight: "Start logging expenses to see your spending habits." };
+
+  const weekendSpending = dayOfWeekSpending[0] + dayOfWeekSpending[5] + dayOfWeekSpending[6];
+  const weekdaySpending = totalSpending - weekendSpending;
+
+  const weekendPercentage = (weekendSpending / totalSpending) * 100;
+
+  if (weekendPercentage > 60) {
+    return { personality: "Weekend Spender", insight: `You spend ${weekendPercentage.toFixed(0)}% of your money on weekends.` };
+  }
+  if (weekendPercentage < 40) {
+    return { personality: "Weekday Warrior", insight: `You handle most of your spending (${(weekdaySpending / totalSpending * 100).toFixed(0)}%) during the week.` };
+  }
+  return { personality: "Balanced Spender", insight: "Your spending is evenly distributed throughout the week." };
+};
+
+export const getDailySpendingStreak = (transactions: Transaction[], threshold: number) => {
+  if (transactions.length === 0) return { streak: 0, isTodayUnder: false };
+
+  const spendingByDay: { [key: string]: number } = {};
+  transactions.forEach(t => {
+    if (t.amount < 0) {
+      spendingByDay[t.date] = (spendingByDay[t.date] || 0) + Math.abs(t.amount);
+    }
+  });
+
+  let streak = 0;
+  let currentDate = new Date();
+  currentDate.setHours(0, 0, 0, 0);
+
+  while (true) {
+    const dateStr = currentDate.toISOString().split('T')[0];
+    if ((spendingByDay[dateStr] || 0) <= threshold) {
+      streak++;
+      currentDate.setDate(currentDate.getDate() - 1);
+    } else {
+      break;
+    }
+  }
+  const todayStr = new Date().toISOString().split('T')[0];
+  return { streak, isTodayUnder: (spendingByDay[todayStr] || 0) <= threshold };
+};
+
+export const getFinancialRunway = (transactions: Transaction[]) => {
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  const recentTransactions = transactions.filter(t => new Date(t.date) >= thirtyDaysAgo);
+
+  const totalIncome = recentTransactions.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0);
+  const totalExpenses = recentTransactions.filter(t => t.amount < 0).reduce((sum, t) => sum + Math.abs(t.amount), 0);
+
+  if (totalExpenses === 0) return { runwayMonths: Infinity, monthlyNet: totalIncome };
+
+  const monthlyNet = totalIncome - totalExpenses;
+  const totalSavings = transactions.reduce((sum, t) => sum + t.amount, 0);
+
+  if (monthlyNet >= 0) return { runwayMonths: Infinity, monthlyNet };
+
+  const runwayMonths = totalSavings > 0 ? Math.floor(totalSavings / Math.abs(monthlyNet)) : 0;
+
+  return { runwayMonths, monthlyNet };
+};
+
+export const simulateBudgetScenario = (
+  transactions: Transaction[],
+  currentBudgets: MonthlyBudgets,
+  scenarioChanges: { [category: string]: number }
+) => {
+  const simulatedBudgets = { ...currentBudgets, ...scenarioChanges };
+  return getFinancialHealthScore(transactions, simulatedBudgets, '30');
+};
