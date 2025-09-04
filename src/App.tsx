@@ -151,12 +151,14 @@ const App = () => {
   });
   const [showCustomCategoryInput, setShowCustomCategoryInput] = useState(false);
   const [newCustomCategory, setNewCustomCategory] = useState('');
+  const [newCustomCategoryBudget, setNewCustomCategoryBudget] = useState('');
   const [selectedCustomBudgetForCategory, setSelectedCustomBudgetForCategory] = useState<number | null>(null);
 
   const customBudgetFormRef = useRef<HTMLDivElement>(null);
 
   const [showCategoryInput, setShowCategoryInput] = useState(false);
   const [newCategory, setNewCategory] = useState('');
+  const [newCategoryBudget, setNewCategoryBudget] = useState('');
   
   // Export modal state
   const [showExportModal, setShowExportModal] = useState(false);
@@ -378,6 +380,31 @@ const App = () => {
     }
   }, [activeTab]);
 
+  const handleCancelTransactionEdit = () => {
+    setEditingTransaction(null);
+    setFormData({
+      category: '',
+      amount: '',
+      description: '',
+      date: new Date().toISOString().split('T')[0],
+      type: 'expense',
+      budgetType: 'monthly',
+      customBudgetId: null,
+      customCategory: '',
+      tags: '',
+      isRecurring: false,
+      recurringFrequency: null,
+    });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingCustomBudget(null);
+    setCustomBudgetForm({
+      name: '', amount: '', description: '', deadline: '', 
+      priority: 'medium', categories: [], categoryBudgets: {}
+    });
+  };
+
   // --- Back Button Handling for Mobile ---
   useEffect(() => {
     const handleBackButton = (_event: PopStateEvent) => {
@@ -396,8 +423,8 @@ const App = () => {
 
       // Priority 2: Cancel any editing mode
       if (editingTransaction || editingCustomBudget) {
-        handleCancelTransactionEdit();
-        handleCancelEdit();
+        if (editingTransaction) handleCancelTransactionEdit();
+        if (editingCustomBudget) handleCancelEdit();
         window.history.pushState(null, '', window.location.href);
         return;
       }
@@ -531,106 +558,6 @@ const App = () => {
     }
   };
 
-  const addTransaction = () => {
-    if (!formData.amount) return;
-    
-    // Validate based on budget type
-    if (formData.budgetType === 'monthly' && !formData.category) return;
-    if (formData.budgetType === 'custom' && (!formData.customBudgetId || !formData.customCategory)) return;
-
-    // Prevent adding a transaction to a locked or paused budget
-    if (formData.budgetType === 'custom' && formData.customBudgetId) {
-      const budget = customBudgets.find(b => b.id === formData.customBudgetId);
-      if (budget && (budget.status === 'locked' || budget.status === 'paused')) {
-        alert(`Cannot add new transactions to a '${budget.status}' budget. Please set it to 'active' first.`);
-        return; // Stop the addition
-      }
-    }
-
-    const transaction: Transaction = {
-      id: Date.now(),
-      ...formData,
-      category: formData.budgetType === 'custom' ? '' : formData.category,
-      amount: parseFloat(formData.amount) * (formData.type === 'expense' ? -1 : 1),
-      tags: formData.tags ? formData.tags.split(',').map(tag => tag.trim()) : [],
-      timestamp: new Date().toISOString()
-    };
-
-    const newTransactions = [...transactions, transaction];
-    setTransactions(newTransactions);
-
-    recalculateCustomBudgetSpending(newTransactions, customBudgets);
-    setFormData({
-      category: '',
-      amount: '',
-      description: '',
-      date: new Date().toISOString().split('T')[0],
-      type: 'expense',
-      budgetType: 'monthly',
-      customBudgetId: null,
-      customCategory: '',
-      tags: '',
-      isRecurring: false,
-      recurringFrequency: null,
-    });
-  };
-  const updateTransaction = () => {
-    if (!formData.amount || !editingTransaction) return;
-    // Validate based on budget type
-    if (formData.budgetType === 'monthly' && !formData.category) return;
-    if (formData.budgetType === 'custom' && (!formData.customBudgetId || !formData.customCategory)) return;
-
-    // New check: Prevent moving a transaction TO a locked or paused budget
-    if (formData.budgetType === 'custom' && formData.customBudgetId) {
-      const targetBudget = customBudgets.find(b => b.id === formData.customBudgetId);
-      if (targetBudget && (targetBudget.status === 'locked' || targetBudget.status === 'paused')) {
-        alert(`Cannot assign transaction to a '${targetBudget.status}' budget. Please set it to 'active' first.`);
-        return;
-      }
-    }
-
-    // Safeguard: Check the status of the original budget before updating
-    if (editingTransaction.budgetType === 'custom' && editingTransaction.customBudgetId) {
-      const budget = customBudgets.find(b => b.id === editingTransaction.customBudgetId);
-      if (budget && (budget.status === 'paused' || budget.status === 'locked')) {
-        alert(`Cannot update transactions from a '${budget.status}' budget.`);
-        handleCancelTransactionEdit(); // Clear the form and exit edit mode
-        return;
-      }
-    }
-
-    const newAmount = parseFloat(formData.amount) * (formData.type === 'expense' ? -1 : 1);
-
-    const updatedTransactions = transactions.map(t => 
-      t.id === editingTransaction.id 
-        ? { 
-            ...t, 
-            ...formData, 
-            category: formData.budgetType === 'custom' ? '' : formData.category,
-            amount: newAmount,
-            tags: formData.tags ? formData.tags.split(',').map(tag => tag.trim()) : [], // This was missing
-          }
-        : t
-    );
-
-    setFormData({
-      category: '',
-      amount: '',
-      description: '',
-      date: new Date().toISOString().split('T')[0],
-      type: 'expense',
-      budgetType: 'monthly',
-      customBudgetId: null,
-      customCategory: '',
-      tags: '',
-      isRecurring: false,
-      recurringFrequency: null,
-    });
-    setTransactions(updatedTransactions);
-    setEditingTransaction(null);
-    recalculateCustomBudgetSpending(updatedTransactions, customBudgets); 
-  };
-
   const deleteTransaction = (id: number) => {
     const transactionToDelete = transactions.find(t => t.id === id);
     if (!transactionToDelete) return;
@@ -682,16 +609,6 @@ const App = () => {
       recurringFrequency: transaction.recurringFrequency || null,
     });
     setActiveTab('add');
-  };
-
-  const addCategory = () => {
-    if (newCategory && !categories.includes(newCategory)) {
-      const newCategories = [...categories, newCategory];
-      setCategories(newCategories);
-      setFormData({ ...formData, category: newCategory });
-      setNewCategory('');
-      setShowCategoryInput(false);
-    }
   };
 
   const setBudget = () => {
@@ -801,52 +718,145 @@ const App = () => {
     }
   };
 
-  const handleCancelEdit = () => {
-    setEditingCustomBudget(null);
-    setCustomBudgetForm({
-      name: '', amount: '', description: '', deadline: '',
-      priority: 'medium', categories: [], categoryBudgets: {}
-    });
-  };
+     const handleAddOrUpdateTransaction = () => {
+    let currentFormData = { ...formData };
+    const isUpdate = !!editingTransaction;
+    let budgetsForRecalculation = customBudgets;
 
-  const handleCancelTransactionEdit = () => {
-    setEditingTransaction(null);
-    setFormData({
-      category: '',
-      amount: '',
-      description: '',
-      date: new Date().toISOString().split('T')[0],
-      type: 'expense',
-      budgetType: 'monthly',
-      customBudgetId: null,
-      customCategory: '',
-      tags: '',
-      isRecurring: false,
-      recurringFrequency: null,
-    });
-  };
+    // Handle adding a new monthly category if the inputs are visible
+    if (showCategoryInput) {
+      if (newCategory && !categories.includes(newCategory) && newCategoryBudget) {
+        const newCategories = [...categories, newCategory];
+        setCategories(newCategories);
+        const newBudgets = { ...budgets, [newCategory]: parseFloat(newCategoryBudget) };
+        setBudgets(newBudgets);
+        currentFormData.category = newCategory; // Use the new category for this transaction
+        setNewCategory('');
+        setNewCategoryBudget('');
+        setShowCategoryInput(false);
+      } else {
+        alert('Please provide a category name and a budget amount for the new category.');
+        return;
+      }
+    }
 
-  const addCustomCategory = () => {
-    if (newCustomCategory && selectedCustomBudgetForCategory) {
-      // Find the budget and add the new category to it
-      const updatedCustomBudgets = customBudgets.map(budget => 
-        budget.id === selectedCustomBudgetForCategory
-          ? { ...budget, 
-              categories: [...budget.categories, newCustomCategory], 
-              updatedAt: new Date().toISOString() 
+    // Handle adding a new custom category if the inputs are visible
+    if (showCustomCategoryInput) {
+      if (newCustomCategory && selectedCustomBudgetForCategory && newCustomCategoryBudget) {
+        const newCategoryBudgetAmount = parseFloat(newCustomCategoryBudget);
+        const updatedCustomBudgets = customBudgets.map(budget =>
+          budget.id === selectedCustomBudgetForCategory
+            ? {
+                ...budget,
+                categories: [...budget.categories, newCustomCategory],
+                categoryBudgets: { ...budget.categoryBudgets, [newCustomCategory]: newCategoryBudgetAmount },
+                totalAmount: budget.totalAmount + newCategoryBudgetAmount,
+                remainingAmount: budget.remainingAmount + newCategoryBudgetAmount,
+                updatedAt: new Date().toISOString(),
+              }
+            : budget
+        );
+        // Also add to the main categories list if it doesn't exist
+        if (!categories.includes(newCustomCategory)) {
+          const newCategories = [...categories, newCustomCategory];
+          setCategories(newCategories);
+        }
+        setCustomBudgets(updatedCustomBudgets);
+        currentFormData.customCategory = newCustomCategory; // Use the new category
+        setNewCustomCategory('');
+        setNewCustomCategoryBudget('');
+        setShowCustomCategoryInput(false);
+        setSelectedCustomBudgetForCategory(null);
+        budgetsForRecalculation = updatedCustomBudgets;
+      } else {
+        alert('Please provide a category name and a budget amount for the new custom category.');
+        return;
+      }
+    }
+
+    // --- Finish the transaction ---
+    if (!currentFormData.amount) return;
+
+    // Validate based on budget type
+if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
+      alert('Please select a category for the monthly budget.');
+      return;
+    }
+    if (currentFormData.budgetType === 'custom' && (!currentFormData.customBudgetId || !currentFormData.customCategory)) {
+      alert('Please select a custom budget and a category within it.');
+      return;
+    }
+
+    // Prevent adding a transaction to a locked or paused budget
+   if (currentFormData.budgetType === 'custom' && currentFormData.customBudgetId) {
+      const budget = customBudgets.find(b => b.id === currentFormData.customBudgetId);
+      if (budget && (budget.status === 'locked' || budget.status === 'paused')) {
+        alert(`Cannot add new transactions to a '${budget.status}' budget. Please set it to 'active' first.`);
+        return; // Stop the addition
+      }
+    }
+
+     if (isUpdate && editingTransaction) {
+      // Update logic
+      const newAmount = parseFloat(currentFormData.amount) * (currentFormData.type === 'expense' ? -1 : 1);
+      const updatedTransactions = transactions.map(t =>
+        t.id === editingTransaction.id
+          ? {
+              ...t,
+              ...currentFormData,
+              category: currentFormData.budgetType === 'custom' ? '' : currentFormData.category,
+              amount: newAmount,
+              tags: currentFormData.tags ? currentFormData.tags.split(',').map(tag => tag.trim()) : [],
             }
-          : budget
+          : t
       );
-      setCustomBudgets(updatedCustomBudgets);
-
-      // Also update the form to select the new category
-      setFormData({ ...formData, customCategory: newCustomCategory });
-
-      setNewCustomCategory('');
-      setShowCustomCategoryInput(false);
-      setSelectedCustomBudgetForCategory(null);
+      setTransactions(updatedTransactions);
+      recalculateCustomBudgetSpending(updatedTransactions, budgetsForRecalculation);
+      handleCancelTransactionEdit();
+    } else {
+      // Add logic
+      const transaction: Transaction = {
+        id: Date.now(),
+        ...currentFormData,
+        category: currentFormData.budgetType === 'custom' ? '' : currentFormData.category,
+        amount: parseFloat(currentFormData.amount) * (currentFormData.type === 'expense' ? -1 : 1),
+        tags: currentFormData.tags ? currentFormData.tags.split(',').map(tag => tag.trim()) : [],
+        timestamp: new Date().toISOString()
+      };
+      const newTransactions = [...transactions, transaction];
+      setTransactions(newTransactions);
+      recalculateCustomBudgetSpending(newTransactions, budgetsForRecalculation);
+      // Reset form
+      setFormData({
+        category: '', amount: '', description: '', date: new Date().toISOString().split('T')[0],
+        type: 'expense', budgetType: 'monthly', customBudgetId: null, customCategory: '',
+        tags: '', isRecurring: false, recurringFrequency: null,
+      });
     }
   };
+
+  const updateTransaction = () => { // This function is now a wrapper
+    handleAddOrUpdateTransaction();
+    // New check: Prevent moving a transaction TO a locked or paused budget
+    if (formData.budgetType === 'custom' && formData.customBudgetId) {
+      const targetBudget = customBudgets.find(b => b.id === formData.customBudgetId);
+      if (targetBudget && (targetBudget.status === 'locked' || targetBudget.status === 'paused')) {
+        alert(`Cannot assign transaction to a '${targetBudget.status}' budget. Please set it to 'active' first.`);
+        return;
+      }
+    }
+
+    // Safeguard: Check the status of the original budget before updating
+    if (editingTransaction && editingTransaction.budgetType === 'custom' && editingTransaction.customBudgetId) {
+      const budget = customBudgets.find(b => b.id === editingTransaction.customBudgetId);
+      if (budget && (budget.status === 'paused' || budget.status === 'locked')) {
+        alert(`Cannot update transactions from a '${budget.status}' budget.`);
+        handleCancelTransactionEdit(); // Clear the form and exit edit mode
+        return;
+      }
+    }
+  };
+
 
   const addCustomCategoryToForm = () => {
     if (newCustomCategory && !customBudgetForm.categories.includes(newCustomCategory)) {
@@ -1992,10 +2002,14 @@ const App = () => {
                     <div className="space-y-2">
                       <select
                         value={formData.category}
-                        onChange={(e) => {
+                          onChange={e => {
                           if (e.target.value === 'add_new') {
                             setShowCategoryInput(true);
+                              setFormData({ ...formData, category: '' });
                           } else {
+                              setShowCategoryInput(false);
+                              setNewCategory('');
+                              setNewCategoryBudget('');
                             setFormData({ ...formData, category: e.target.value });
                           }
                         }}
@@ -2009,26 +2023,24 @@ const App = () => {
                       </select>
 
                       {showCategoryInput && (
-                        <div className="flex space-x-2">
-                          <input
-                            type="text"
-                            value={newCategory}
-                            onChange={(e) => setNewCategory(e.target.value)}
-                            placeholder="Enter new category"
-                            className="flex-1 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
-                          />
-                          <button
-                            onClick={addCategory}
-                            className="px-4 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700"
-                          >
-                            Add
-                          </button>
-                          <button
-                            onClick={() => setShowCategoryInput(false)}
-                            className="px-4 py-3 bg-gray-400 text-white rounded-xl hover:bg-gray-500"
-                          >
-                            Cancel
-                          </button>
+                        <div className="space-y-2">
+                          <div className="flex space-x-2">
+                            <input
+                              type="text"
+                              value={newCategory}
+                              onChange={(e) => setNewCategory(e.target.value)}
+                              placeholder="New category name"
+                              className="flex-1 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
+                            />
+                            <input
+                              type="number"
+                              value={newCategoryBudget}
+                              onChange={(e) => setNewCategoryBudget(e.target.value)}
+                              placeholder="Budget"
+                              className="w-28 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
+                            />
+                          </div>
+
                         </div>
                       )}
                     </div>
@@ -2066,11 +2078,16 @@ const App = () => {
                         <div className="space-y-2">
                           <select
                             value={formData.customCategory}
-                            onChange={(e) => {
+                              onChange={e => {
                               if (e.target.value === 'add_new_custom') {
                                 setShowCustomCategoryInput(true);
                                 setSelectedCustomBudgetForCategory(formData.customBudgetId);
+                                  setFormData({ ...formData, customCategory: '' });
                               } else {
+                                  setShowCustomCategoryInput(false);
+                                  setSelectedCustomBudgetForCategory(null);
+                                  setNewCustomCategory('');
+                                  setNewCustomCategoryBudget('');
                                 setFormData({ ...formData, customCategory: e.target.value });
                               }
                             }}
@@ -2084,30 +2101,23 @@ const App = () => {
                           </select>
 
                           {showCustomCategoryInput && selectedCustomBudgetForCategory === formData.customBudgetId && (
-                            <div className="flex space-x-2">
-                              <input
-                                type="text"
-                                value={newCustomCategory}
-                                onChange={(e) => setNewCustomCategory(e.target.value)}
-                                placeholder="Enter new category"
-                                className="flex-1 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
-                              />
-                              <button
-                                onClick={addCustomCategory}
-                                className="px-4 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700"
-                              >
-                                Add
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setShowCustomCategoryInput(false);
-                                  setSelectedCustomBudgetForCategory(null);
-                                  setNewCustomCategory('');
-                                }}
-                                className="px-4 py-3 bg-gray-400 text-white rounded-xl hover:bg-gray-500"
-                              >
-                                Cancel
-                              </button>
+                            <div className="space-y-2">
+                              <div className="flex space-x-2">
+                                <input
+                                  type="text"
+                                  value={newCustomCategory}
+                                  onChange={(e) => setNewCustomCategory(e.target.value)}
+                                  placeholder="New category name"
+                                  className="flex-1 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
+                                />
+                                <input
+                                  type="number"
+                                  value={newCustomCategoryBudget}
+                                  onChange={(e) => setNewCustomCategoryBudget(e.target.value)}
+                                  placeholder="Budget"
+                                  className="w-28 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
+                                />
+                              </div>
                             </div>
                           )}
 
@@ -2211,7 +2221,7 @@ const App = () => {
                 </div>
 
                 <button
-                  onClick={editingTransaction ? updateTransaction : addTransaction}
+                  onClick={editingTransaction ? updateTransaction : handleAddOrUpdateTransaction}
                   className="w-full p-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-semibold hover:from-purple-700 hover:to-blue-700 transition-all"
                 >
                   {editingTransaction ? 'Update Transaction' : 'Add Transaction'}
