@@ -19,8 +19,8 @@ The header is always visible and provides a high-level summary and quick access 
 
 -   **BudgetWise Title**: The name of the application.
 -   **Advanced Export Button (Download Icon)**: Opens a modal with detailed options to export data in JSON or CSV format within a specific date range.
--   **Quick CSV Export Button (Upload Icon)**: Immediately downloads all transaction data into a single CSV file without extra options.
--   **Settings Button (Gear Icon)**: Opens the main settings modal for the application.
+-   **Quick CSV Export Button (Spreadsheet Icon)**: Immediately downloads all transaction data into a single CSV file without extra options.
+-   **Settings Button (Gear Icon)**: Navigates to the main settings page for the application.
 -   **Monthly Balance Card**: Displays the net financial position for the current month (Total Income - Total Expenses).
 -   **Monthly Spent Card**: Shows the total amount of money spent from monthly budget categories in the current month.
 -   **Custom Budgets Spent Card**: Displays the total amount spent across all active custom, purpose-driven budgets.
@@ -36,7 +36,6 @@ The primary method for switching between the main sections of the application.
 -   **History Button (List Icon)**: Navigates to the screen that displays a complete list of all recorded transactions.
 -   **Analytics Button (Chart Icon)**: Navigates to the dashboard for visualizing spending trends and financial analytics.
 -   **Budget Button (Pie Chart Icon)**: Navigates to the section for managing both monthly and custom budgets.
--   **Settings Button (Gear Icon)**: Navigates to the application settings and data management page.
 -   **Reminders Button (Bell Icon)**: Navigates to the bill reminders page.
 
 ---
@@ -69,6 +68,7 @@ This tab allows users to review, search, and manage their past financial activit
 -   **Sort by Dropdown**: Changes the order of the transaction list based on date, amount, or category name.
 -   **Search Input**: Filters the transaction list in real-time based on text in the description or category.
 -   **Filter Category Dropdown**: Narrows the list to show only transactions from a single, specific category.
+-   **Filter by Tag Dropdown**: Narrows the list to show only transactions with a specific tag (e.g., 'Recurring', 'Monthly', 'Custom').
 -   **Transaction/Transfer List Item**: Each entry in the list displays details for a transaction or a fund transfer.
     -   **Edit Button (Pencil Icon)**: Loads the transaction's data into the 'Add' tab form for editing.
     -   **Delete Button (Trash Icon)**: Permanently removes the transaction from the records.
@@ -78,6 +78,12 @@ This tab allows users to review, search, and manage their past financial activit
 ## 📊 Budget Tab
 
 This is the hub for creating, viewing, and managing all budgets.
+
+### Monthly Financial Plan
+- A summary card at the top of the tab that shows:
+    - **Total Monthly Income**: The user's total income for the current month.
+    - **Total Budgeted Expenses**: The sum of all monthly category budgets.
+    - **Potential Savings**: The difference between income and budgeted expenses.
 
 ### Monthly Budget Section
 -   **Category Dropdown**: Selects a monthly category to define a spending limit for.
@@ -102,13 +108,16 @@ This is the hub for creating, viewing, and managing all budgets.
 -   **Process End-of-Month Rollovers Button**: Manually triggers all created rollover rules to execute.
 
 ### Manage Funds Section
--   **Transfer Funds Button**: Opens a modal to move money between two different custom budgets.
+-   **Transfer Funds Button**: Opens a modal to move money between two different custom budgets, including allocating the transferred amount to specific categories in the destination budget.
 
 ### Budget Lists
--   **Active/Paused Custom Budgets**: A list of cards, each representing a custom budget and showing its progress.
-    -   **Pause/Resume Button**: Toggles a budget between active and paused states.
-    -   **Edit Button**: Loads a budget's details into the form for modification.
--   **Monthly Budget Overview**: A list of cards showing spending progress for each monthly category budget.
+-   **Active & Locked / Paused Custom Budgets**: A list of cards, each representing a custom budget. Cards show:
+    -   Name, description, deadline, and priority.
+    -   Progress bar with percentage funded and milestones.
+    -   Remaining amount and status (Active, Completed, Locked, etc.).
+    -   A detailed breakdown of spending per sub-category within the budget.
+    -   Controls to **Lock/Unlock**, **Pause/Resume**, **Edit**, and **Delete** the budget.
+-   **Monthly Budget Overview**: A list of cards showing spending progress with a visual progress bar for each monthly category budget.
 
 ---
 
@@ -116,7 +125,7 @@ This is the hub for creating, viewing, and managing all budgets.
 
 This tab provides a dashboard of advanced analytics and personalized insights into spending habits.
 
--   **Timeframe Buttons (30, 60, 90 Days)**: Adjusts the date range for all analytics on the page.
+-   **Timeframe Buttons (This Month, 30, 60, 90 Days)**: Adjusts the date range for all analytics on the page.
 -   **Financial Health Score**: A gauge chart showing a score from 0-100 with a status (e.g., "Thriving", "Caution") and an "Improve Score" button.
 -   **Cash Flow Reality Check**:
     -   A waterfall chart visualizing the flow from Income → Expenses → Savings.
@@ -126,14 +135,19 @@ This tab provides a dashboard of advanced analytics and personalized insights in
     -   **Spending Personality**: A card that identifies the user's spending type (e.g., "Weekend Spender", "Weekday Warrior").
     -   **Daily Spending Goal**: A card showing the user's streak of staying under a daily spending limit, with an editable goal amount.
 -   **Emergency Preparedness**: A card displaying the user's "Financial Runway" in months, indicating how long their savings would last.
--   **Budget Scenario Planning**: An interactive section with sliders that allow the user to see how hypothetical changes to their monthly budgets would affect their Financial Health Score in real-time.
--   **Smart Category Breakdown**: A list of spending categories showing total spend, trend vs. the last period, the largest single transaction, and actionable smart text insights.
+-   **Budget Scenario Planning**: An interactive section with sliders that allow the user to see how hypothetical changes to their monthly budgets would affect their **Simulated Monthly Savings** in real-time.
+-   **Smart Category Breakdown**: A list of spending categories showing total spend, trend vs. the last period, the largest single transaction, actionable smart text insights, and a **Set Alert** button to create spending notifications.
 
 ---
 
 ## ⚙️ Settings Tab
 
 This section contains app-level configurations and data management tools.
+
+### Manage Spending Alerts
+- A list of all active spending alerts.
+- Each alert shows the category and threshold.
+- Controls to **Silence/Unsilence** or **Delete** an alert.
 
 ### Security Section
 -   **Remove/Set Password Controls**: Allows the user to add, change, or remove the password used to lock the app.
@@ -178,7 +192,9 @@ These are pop-up dialogs for specific actions.
 
 ### Fund Transfer Modal
 -   **From/To Budget Dropdowns**: Selects the source and destination custom budgets for the transfer.
+-   **From Category Dropdown**: Selects the specific category within the source budget to transfer funds from.
 -   **Amount to Transfer Input**: Field to enter the amount of money to be moved.
+-   **Destination Category Allocation**: A list of inputs to distribute the transferred amount among the categories of the destination budget.
 -   **Transfer Button**: Executes the fund transfer, creating corresponding transactions in the history.
 
 
