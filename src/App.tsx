@@ -768,24 +768,12 @@ const App = () => {
         .reduce((sum, t) => sum + Math.abs(t.amount), 0);
       if (categorySpending > alert.threshold) {
         try {
-          // Use the more explicit 'on' schedule format for maximum compatibility, similar to Bill Reminders.
-          const now = new Date(Date.now() + 2000); // 2 seconds in the future for robustness
-          LocalNotifications.schedule({
+           LocalNotifications.schedule({
             notifications: [{
               title: 'BudgetWise Alert',
               body: `You've spent ₹${categorySpending.toFixed(0)} in "${alert.category}", which is over your set threshold of ₹${alert.threshold}.`,
               id: Math.floor(Math.random() * 2147483647), // Use a unique ID for each notification instance to ensure it always fires
-              schedule: {
-                on: {
-                  year: now.getFullYear(),
-                  month: now.getMonth() + 1, // Capacitor's 'on' uses 1-based month
-                  day: now.getDate(),
-                  hour: now.getHours(),
-                  minute: now.getMinutes(),
-                  second: now.getSeconds(),
-                },
-                allowWhileIdle: true,
-              },
+               schedule: { at: new Date(Date.now() + 1000), allowWhileIdle: true } // Schedule for 1 second from now to ensure it fires,
             }]
           });
         } catch (e) {
