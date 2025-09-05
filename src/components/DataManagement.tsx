@@ -139,13 +139,26 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
 
       if (Capacitor.isNativePlatform()) {
         try {
+          if (Capacitor.getPlatform() === 'android') {
+            const permStatus = await Filesystem.checkPermissions();
+            if (permStatus.publicStorage !== 'granted') {
+              const permResult = await Filesystem.requestPermissions();
+              if (permResult.publicStorage !== 'granted') {
+                alert('Permission to write to storage was denied.');
+                return;
+              }
+            }
+          }
+          try {
+            await Filesystem.mkdir({ path: 'BudgetWise', directory: Directory.Documents });
+          } catch(e) { /* Ignore */ }
           await Filesystem.writeFile({
-            path: filename,
+            path: `BudgetWise/${filename}`,
             data: dataStr,
             directory: Directory.Documents,
             encoding: Encoding.UTF8,
           });
-          alert(`Backup saved to your device's Documents folder: ${filename}`);
+          alert(`Backup saved to Documents/BudgetWise/${filename}`);
         } catch (e) {
           console.error('Unable to write file', e);
           alert(`Error saving backup: ${(e as Error).message}`);
@@ -188,7 +201,7 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
     );
   };
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     try {
       const filename = `BudgetWise_Export_${new Date().toISOString().split('T')[0]}.xlsx`;
       const transactionData = [...transactions]
@@ -241,26 +254,36 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
       XLSX.utils.book_append_sheet(wb, transferLogSheet, 'Fund Transfers');
 
       if (Capacitor.isNativePlatform()) {
-        const data = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
-        Filesystem.writeFile({
-          path: filename,
-          data: data,
+        if (Capacitor.getPlatform() === 'android') {
+          const permStatus = await Filesystem.checkPermissions();
+          if (permStatus.publicStorage !== 'granted') {
+            const permResult = await Filesystem.requestPermissions();
+            if (permResult.publicStorage !== 'granted') {
+              alert('Permission to write to storage was denied.');
+              return;
+            }
+          }
+        }
+        try {
+          await Filesystem.mkdir({ path: 'BudgetWise', directory: Directory.Documents });
+        } catch(e) { /* Ignore */ }
+        const excelData = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
+        await Filesystem.writeFile({
+          path: `BudgetWise/${filename}`,
+          data: excelData,
           directory: Directory.Documents,
-        }).then(() => {
-          alert(`Excel report saved to Documents: ${filename}`);
-        }).catch((e: any) => {
-          alert(`Error saving Excel file: ${(e as Error).message}`);
         });
+        alert(`Excel report saved to Documents/BudgetWise/${filename}`);
       } else {
         XLSX.writeFile(wb, filename);
       }
     } catch (error) {
       console.error("Failed to export to Excel", error);
-      alert("An error occurred while exporting to Excel.");
+      alert(`An error occurred while exporting to Excel: ${(error as Error).message}`);
     }
   };
 
-  const generatePDFReport = () => {
+  const generatePDFReport = async () => {
     try {
       const doc = new jsPDF() as jsPDF & { lastAutoTable: { finalY: number } };
       const filename = `BudgetWise_Report_${new Date().toISOString().split('T')[0]}.pdf`;
@@ -389,26 +412,36 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
       });
 
       if (Capacitor.isNativePlatform()) {
+        if (Capacitor.getPlatform() === 'android') {
+          const permStatus = await Filesystem.checkPermissions();
+          if (permStatus.publicStorage !== 'granted') {
+            const permResult = await Filesystem.requestPermissions();
+            if (permResult.publicStorage !== 'granted') {
+              alert('Permission to write to storage was denied.');
+              return;
+            }
+          }
+        }
+        try {
+          await Filesystem.mkdir({ path: 'BudgetWise', directory: Directory.Documents });
+        } catch(e) { /* Ignore */ }
         const pdfData = doc.output("datauristring").split(",")[1];
-        Filesystem.writeFile({
-          path: filename,
+        await Filesystem.writeFile({
+          path: `BudgetWise/${filename}`,
           data: pdfData,
           directory: Directory.Documents,
-        }).then(() => {
-          alert(`PDF report saved to Documents: ${filename}`);
-        }).catch((e: any) => {
-          alert(`Error saving PDF: ${(e as Error).message}`);
         });
+        alert(`PDF report saved to Documents/BudgetWise/${filename}`);
       } else {
         doc.save(filename);
       }
     } catch (error) {
       console.error("Failed to generate PDF report", error);
-      alert("An error occurred while generating the PDF report.");
+      alert(`An error occurred while generating the PDF report: ${(error as Error).message}`);
     }
   };
 
-  const generateHTMLReport = () => {
+  const generateHTMLReport = async () => {
     const getScoreDescription = (score: number) => {
       if (score >= 75) return { text: "Thriving", color: "#10B981" };
       if (score >= 50) return { text: "Caution", color: "#F59E0B" };
@@ -577,17 +610,25 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
 
     const filename = `BudgetWise_Report_${new Date().toISOString().split('T')[0]}.html`;
     if (Capacitor.isNativePlatform()) {
-      Filesystem.writeFile({
-        path: filename,
-        data: reportHTML,
-        directory: Directory.Documents,
-        encoding: Encoding.UTF8,
-      }).then(() => {
-        alert(`HTML report saved to Documents: ${filename}`);
-      }).catch((e: any) => {
-        console.error('HTML report generation failed:', e);
-        alert(`Report generation failed: ${(e as Error).message}`);
-      });
+     
+      try {
+        if (Capacitor.getPlatform() === 'android') {
+          const permStatus = await Filesystem.checkPermissions();
+          if (permStatus.publicStorage !== 'granted') {
+            const permResult = await Filesystem.requestPermissions();
+            if (permResult.publicStorage !== 'granted') {
+              alert('Permission to write to storage was denied.');
+              return;
+            }
+          }
+        }
+        try { await Filesystem.mkdir({ path: 'BudgetWise', directory: Directory.Documents }); } catch(e) { /* Ignore */ }
+        await Filesystem.writeFile({ path: `BudgetWise/${filename}`, data: reportHTML, directory: Directory.Documents, encoding: Encoding.UTF8 });
+        alert(`HTML report saved to Documents/BudgetWise/${filename}`);
+      } catch (e) {
+        console.error('HTML report save failed:', e);
+         alert(`Report generation failed: ${(e as Error).message}`);
+      }
     } else {
       const blob = new Blob([reportHTML], { type: "text/html" });
       const url = URL.createObjectURL(blob);

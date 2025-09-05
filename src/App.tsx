@@ -1507,16 +1507,28 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
     }
 
     if (Capacitor.isNativePlatform()) {
-      Filesystem.writeFile({
-        path: filename,
-        data: content,
-        directory: Directory.Documents,
-        encoding: Encoding.UTF8,
-      }).then(() => {
-        alert(`Export saved to Documents: ${filename}`);
-      }).catch((e: any) => {
-        alert(`Error saving export: ${(e as Error).message}`);
-      });
+      (async () => {
+        try {
+          if (Capacitor.getPlatform() === 'android') {
+            const permStatus = await Filesystem.checkPermissions();
+            if (permStatus.publicStorage !== 'granted') {
+              const permResult = await Filesystem.requestPermissions();
+              if (permResult.publicStorage !== 'granted') {
+                alert('Permission to write to storage was denied.');
+                return;
+              }
+            }
+          }
+          try {
+            await Filesystem.mkdir({ path: 'BudgetWise', directory: Directory.Documents });
+          } catch(e) { /* Ignore if exists */ }
+
+          await Filesystem.writeFile({ path: `BudgetWise/${filename}`, data: content, directory: Directory.Documents, encoding: Encoding.UTF8 });
+          alert(`Export saved to Documents/BudgetWise/${filename}`);
+        } catch (e) {
+          alert(`Error saving export: ${(e as Error).message}`);
+        }
+      })();
     } else {
       // Web fallback
       const blob = new Blob([content], { type });
@@ -1844,13 +1856,15 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
 
   const quickCSVExport = async () => {
     try {
-      if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android') {
-        const permStatus = await Filesystem.checkPermissions();
-        if (permStatus.publicStorage !== 'granted') {
-          const permResult = await Filesystem.requestPermissions();
-          if (permResult.publicStorage !== 'granted') {
-            alert('Permission to write to storage was denied.');
-            return;
+      if (Capacitor.isNativePlatform()) {
+        if (Capacitor.getPlatform() === 'android') {
+          const permStatus = await Filesystem.checkPermissions();
+          if (permStatus.publicStorage !== 'granted') {
+            const permResult = await Filesystem.requestPermissions();
+            if (permResult.publicStorage !== 'granted') {
+              alert('Permission to write to storage was denied.');
+              return;
+            }
           }
         }
       }
@@ -1874,13 +1888,17 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
       const content = '\uFEFF' + headers + rows;
 
       if (Capacitor.isNativePlatform()) {
+        try {
+          await Filesystem.mkdir({ path: 'BudgetWise', directory: Directory.Documents });
+        } catch(e) {
+          // Ignore if directory already exists
+        }
         await Filesystem.writeFile({
-          path: filename,
+          path: `BudgetWise/${filename}`,
           data: content,
           directory: Directory.Documents,
-          encoding: Encoding.UTF8,
         });
-        alert(`CSV saved to Documents: ${filename}`);
+        alert(`CSV saved to Documents/BudgetWise/${filename}`);
       } else {
         const type = 'text/csv;charset=utf-8;';
         const blob = new Blob([content], { type });

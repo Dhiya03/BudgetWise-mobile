@@ -88,7 +88,7 @@ const SecuritySettings: React.FC<SecuritySettingsProps> = (props) => {
         <div>
           <p className="text-gray-600 mb-2">Set a password to lock your app.</p>
           <div className="flex space-x-2">
-            <input type="password" inputMode="numeric" pattern="[0-9]*" maxLength={4} value={newPasswordInput} onChange={(e) => setNewPasswordInput(e.target.value)} placeholder="Enter 4-digit PIN" className="flex-1 p-3 border border-gray-300 rounded-xl" />
+            <input type="password" inputMode="numeric" pattern="[0-9]*" maxLength={4} value={newPasswordInput} onChange={(e) => setNewPasswordInput(e.target.value)} placeholder="Enter 4-digit PIN" className="flex-1 min-w-0 p-3 border border-gray-300 rounded-xl" />
             <button onClick={handleSetPassword} className="px-4 py-3 bg-purple-600 text-white rounded-xl font-semibold hover:bg-purple-700 flex items-center justify-center">
               <Lock size={18} className="mr-2" /> Set
             </button>

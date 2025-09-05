@@ -243,9 +243,9 @@ const AnalyticsTab: FC<AnalyticsTabProps> = ({ transactions, budgets, getCustomB
           <h3 className="text-lg font-bold text-gray-800">Financial Health Score</h3>
           <div className="relative group ml-2">
             <HelpCircle size={16} className="text-gray-400 opacity-50 cursor-help" />
-            <div className="absolute bottom-full mb-2 w-64 p-3 bg-gray-800 text-white text-xs text-left rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 transform -translate-x-1/2 left-1/2">
+            <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-800 text-white text-xs text-left rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
               Your financial wellness score (0-100). It's calculated from your income, expenses, savings, and spending trends to provide a simple summary.
-              <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-800"></div>
+              <div className="absolute right-2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-800"></div>
             </div>
           </div>
         </div>
@@ -350,9 +350,9 @@ const AnalyticsTab: FC<AnalyticsTabProps> = ({ transactions, budgets, getCustomB
                 Daily Spending Goal
                 <span className="relative group ml-1.5 inline-block align-middle">
                   <HelpCircle size={14} className="text-gray-500 cursor-help" />
-                  <div className="absolute bottom-full mb-2 w-60 p-2 bg-gray-800 text-white text-xs text-center rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 transform -translate-x-1/2 left-1/2">
+                  <div className="absolute bottom-full right-0 mb-2 w-60 p-2 bg-gray-800 text-white text-xs text-center rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
                     Challenge yourself with a daily spending goal! The streak shows how many consecutive days you've stayed under your goal.
-                    <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-800"></div>
+                    <div className="absolute right-2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-800"></div>
                   </div>
                 </span>
               </p>
@@ -377,9 +377,9 @@ const AnalyticsTab: FC<AnalyticsTabProps> = ({ transactions, budgets, getCustomB
             <span>Financial Runway</span>
             <div className="relative group ml-1.5">
               <HelpCircle size={14} className="text-gray-500 cursor-help" />
-              <div className="absolute bottom-full mb-2 w-64 p-2 bg-gray-800 text-white text-xs text-left rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 transform -translate-x-1/2 left-1/2">
+              <div className="absolute bottom-full right-0 mb-2 w-64 p-2 bg-gray-800 text-white text-xs text-left rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
                 Your financial safety net. It's calculated by dividing your total savings by your net spending over the last 30 days. An infinite (∞) runway means you are saving money.
-                <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-800"></div>
+                <div className="absolute right-2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-800"></div>
               </div>
             </div>
           </div>
@@ -404,7 +404,7 @@ const AnalyticsTab: FC<AnalyticsTabProps> = ({ transactions, budgets, getCustomB
                   step="500"
                   value={scenarioChanges[category] || 0}
                   onChange={(e) => handleScenarioChange(category, e.target.value)}
-                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                  className="flex-1 min-w-0 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                 />
                 <span className={`text-sm font-semibold w-16 text-right ${(scenarioChanges[category] || 0) < 0 ? 'text-red-600' : 'text-green-600'}`}>
                   {scenarioChanges[category] > 0 ? '+' : ''}{scenarioChanges[category] || 0}
@@ -418,9 +418,9 @@ const AnalyticsTab: FC<AnalyticsTabProps> = ({ transactions, budgets, getCustomB
             <span>Simulated Monthly Savings</span>
             <div className="relative group ml-1.5">
               <HelpCircle size={14} className="text-gray-400 opacity-50 cursor-help" />
-              <div className="absolute bottom-full mb-2 w-64 p-2 bg-gray-800 text-white text-xs text-center rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 transform -translate-x-1/2 left-1/2">
+              <div className="absolute bottom-full right-0 mb-2 w-64 p-2 bg-gray-800 text-white text-xs text-center rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
                 A quick way to simulate how changes to your main budgets can affect your monthly savings.
-                <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-800"></div>
+                <div className="absolute right-2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-800"></div>
               </div>
             </div>
           </div>
