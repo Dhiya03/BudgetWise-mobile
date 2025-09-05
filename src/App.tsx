@@ -2,8 +2,9 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Plus, List, PieChart, BarChart3, Repeat, Bell, X} from 'lucide-react';
 
 import { App as CapacitorApp } from '@capacitor/app';
+import * as CryptoJS from 'crypto-js';
 import { Capacitor, PluginListenerHandle } from '@capacitor/core';
-import {Filesystem, Directory, Encoding} from '@capacitor/filesystem';
+import {Filesystem} from '@capacitor/filesystem';
 import {
   Transaction,
   MonthlyBudgets,
@@ -26,6 +27,7 @@ import BillReminderTab from './components/BillReminderTab';
 import BudgetTab from './components/BudgetTab';
 import Header from './components/Header';
 import { LocalNotifications } from '@capacitor/local-notifications';
+import { savePublicFile } from './utils/fileSaver';
 
 const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }: {
   isOpen: boolean;
@@ -129,9 +131,12 @@ const App = () => {
 
   // Security & Persistence
   const [appPassword, setAppPassword] = useState<string | null>(null);
+  const [encryptionKey, setEncryptionKey] = useState<string | null>(null);
   const [isLocked, setIsLocked] = useState(true);
   const [passwordInput, setPasswordInput] = useState('');
   const [unlockError, setUnlockError] = useState('');
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [lockoutUntil, setLockoutUntil] = useState<number | null>(null);
 
   // Smart Categorization
   const [categorySuggestion, setCategorySuggestion] = useState<string | null>(null);
@@ -351,7 +356,7 @@ const App = () => {
 
   // Load data from localStorage on initial render
   useEffect(() => {
-    const savedPassword = localStorage.getItem('appPassword_v2');
+    const savedPassword = localStorage.getItem('appPasswordHash_v2');
     if (savedPassword) {
       setAppPassword(savedPassword);
       setIsLocked(true);
@@ -370,7 +375,7 @@ const App = () => {
       
       const appState = { transactions, budgets, customBudgets, categories, budgetTemplates, budgetRelationships, billReminders, spendingAlerts, transferLog, recurringProcessingMode, savingsGoal, dailySpendingGoal, analyticsTimeframe };
       const jsonString = JSON.stringify(appState);
-      const encryptedData = appPassword ? btoa(jsonString) : jsonString; // Simple Base64 "encryption"
+      const encryptedData = encryptionKey ? CryptoJS.AES.encrypt(jsonString, encryptionKey).toString() : jsonString;
       localStorage.setItem('budgetWiseData_v2', encryptedData);
     } catch (error) {
       console.error("Failed to save data to storage", error);
@@ -385,7 +390,7 @@ const App = () => {
       }, 1000); // Save 1 second after the last change
       return () => clearTimeout(handler); // Add this cleanup
     }
-  }, [transactions, budgets, customBudgets, categories, budgetTemplates, budgetRelationships, billReminders, spendingAlerts, transferLog, recurringProcessingMode, savingsGoal, dailySpendingGoal, analyticsTimeframe]);
+  }, [transactions, budgets, customBudgets, categories, budgetTemplates, budgetRelationships, billReminders, spendingAlerts, transferLog, recurringProcessingMode, savingsGoal, dailySpendingGoal, analyticsTimeframe, isLocked, encryptionKey]);
 
   // Automatically process recurring transactions if in automatic mode and app is unlocked
   useEffect(() => {
@@ -417,13 +422,35 @@ const App = () => {
     requestNotificationPermission();
   }, []);
   
+  // Effect to manage the lockout timer display
+  useEffect(() => {
+    if (lockoutUntil) {
+      const interval = setInterval(() => {
+        if (Date.now() > lockoutUntil) {
+          setLockoutUntil(null);
+          setFailedAttempts(0);
+          setUnlockError('');
+          clearInterval(interval);
+        } else {
+          // Force a re-render to update the timer display
+          setUnlockError(`Too many failed attempts. Try again in ${Math.ceil((lockoutUntil - Date.now()) / 1000)}s`);
+        }
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [lockoutUntil]);
+
   const handleUnlock = () => {
-    if (passwordInput === appPassword) {
+    if (lockoutUntil && Date.now() < lockoutUntil) return;
+
+    const inputHash = CryptoJS.SHA256(passwordInput).toString();
+
+    if (inputHash === appPassword) {
       const savedData = localStorage.getItem('budgetWiseData_v2');
       if (savedData) {
         try {
-          // Decrypt data using Base64 decoding (atob)
-          const decryptedJson = atob(savedData);
+          const bytes = CryptoJS.AES.decrypt(savedData, passwordInput);
+          const decryptedJson = bytes.toString(CryptoJS.enc.Utf8);
           const appState = JSON.parse(decryptedJson);
 
           // Set all the states from the loaded data
@@ -443,6 +470,8 @@ const App = () => {
           
           // Successfully unlocked and loaded
           setIsLocked(false);
+          setEncryptionKey(passwordInput); // Store the raw key in memory for this session
+          setFailedAttempts(0);
           setUnlockError('');
           setPasswordInput('');
 
@@ -454,12 +483,20 @@ const App = () => {
         // Password exists but no data, this is an edge case.
         // Unlock the app and let it initialize with sample data.
         setIsLocked(false);
+        setEncryptionKey(passwordInput);
         setUnlockError('');
         setPasswordInput('');
         initializeSampleData();
       }
     } else {
-      setUnlockError('Incorrect password. Please try again.');
+      const newFailedAttempts = failedAttempts + 1;
+      setFailedAttempts(newFailedAttempts);
+      if (newFailedAttempts >= 5) {
+        const newLockoutUntil = Date.now() + 30000; // Lock for 30 seconds
+        setLockoutUntil(newLockoutUntil);
+      } else {
+        setUnlockError(`Incorrect PIN. ${5 - newFailedAttempts} attempts remaining.`);
+      }
       setPasswordInput('');
     }
   };
@@ -1382,6 +1419,19 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
     return { isValid: true, dayCount: diffDays };
   };
 
+  // Escapes CSV fields correctly for Google Sheets, Excel, etc.
+  const escapeCsvField = (field: any): string => {
+    if (field === null || field === undefined) return '';
+    if (typeof field === 'number') return String(field); 
+    const str = String(field);
+    // Check if the field contains a comma, a double quote, or a newline
+    if (/[",\n]/.test(str)) {
+      // Wrap in double quotes and escape any existing double quotes by doubling them
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
   const getTransactionsInDateRange = (startDate: string, endDate: string, type: 'all' | 'monthly' | 'custom' = 'all') => {
     const start = new Date(startDate);
     const end = new Date(endDate);
@@ -1400,7 +1450,7 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
     });
   };
 
-  const exportDataAdvanced = () => {
+  const exportDataAdvanced = async () => {
     const validation = validateDateRange(exportStartDate, exportEndDate);
     if (!validation.isValid) {
       alert(validation.error);
@@ -1479,9 +1529,50 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
       filename = `budget_export_${exportStartDate}_to_${exportEndDate}_${exportType}.json`;
       type = 'application/json';
     } else {
-      const headers = 'Date,BudgetType,Category,CustomBudget,CustomCategory,Description,Amount,Type,Tags,TransactionID\n';
-      const rows = filteredTransactions
-        .map(t => {
+      
+      
+      // Build multi-section CSV
+      const rows: string[] = [];
+
+      // Section 1: Export Info
+      rows.push("Export Info");
+      Object.entries(exportData.exportInfo).forEach(([key, value]) => {
+        rows.push(`${escapeCsvField(key)},${escapeCsvField(value)}`);
+      });
+      rows.push("");
+
+      // Section 2: Summary
+      rows.push("Summary");
+      Object.entries(exportData.summary).forEach(([key, value]) => {
+        rows.push(`${escapeCsvField(key)},${escapeCsvField(value)}`);
+      });
+      rows.push("");
+
+      // Section 3: Breakdown - Monthly Categories
+      if (Object.keys(exportData.breakdown.monthlyCategories).length > 0) {
+        rows.push("Monthly Categories");
+        rows.push("Category,Amount");
+        Object.entries(exportData.breakdown.monthlyCategories).forEach(([cat, amount]) => {
+          rows.push(`${escapeCsvField(cat)},${escapeCsvField(amount)}`);
+        });
+        rows.push("");
+      }
+
+      // Section 4: Breakdown - Custom Budgets
+      if (Object.keys(exportData.breakdown.customBudgets).length > 0) {
+        rows.push("Custom Budgets");
+        rows.push("Budget-Category,Amount");
+        Object.entries(exportData.breakdown.customBudgets).forEach(([key, amount]) => {
+          rows.push(`${escapeCsvField(key)},${escapeCsvField(amount)}`);
+        });
+        rows.push("");
+      }
+
+      // Section 5: Transactions
+      if (exportData.transactions.length > 0) {
+        rows.push("Transactions");
+        rows.push("Date,BudgetType,Category,CustomBudget,CustomCategory,Description,Amount,Type,Tags,TransactionID");
+        exportData.transactions.forEach(t => {
           const budgetName = t.budgetType === 'custom' ? getCustomBudgetName(t.customBudgetId) : '';
           const category = t.budgetType === 'custom' ? '' : t.category;
           const customCategory = t.budgetType === 'custom' ? t.customCategory : '';
@@ -1498,37 +1589,39 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
             tags,
             t.id,
           ];
-          return rowData.map(escapeCsvField).join(',');
-        }).join('\n');
+          rows.push(rowData.map(escapeCsvField).join(','));
+        });
+        rows.push("");
+      }
+
+      // Section 6: Budgets (just summary)
+      if (exportData.budgets.custom.length > 0) {
+        rows.push("Custom Budgets Setup");
+        rows.push("ID,Name,TotalAmount,Categories,CategoryBudgets");
+        exportData.budgets.custom.forEach(b => {
+          rows.push([
+            b.id,
+            b.name,
+            b.totalAmount,
+            JSON.stringify(b.categories),
+            JSON.stringify(b.categoryBudgets)
+          ].map(escapeCsvField).join(","));
+        });
+      }
+
+      content = '\uFEFF' + rows.join("\n"); // BOM for Excel/Sheets
       
-      content = '\uFEFF' + headers + rows;
       filename = `budget_export_${exportStartDate}_to_${exportEndDate}_${exportType}.csv`;
       type = 'text/csv;charset=utf-8;';
     }
 
     if (Capacitor.isNativePlatform()) {
-      (async () => {
-        try {
-          if (Capacitor.getPlatform() === 'android') {
-            const permStatus = await Filesystem.checkPermissions();
-            if (permStatus.publicStorage !== 'granted') {
-              const permResult = await Filesystem.requestPermissions();
-              if (permResult.publicStorage !== 'granted') {
-                alert('Permission to write to storage was denied.');
-                return;
-              }
-            }
-          }
-          try {
-            await Filesystem.mkdir({ path: 'BudgetWise', directory: Directory.Documents });
-          } catch(e) { /* Ignore if exists */ }
-
-          await Filesystem.writeFile({ path: `BudgetWise/${filename}`, data: content, directory: Directory.Documents, encoding: Encoding.UTF8 });
-          alert(`Export saved to Documents/BudgetWise/${filename}`);
-        } catch (e) {
-          alert(`Error saving export: ${(e as Error).message}`);
-        }
-      })();
+      try {
+        const savedPath = await savePublicFile(filename, content, { subfolder: 'BudgetWise' });
+        alert(`Export saved to ${savedPath}`);
+      } catch (e) {
+        alert(`Error saving export: ${(e as Error).message}`);
+      }
     } else {
       // Web fallback
       const blob = new Blob([content], { type });
@@ -1840,20 +1933,6 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
     }
   };
 
-  const escapeCsvField = (field: any): string => {
-    if (field === null || field === undefined) {
-      return '';
-    }
-    const str = String(field);
-    // If the string contains a comma, a double quote, or a newline, it needs to be quoted.
-    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-      // Escape double quotes by doubling them
-      const escapedStr = str.replace(/"/g, '""');
-      return `"${escapedStr}"`;
-    }
-    return str;
-  };
-
   const quickCSVExport = async () => {
     try {
       if (Capacitor.isNativePlatform()) {
@@ -1870,9 +1949,21 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
       }
 
       const filename = `BudgetWise_Quick_Export_${new Date().toISOString().split('T')[0]}.csv`;
-      const headers = 'Date,BudgetType,Category,CustomBudget,CustomCategory,Description,Amount,Type,Tags,TransactionID\n';
-      const rows = transactions
-        .map(t => [
+      const headers = [
+        'Date',
+        'BudgetType',
+        'Category',
+        'CustomBudget',
+        'CustomCategory',
+        'Description',
+        'Amount',
+        'Type',
+        'Tags',
+        'TransactionID'
+      ].join(',');
+
+      const rows = transactions.map(t =>
+        [
           t.date,
           t.budgetType || 'monthly',
           t.budgetType === 'custom' ? '' : t.category,
@@ -1883,22 +1974,13 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
           t.amount < 0 ? 'Expense' : 'Income',
           t.tags?.join('; ') || '',
           t.id,
-        ].map(escapeCsvField).join(',')).join('\n');
+        ].map(escapeCsvField).join(','));
       
-      const content = '\uFEFF' + headers + rows;
+        const content = '\uFEFF' + [headers, ...rows].join('\n');
 
       if (Capacitor.isNativePlatform()) {
-        try {
-          await Filesystem.mkdir({ path: 'BudgetWise', directory: Directory.Documents });
-        } catch(e) {
-          // Ignore if directory already exists
-        }
-        await Filesystem.writeFile({
-          path: `BudgetWise/${filename}`,
-          data: content,
-          directory: Directory.Documents,
-        });
-        alert(`CSV saved to Documents/BudgetWise/${filename}`);
+        const savedPath = await savePublicFile(filename, content, { subfolder: 'BudgetWise' });
+        alert(`CSV saved to ${savedPath}`);
       } else {
         const type = 'text/csv;charset=utf-8;';
         const blob = new Blob([content], { type });
@@ -1916,6 +1998,7 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
       alert(`Quick CSV Export failed: ${(error as Error).message}`);
     }
   };
+  
   const getRemainingBudget = (category: string, year: number, month: number) => {
     const budget = budgets[category] || 0;
     const spent = getSpentAmount(category, year, month);
@@ -1986,6 +2069,8 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
         <SecuritySettings
           appPassword={appPassword}
           setAppPassword={setAppPassword}
+          onPasswordSet={(pin) => setEncryptionKey(pin)}
+          onPasswordRemoved={() => setEncryptionKey(null)}
           showConfirmation={showConfirmation}
           transactions={transactions}
           budgets={budgets}
@@ -1995,6 +2080,7 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
           budgetRelationships={budgetRelationships}
           billReminders={billReminders}
           transferLog={transferLog}
+          spendingAlerts={spendingAlerts}
           recurringProcessingMode={recurringProcessingMode}
           savingsGoal={savingsGoal}
           dailySpendingGoal={dailySpendingGoal}
@@ -2013,14 +2099,19 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
           recurringProcessingMode={recurringProcessingMode}
           currentYear={currentYear}
           currentMonth={currentMonth}
+          spendingAlerts={spendingAlerts}
           setTransactions={setTransactions} setBudgets={setBudgets} setCustomBudgets={setCustomBudgets}
           setCategories={setCategories} setBudgetTemplates={setBudgetTemplates} setBudgetRelationships={setBudgetRelationships}
           setBillReminders={setBillReminders} setTransferLog={setTransferLog} setRecurringProcessingMode={setRecurringProcessingMode}
+          setSpendingAlerts={setSpendingAlerts} setSavingsGoal={setSavingsGoal} setDailySpendingGoal={setDailySpendingGoal}
+          setAnalyticsTimeframe={setAnalyticsTimeframe}
           showConfirmation={showConfirmation}
           getCustomBudgetName={getCustomBudgetName}
           dailySpendingGoal={dailySpendingGoal}
           analyticsTimeframe={analyticsTimeframe}
           savingsGoal={savingsGoal}
+          getSpentAmount={getSpentAmount}
+          getRemainingBudget={getRemainingBudget}
         />
 
         <AlertManagement
@@ -2103,10 +2194,11 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
               className="w-full p-3 border border-gray-300 rounded-xl text-center focus:ring-2 focus:ring-purple-500"
             />
             {unlockError && (
-              <p className="text-red-500 text-sm">{unlockError}</p>
+              <p className="text-red-500 text-sm min-h-[20px]">{unlockError}</p>
             )}
             <button
               onClick={handleUnlock}
+              disabled={!!lockoutUntil}
               className="w-full p-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-semibold hover:from-purple-700 hover:to-blue-700"
             >
               Unlock

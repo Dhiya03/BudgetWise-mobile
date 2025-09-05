@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Unlock , Lock} from 'lucide-react';
+import * as CryptoJS from 'crypto-js';
 import {
   Transaction,
   MonthlyBudgets,
@@ -7,12 +8,15 @@ import {
   BudgetTemplate,
   BudgetRelationship,
   BillReminder,
+  SpendingAlert,
   TransferEvent,
 } from '../types';
 
 interface SecuritySettingsProps {
   appPassword: string | null;
   setAppPassword: (password: string | null) => void;
+  onPasswordSet: (pin: string) => void;
+  onPasswordRemoved: () => void;
   showConfirmation: (title: string, message: string, onConfirm: () => void) => void;
   // All state needed for backup string
   transactions: Transaction[];
@@ -27,13 +31,14 @@ interface SecuritySettingsProps {
   savingsGoal: number;
   dailySpendingGoal: number;
   analyticsTimeframe: string;
+  spendingAlerts: SpendingAlert[];
 }
 
 const SecuritySettings: React.FC<SecuritySettingsProps> = (props) => {
   const {
-    appPassword, setAppPassword, showConfirmation,
+    appPassword, setAppPassword, onPasswordSet, onPasswordRemoved, showConfirmation,
     transactions, budgets, customBudgets, categories, budgetTemplates,
-    budgetRelationships, billReminders, transferLog, recurringProcessingMode,
+    budgetRelationships, billReminders, transferLog, spendingAlerts, recurringProcessingMode,
     savingsGoal, dailySpendingGoal, analyticsTimeframe
   } = props;
 
@@ -44,15 +49,23 @@ const SecuritySettings: React.FC<SecuritySettingsProps> = (props) => {
       alert("Please enter a valid 4-digit PIN.");
       return;
     }
-    // Atomically set password and encrypt data
-    const appState = { transactions, budgets, customBudgets, categories, budgetTemplates, budgetRelationships, billReminders, transferLog, recurringProcessingMode, savingsGoal, dailySpendingGoal, analyticsTimeframe };
-    const jsonString = JSON.stringify(appState);
-    const encryptedData = btoa(jsonString);
+    // 1. Hash the PIN for storage (never store the raw PIN)
+    const pinHash = CryptoJS.SHA256(newPasswordInput).toString();
 
-    localStorage.setItem('appPassword_v2', newPasswordInput);
+    // 2. Encrypt the entire app state using the raw PIN as the key
+    const appState = {
+      transactions, budgets, customBudgets, categories, budgetTemplates, budgetRelationships,
+      billReminders, transferLog, recurringProcessingMode, savingsGoal, dailySpendingGoal, analyticsTimeframe, spendingAlerts
+    };
+    const jsonString = JSON.stringify(appState);
+    const encryptedData = CryptoJS.AES.encrypt(jsonString, newPasswordInput).toString();
+
+    // 3. Store the hash and the encrypted data
+    localStorage.setItem('appPasswordHash_v2', pinHash);
     localStorage.setItem('budgetWiseData_v2', encryptedData);
 
-    setAppPassword(newPasswordInput);
+    setAppPassword(pinHash); // Update app state with the hash
+    onPasswordSet(newPasswordInput); // Provide the raw key to the app for future saves
     setNewPasswordInput('');
     alert('Password set successfully. The app will be locked on your next visit.');
   };
@@ -62,12 +75,17 @@ const SecuritySettings: React.FC<SecuritySettingsProps> = (props) => {
       'Confirm Password Removal',
       'Are you sure you want to remove the password?',
       () => {
-        const appState = { transactions, budgets, customBudgets, categories, budgetTemplates, budgetRelationships, billReminders, transferLog, recurringProcessingMode, savingsGoal, dailySpendingGoal, analyticsTimeframe };
+        // Re-serialize the current in-memory state to plain text
+        const appState = {
+          transactions, budgets, customBudgets, categories, budgetTemplates, budgetRelationships,
+          billReminders, transferLog, recurringProcessingMode, savingsGoal, dailySpendingGoal, analyticsTimeframe, spendingAlerts
+        };
         const jsonString = JSON.stringify(appState);
 
-        localStorage.removeItem('appPassword_v2');
+        localStorage.removeItem('appPasswordHash_v2');
         localStorage.setItem('budgetWiseData_v2', jsonString);
 
+        onPasswordRemoved(); // Clear the encryption key from app state
         setAppPassword(null);
         alert("Password removed.");
       }

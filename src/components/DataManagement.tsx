@@ -4,8 +4,6 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import { FilePicker } from '@capawesome/capacitor-file-picker';
-import { Capacitor } from '@capacitor/core';
-import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import { getCategoryInsights, getFinancialHealthScore, getCashFlowAnalysis, getSpendingPersonality, getDailySpendingStreak, getFinancialRunway } from '../utils/analytics';
 
 import {
@@ -15,8 +13,11 @@ import {
   BudgetTemplate,
   BudgetRelationship,
   BillReminder,
+  SpendingAlert,
   TransferEvent,
 } from '../types';
+import { savePublicFile } from '../utils/fileSaver';
+import { Capacitor } from '@capacitor/core';
 
 interface DataManagementProps {
   transactions: Transaction[];
@@ -39,6 +40,11 @@ interface DataManagementProps {
   setBudgetRelationships: React.Dispatch<React.SetStateAction<BudgetRelationship[]>>;
   setBillReminders: React.Dispatch<React.SetStateAction<BillReminder[]>>;
   setTransferLog: React.Dispatch<React.SetStateAction<TransferEvent[]>>;
+  setSpendingAlerts: React.Dispatch<React.SetStateAction<SpendingAlert[]>>;
+  setSavingsGoal: React.Dispatch<React.SetStateAction<number>>;
+  setDailySpendingGoal: React.Dispatch<React.SetStateAction<number>>;
+  setAnalyticsTimeframe: React.Dispatch<React.SetStateAction<string>>;
+
   setRecurringProcessingMode: React.Dispatch<React.SetStateAction<'automatic' | 'manual'>>;
 
   showConfirmation: (title: string, message: string, onConfirm: () => void | Promise<void>) => void;
@@ -46,6 +52,9 @@ interface DataManagementProps {
   savingsGoal: number;
   analyticsTimeframe: string;
   dailySpendingGoal: number;
+  spendingAlerts: SpendingAlert[];
+  getSpentAmount: (category: string, year: number, month: number) => number;
+  getRemainingBudget: (category: string, year: number, month: number) => number;
 }
 
 const DataManagement: React.FC<DataManagementProps> = (props) => {
@@ -53,8 +62,9 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
     transactions, budgets, customBudgets, categories, budgetTemplates,
     budgetRelationships, billReminders, transferLog, recurringProcessingMode,
     currentYear, currentMonth,
-    setTransactions, setBudgets, setCustomBudgets, setCategories,
+    setTransactions, setBudgets, setCustomBudgets, setCategories, setSpendingAlerts,
     setBudgetTemplates, setBudgetRelationships, setBillReminders,
+    setSavingsGoal, setDailySpendingGoal, setAnalyticsTimeframe, getSpentAmount, getRemainingBudget,
     setTransferLog, setRecurringProcessingMode, showConfirmation, getCustomBudgetName,
     savingsGoal, dailySpendingGoal, analyticsTimeframe
   } = props;
@@ -68,23 +78,6 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
   const personality = useMemo(() => getSpendingPersonality(transactions), [transactions]);
   const streak = useMemo(() => getDailySpendingStreak(transactions, dailySpendingGoal, analyticsTimeframe), [transactions, dailySpendingGoal, analyticsTimeframe]);
   const runway = useMemo(() => getFinancialRunway(transactions), [transactions]);
-
-
-  const getSpentAmount = (category: string, year: number, month: number) => {
-    return transactions
-      .filter(t => {
-        const transactionDate = new Date(t.date);
-        return t.category === category && t.amount < 0 && (t.budgetType === 'monthly' || !t.budgetType) &&
-               transactionDate.getFullYear() === year && transactionDate.getMonth() === month;
-      })
-      .reduce((sum, t) => sum + Math.abs(t.amount), 0);
-  };
-
-  const getRemainingBudget = (category: string, year: number, month: number) => {
-    const budget = budgets[category] || 0;
-    const spent = getSpentAmount(category, year, month);
-    return budget - spent;
-  };
 
   const processRestoredData = (jsonString: string) => {
     try {
@@ -103,6 +96,10 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
       setBillReminders(restoredState.billReminders || []);
       setTransferLog(restoredState.transferLog || []);
       setRecurringProcessingMode(restoredState.recurringProcessingMode || 'automatic');
+      setSpendingAlerts(restoredState.spendingAlerts || []);
+      setSavingsGoal(restoredState.savingsGoal || 15000);
+      setDailySpendingGoal(restoredState.dailySpendingGoal || 500);
+      setAnalyticsTimeframe(restoredState.analyticsTimeframe || '30');
       alert('Data restored successfully!');
     } catch (error) {
       console.error("Failed to restore data:", error);
@@ -133,56 +130,39 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
 
   const backupData = () => {
     showConfirmation('Backup Data', 'Do you want to create a backup file of all your data?', async () => {
-      const stateToBackup = { transactions, budgets, customBudgets, categories, budgetTemplates, budgetRelationships, billReminders, transferLog, recurringProcessingMode };
+      const stateToBackup = {
+        transactions, budgets, customBudgets, categories, budgetTemplates,
+        budgetRelationships, billReminders, transferLog, recurringProcessingMode,
+        spendingAlerts: props.spendingAlerts, savingsGoal, dailySpendingGoal, analyticsTimeframe
+      };
       const dataStr = JSON.stringify(stateToBackup, null, 2);
       const filename = `budgetwise_backup_${new Date().toISOString().split('T')[0]}.json`;
 
-      if (Capacitor.isNativePlatform()) {
-        try {
-          if (Capacitor.getPlatform() === 'android') {
-            const permStatus = await Filesystem.checkPermissions();
-            if (permStatus.publicStorage !== 'granted') {
-              const permResult = await Filesystem.requestPermissions();
-              if (permResult.publicStorage !== 'granted') {
-                alert('Permission to write to storage was denied.');
-                return;
-              }
-            }
-          }
-          try {
-            await Filesystem.mkdir({ path: 'BudgetWise', directory: Directory.Documents });
-          } catch(e) { /* Ignore */ }
-          await Filesystem.writeFile({
-            path: `BudgetWise/${filename}`,
-            data: dataStr,
-            directory: Directory.Documents,
-            encoding: Encoding.UTF8,
-          });
-          alert(`Backup saved to Documents/BudgetWise/${filename}`);
-        } catch (e) {
-          console.error('Unable to write file', e);
-          alert(`Error saving backup: ${(e as Error).message}`);
-        }
-      } else {
-        const blob = new Blob([dataStr], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.download = filename;
-        link.href = url;
-        link.click();
-        URL.revokeObjectURL(url);
-      }
+      const savedPath = await savePublicFile(filename, dataStr, { subfolder: 'BudgetWise' });
+      alert(`Backup saved to ${savedPath}`);
     });
   };
 
   const triggerRestore = async () => {
     if (Capacitor.isNativePlatform()) {
       try {
-        const result = await FilePicker.pickFiles({ types: ['application/json'], readData: true });
+        const result = await FilePicker.pickFiles({ readData: true });
         const file = result.files[0];
+
+        // Manually validate the file extension after selection.
+        if (file && !file.name.endsWith('.json')) {
+          alert('Invalid file type. Please select a .json backup file.');
+          return;
+        }
+
         if (file && file.data) {
-          const jsonString = atob(file.data); // Data is base64 encoded
-          processRestoredData(jsonString);
+          try {
+            const jsonString = atob(file.data); // Data is base64 encoded
+            processRestoredData(jsonString);
+          } catch (decodeError) {
+            console.error("Failed to decode backup file:", decodeError);
+            alert("The selected file is not a valid backup file. It may be corrupted.");
+          }
         }
       } catch (e) {
         console.log('File picker was cancelled or failed.', e);
@@ -253,30 +233,9 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
       XLSX.utils.book_append_sheet(wb, customBudgetSheet, 'Custom Budgets');
       XLSX.utils.book_append_sheet(wb, transferLogSheet, 'Fund Transfers');
 
-      if (Capacitor.isNativePlatform()) {
-        if (Capacitor.getPlatform() === 'android') {
-          const permStatus = await Filesystem.checkPermissions();
-          if (permStatus.publicStorage !== 'granted') {
-            const permResult = await Filesystem.requestPermissions();
-            if (permResult.publicStorage !== 'granted') {
-              alert('Permission to write to storage was denied.');
-              return;
-            }
-          }
-        }
-        try {
-          await Filesystem.mkdir({ path: 'BudgetWise', directory: Directory.Documents });
-        } catch(e) { /* Ignore */ }
-        const excelData = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
-        await Filesystem.writeFile({
-          path: `BudgetWise/${filename}`,
-          data: excelData,
-          directory: Directory.Documents,
-        });
-        alert(`Excel report saved to Documents/BudgetWise/${filename}`);
-      } else {
-        XLSX.writeFile(wb, filename);
-      }
+      const excelData = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
+      const savedPath = await savePublicFile(filename, excelData, { isBase64: true, subfolder: 'BudgetWise' });
+      alert(`Excel report saved to ${savedPath}`);
     } catch (error) {
       console.error("Failed to export to Excel", error);
       alert(`An error occurred while exporting to Excel: ${(error as Error).message}`);
@@ -410,31 +369,9 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
         body: transactionData,
         headStyles: { fillColor: [217, 119, 6] },
       });
-
-      if (Capacitor.isNativePlatform()) {
-        if (Capacitor.getPlatform() === 'android') {
-          const permStatus = await Filesystem.checkPermissions();
-          if (permStatus.publicStorage !== 'granted') {
-            const permResult = await Filesystem.requestPermissions();
-            if (permResult.publicStorage !== 'granted') {
-              alert('Permission to write to storage was denied.');
-              return;
-            }
-          }
-        }
-        try {
-          await Filesystem.mkdir({ path: 'BudgetWise', directory: Directory.Documents });
-        } catch(e) { /* Ignore */ }
-        const pdfData = doc.output("datauristring").split(",")[1];
-        await Filesystem.writeFile({
-          path: `BudgetWise/${filename}`,
-          data: pdfData,
-          directory: Directory.Documents,
-        });
-        alert(`PDF report saved to Documents/BudgetWise/${filename}`);
-      } else {
-        doc.save(filename);
-      }
+      const pdfData = doc.output("datauristring").split(",")[1];
+      const savedPath = await savePublicFile(filename, pdfData, { isBase64: true, subfolder: 'BudgetWise' });
+      alert(`PDF report saved to ${savedPath}`);
     } catch (error) {
       console.error("Failed to generate PDF report", error);
       alert(`An error occurred while generating the PDF report: ${(error as Error).message}`);
@@ -609,38 +546,8 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
     `;
 
     const filename = `BudgetWise_Report_${new Date().toISOString().split('T')[0]}.html`;
-    if (Capacitor.isNativePlatform()) {
-     
-      try {
-        if (Capacitor.getPlatform() === 'android') {
-          const permStatus = await Filesystem.checkPermissions();
-          if (permStatus.publicStorage !== 'granted') {
-            const permResult = await Filesystem.requestPermissions();
-            if (permResult.publicStorage !== 'granted') {
-              alert('Permission to write to storage was denied.');
-              return;
-            }
-          }
-        }
-        try { await Filesystem.mkdir({ path: 'BudgetWise', directory: Directory.Documents }); } catch(e) { /* Ignore */ }
-        await Filesystem.writeFile({ path: `BudgetWise/${filename}`, data: reportHTML, directory: Directory.Documents, encoding: Encoding.UTF8 });
-        alert(`HTML report saved to Documents/BudgetWise/${filename}`);
-      } catch (e) {
-        console.error('HTML report save failed:', e);
-         alert(`Report generation failed: ${(e as Error).message}`);
-      }
-    } else {
-      const blob = new Blob([reportHTML], { type: "text/html" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename;
-      link.style.display = 'none';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    }
+    const savedPath = await savePublicFile(filename, reportHTML, { subfolder: 'BudgetWise' });
+    alert(`HTML report saved to ${savedPath}`);
   };
 
   return (
