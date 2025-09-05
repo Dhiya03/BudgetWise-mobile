@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Plus, Settings, Download, List, PieChart, BarChart3, Repeat, FileSpreadsheet, Bell, X} from 'lucide-react';
+import { Plus, List, PieChart, BarChart3, Repeat, Bell, X} from 'lucide-react';
 
 import { App as CapacitorApp } from '@capacitor/app';
 import {Capacitor, PluginListenerHandle} from '@capacitor/core';
@@ -24,6 +24,7 @@ import AlertManagement from './components/AlertManagement';
 import HistoryTab from './components/HistoryTab';
 import BillReminderTab from './components/BillReminderTab';
 import BudgetTab from './components/BudgetTab';
+import Header from './components/Header';
 import { LocalNotifications } from '@capacitor/local-notifications';
 
 const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }: {
@@ -2096,81 +2097,16 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
       </div>
     ) : (
     <div className="max-w-md mx-auto bg-gradient-to-br from-purple-50 to-blue-50 min-h-screen">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-purple-600 to-blue-600 text-white p-4 pb-6">
-        <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold">BudgetWise</h1>
-          <div className="flex space-x-2">
-            <button
-              onClick={() => setShowExportModal(true)}
-              className="p-2 bg-white/20 rounded-lg hover:bg-white/30 transition-colors"
-              title="Advanced Export"
-            >
-              <Download size={20} />
-            </button>
-            <button
-              onClick={quickCSVExport}
-              className="p-2 bg-white/20 rounded-lg hover:bg-white/30 transition-colors"
-              title="Quick CSV Export (All Transactions)"
-            >
-              <FileSpreadsheet size={20} />
-            </button>
-            <button
-              onClick={() => setActiveTab('settings')}
-              className="p-2 bg-white/20 rounded-lg hover:bg-white/30 transition-colors"
-              title="Settings"
-            >
-              <Settings size={20} />
-            </button>
-          </div>
-        </div>
-        
-        <div className="mt-4 grid grid-cols-2 gap-4">
-          <div className="bg-white/20 rounded-xl p-3">
-            <p className="text-sm opacity-90">Monthly Balance</p>
-            <p className="text-xl font-bold">₹{stats.balance.toFixed(0)}</p>
-          </div>
-          <div className="bg-white/20 rounded-xl p-3">
-            <p className="text-sm opacity-90">Monthly Spent</p>
-            <p className="text-xl font-bold">₹{stats.totalExpenses.toFixed(0)}</p>
-          </div>
-        </div>
-
-        {stats.customBudgetSpent > 0 && (
-          <div className="mt-3 bg-white/20 rounded-xl p-3">
-            <p className="text-sm opacity-90">Custom Budgets Spent</p>
-            <p className="text-xl font-bold">₹{stats.customBudgetSpent.toFixed(0)}</p>
-          </div>
-        )}
-
-        <div className="mt-4 flex items-center justify-center space-x-4">
-          <button
-            onClick={() => {
-              const newMonth = currentMonth === 0 ? 11 : currentMonth - 1;
-              const newYear = currentMonth === 0 ? currentYear - 1 : currentYear;
-              setCurrentMonth(newMonth);
-              setCurrentYear(newYear);
-            }}
-            className="p-2 bg-white/20 rounded-lg"
-          >
-            ←
-          </button>
-          <span className="font-semibold">
-            {new Date(currentYear, currentMonth).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-          </span>
-          <button
-            onClick={() => {
-              const newMonth = currentMonth === 11 ? 0 : currentMonth + 1;
-              const newYear = currentMonth === 11 ? currentYear + 1 : currentYear;
-              setCurrentMonth(newMonth);
-              setCurrentYear(newYear);
-            }}
-            className="p-2 bg-white/20 rounded-lg"
-          >
-            →
-          </button>
-        </div>
-      </div>
+      <Header
+        stats={stats}
+        currentYear={currentYear}
+        currentMonth={currentMonth}
+        onSetShowExportModal={setShowExportModal}
+        onQuickCSVExport={quickCSVExport}
+        onSetActiveTab={setActiveTab}
+        onSetCurrentMonth={setCurrentMonth}
+        onSetCurrentYear={setCurrentYear}
+      />
 
       {/* Main Content */}
       <div className="flex-1 pb-20">
