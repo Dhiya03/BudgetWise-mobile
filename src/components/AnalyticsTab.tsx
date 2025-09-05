@@ -1,5 +1,5 @@
 import  { useState, useMemo, FC } from 'react';
-import { TrendingUp, TrendingDown, DollarSign, Target, Activity, HelpCircle, ShieldCheck, ShieldAlert, Shield, CalendarDays, Flame, SlidersHorizontal, AlertTriangle, X, Lightbulb } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Target, Activity, HelpCircle, ShieldCheck, ShieldAlert, Shield, CalendarDays, Flame, SlidersHorizontal, AlertTriangle, X, Lightbulb, BellRing } from 'lucide-react';
 import { Transaction, MonthlyBudgets, SpendingAlert } from '../types';
 import { getCategoryInsights, getFinancialHealthScore, getCashFlowAnalysis, getSpendingPersonality, getDailySpendingStreak, getFinancialRunway, simulateBudgetScenario } from '../utils/analytics';
 
@@ -14,7 +14,8 @@ interface AnalyticsTabProps {
   setDailySpendingGoal: (goal: number) => void;
   setSavingsGoal: (goal: number) => void;
   handleNavigationRequest: (request: any) => void;
-  onSetAlert: (alert: Omit<SpendingAlert, 'id' | 'lastNotifiedMonth'>) => void;
+  onSetAlert: (alert: Omit<SpendingAlert, 'id' | 'isSilenced'>) => void;
+  spendingAlerts: SpendingAlert[];
 }
 
 interface ActionableTip {
@@ -60,7 +61,7 @@ const ImproveScoreModal: FC<{
   onClose: () => void;
   tips: ActionableTip[];
   onAction: (action: any) => void;
-}> = ({ isOpen, onClose, tips, onAction }) => {
+}> = ({ isOpen, onClose, tips }) => {
   if (!isOpen) return null;
 
   return (
@@ -110,7 +111,7 @@ const SetAlertModal: FC<{
   isOpen: boolean;
   onClose: () => void;
   category: string | null;
-  onSetAlert: (alert: Omit<SpendingAlert, 'id' | 'lastNotifiedMonth'>) => void;
+  onSetAlert: (alert: Omit<SpendingAlert, 'id' | 'isSilenced'>) => void;
 }> = ({ isOpen, onClose, category, onSetAlert }) => {
   const [threshold, setThreshold] = useState('');
 
@@ -151,7 +152,7 @@ const SetAlertModal: FC<{
   );
 };
 
-const AnalyticsTab: FC<AnalyticsTabProps> = ({ transactions, budgets, getCustomBudgetName, savingsGoal, setSavingsGoal, dailySpendingGoal, setDailySpendingGoal, analyticsTimeframe, setAnalyticsTimeframe, handleNavigationRequest, onSetAlert }) => {
+const AnalyticsTab: FC<AnalyticsTabProps> = ({ transactions, budgets, getCustomBudgetName, savingsGoal, setSavingsGoal, dailySpendingGoal, setDailySpendingGoal, analyticsTimeframe, setAnalyticsTimeframe, handleNavigationRequest, onSetAlert, spendingAlerts }) => {
   const categoryInsights = useMemo(() => getCategoryInsights(transactions, analyticsTimeframe, getCustomBudgetName), [transactions, analyticsTimeframe, getCustomBudgetName]);
   const healthScore = useMemo(() => getFinancialHealthScore(transactions, analyticsTimeframe, getCustomBudgetName), [transactions, analyticsTimeframe, getCustomBudgetName]);
   const cashFlow = useMemo(() => getCashFlowAnalysis(transactions, analyticsTimeframe, budgets, savingsGoal), [transactions, analyticsTimeframe, budgets, savingsGoal]);
@@ -434,34 +435,45 @@ const AnalyticsTab: FC<AnalyticsTabProps> = ({ transactions, budgets, getCustomB
       <div className="bg-white rounded-2xl p-6 shadow-lg">
         <h3 className="text-lg font-bold text-gray-800 mb-4">Smart Category Breakdown</h3>
         <div className="space-y-3">
-          {categoryInsights.map(insight => (
-            <div key={insight.category} className="border border-gray-200 rounded-xl p-4">
-              <div className="flex justify-between items-center">
-                <span className="font-semibold text-gray-800">{insight.category}</span>
-                <span className="text-lg font-bold">₹{insight.spending.toFixed(0)}</span>
-              </div>
-              <div className="flex justify-between items-center text-sm mt-1">
-                <div className={`flex items-center ${insight.trend > 10 ? 'text-red-600' : insight.trend < -10 ? 'text-green-600' : 'text-gray-500'}`}>
-                  {insight.trend > 10 ? <TrendingUp size={16} className="mr-1" /> : <TrendingDown size={16} className="mr-1" />}
-                  <span>{insight.trend > 0 ? '+' : ''}{insight.trend.toFixed(0)}%</span>
+          {categoryInsights.map(insight => {
+            const isAlertSet = spendingAlerts.some(alert => alert.category === insight.category);
+            return (
+              <div key={insight.category} className="border border-gray-200 rounded-xl p-4">
+                <div className="flex justify-between items-center">
+                  <span className="font-semibold text-gray-800">{insight.category}</span>
+                  <span className="text-lg font-bold">₹{insight.spending.toFixed(0)}</span>
                 </div>
-                <button onClick={() => {
-                  setAlertCategory(insight.category);
-                  setIsAlertModalOpen(true);
-                }} className="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-full hover:bg-gray-300 flex items-center">
-                  Set Alert
-                </button>
-              </div>
-              {insight.smartText && (
-                <p className="text-xs text-gray-600 mt-2 bg-gray-100 p-2 rounded-md">{insight.smartText}</p>
-              )}
-              {insight.largestTransaction && (
-                <div className="text-xs text-gray-500 mt-2 pt-2 border-t border-gray-100">
-                  <strong>Largest Tx:</strong> ₹{Math.abs(insight.largestTransaction.amount).toFixed(0)}{insight.largestTransaction.description ? ` - ${insight.largestTransaction.description}` : ''}
+                <div className="flex justify-between items-center text-sm mt-1">
+                  <div className={`flex items-center ${insight.trend > 10 ? 'text-red-600' : insight.trend < -10 ? 'text-green-600' : 'text-gray-500'}`}>
+                    {insight.trend > 10 ? <TrendingUp size={16} className="mr-1" /> : <TrendingDown size={16} className="mr-1" />}
+                    <span>{insight.trend > 0 ? '+' : ''}{insight.trend.toFixed(0)}%</span>
+                  </div>
+                  {isAlertSet ? (
+                    <div className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full flex items-center font-medium">
+                      <ShieldCheck size={14} className="mr-1" />
+                      Alert Set
+                    </div>
+                  ) : (
+                    <button onClick={() => {
+                      setAlertCategory(insight.category);
+                      setIsAlertModalOpen(true);
+                    }} className="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-full hover:bg-gray-300 flex items-center">
+                      <BellRing size={14} className="mr-1" />
+                      Set Alert
+                    </button>
+                  )}
                 </div>
-              )}
-            </div>
-          ))}
+                {insight.smartText && (
+                  <p className="text-xs text-gray-600 mt-2 bg-gray-100 p-2 rounded-md">{insight.smartText}</p>
+                )}
+                {insight.largestTransaction && (
+                  <div className="text-xs text-gray-500 mt-2 pt-2 border-t border-gray-100">
+                    <strong>Largest Tx:</strong> ₹{Math.abs(insight.largestTransaction.amount).toFixed(0)}{insight.largestTransaction.description ? ` - ${insight.largestTransaction.description}` : ''}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 

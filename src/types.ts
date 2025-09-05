@@ -74,7 +74,7 @@ export interface SpendingAlert {
   category: string; // Can be a monthly category or a custom budget category string
   threshold: number;
   condition: 'above'; // Currently only supports 'spending goes above'
-  lastNotifiedMonth?: string; // e.g., "2024-07" to prevent re-notifying in the same month
+  isSilenced?: boolean; // To mute/unmute the alert
 }
 
 // Describes the data structure for the transaction form

@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Plus, Settings, Download, Trash2, Edit3, List, PieChart, ArrowUpDown, BarChart3, Pause, Play, Save, Link2, ArrowRight, Repeat, FileSpreadsheet, Bell, Unlock, X, XCircle, Lock } from 'lucide-react';
 
-import {Capacitor} from '@capacitor/core';
+import { App as CapacitorApp } from '@capacitor/app';
+import {Capacitor, PluginListenerHandle} from '@capacitor/core';
 import {Filesystem, Directory, Encoding} from '@capacitor/filesystem';
 import {
   Transaction,
@@ -61,6 +62,22 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }: {
   );
 };
 
+const Toast = ({ message, isVisible }: { message: string; isVisible: boolean }) => {
+  if (!isVisible) return null;
+
+  return (
+    <div
+      className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-gray-800 text-white px-6 py-3 rounded-full shadow-lg transition-opacity duration-300"
+      style={{
+        opacity: isVisible ? 1 : 0,
+        zIndex: 100, // Ensure it's above other elements
+      }}
+    >
+      {message}
+    </div>
+  );
+};
+
 const App = () => {
   const [activeTab, setActiveTab] = useState('add');
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -95,6 +112,10 @@ const App = () => {
     message: '',
     onConfirm: null,
   });
+
+   // --- Toast Notification State ---
+  const [toastMessage, setToastMessage] = useState('');
+  const [isToastVisible, setIsToastVisible] = useState(false);
 
   // --- Navigation State ---
   const [navigationRequest, setNavigationRequest] = useState<{
@@ -225,6 +246,75 @@ const App = () => {
     return budget ? budget.name : 'Unknown Budget';
   }, [customBudgets]);
 
+
+
+  const runAlertCleanupChecks = useCallback(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const currentMonthKey = `${today.getFullYear()}-${today.getMonth()}`;
+    const lastCleanupMonth = localStorage.getItem('lastAlertCleanupMonth_v2');
+    const isNewMonth = currentMonthKey !== lastCleanupMonth;
+
+    const alertsToKeep = spendingAlerts.filter(alert => {
+        const isCustomAlert = alert.category.includes(' - ');
+
+        // Rule 1: Delete monthly alerts at the start of a new month.
+        if (!isCustomAlert && isNewMonth) {
+            return false; // It's a new month, so this monthly alert from a previous month is deleted.
+        }
+
+        // Rule 2: Delete alerts for custom budgets where the deadline has passed.
+        if (isCustomAlert) {
+            const budgetName = alert.category.split(' - ')[0];
+            const budget = customBudgets.find(b => b.name === budgetName);
+
+            if (budget && budget.deadline) {
+                const deadlineDate = new Date(budget.deadline + 'T00:00:00');
+                if (deadlineDate < today) {
+                    return false; // Deadline has passed, delete this custom alert.
+                }
+            }
+        }
+
+        return true; // Keep the alert if no deletion rule matches.
+    });
+
+    // Check for recurring transactions linked to expired budgets
+    const expiredBudgetIds = new Set<number>();
+    customBudgets.forEach(budget => {
+        if (budget.deadline) {
+            const deadlineDate = new Date(budget.deadline + 'T00:00:00');
+            if (deadlineDate < today) {
+                expiredBudgetIds.add(budget.id);
+            }
+        }
+    });
+
+    let recurringTxModified = false;
+    const updatedTransactionsForRecurring = transactions.map(t => {
+        if (t.isRecurring && t.customBudgetId && expiredBudgetIds.has(t.customBudgetId)) {
+            recurringTxModified = true;
+            // Disable recurrence for transactions linked to expired budgets
+            return { ...t, isRecurring: false };
+        }
+        return t;
+    });
+
+    if (alertsToKeep.length < spendingAlerts.length) {
+        console.log(`BudgetWise: Cleaned up ${spendingAlerts.length - alertsToKeep.length} expired/old alerts.`);
+        setSpendingAlerts(alertsToKeep);
+    }
+
+      if (recurringTxModified) {
+        console.log(`BudgetWise: Disabled recurring transactions for expired budgets.`);
+        setTransactions(updatedTransactionsForRecurring);
+    }
+
+    if (isNewMonth) {
+        localStorage.setItem('lastAlertCleanupMonth_v2', currentMonthKey);
+    }
+ }, [spendingAlerts, customBudgets, transactions]); // `transactions` is needed for the cleanup
+
   // --- Data Persistence and Security Hooks ---
 
   const loadAndInitializeData = () => {
@@ -296,10 +386,13 @@ const App = () => {
 
   // Automatically process recurring transactions if in automatic mode and app is unlocked
   useEffect(() => {
-    if (!isLocked && recurringProcessingMode === 'automatic') {
-      processRecurringTransactions(true);
+    if (!isLocked) {
+      runAlertCleanupChecks(); // Run cleanup checks on unlock
+      if (recurringProcessingMode === 'automatic') {
+        processRecurringTransactions(true);
+      }
     }
-  }, [isLocked, recurringProcessingMode]);
+  }, [isLocked, recurringProcessingMode, runAlertCleanupChecks]);
 
   // --- Notification Permission Hook ---
   useEffect(() => {
@@ -395,6 +488,34 @@ const App = () => {
     }
   }, [activeTab]);
 
+   // --- Back Button Handling ---
+   const handleBackPress = useCallback(() => {
+    // Priority 1: Close any open modal
+    if (showExportModal || showTransferModal || confirmationState.isOpen) {
+      setShowExportModal(false);
+      setShowTransferModal(false);
+      closeConfirmation();
+      return true; // Indicates we handled it
+    }
+
+    // Priority 2: Cancel any editing mode
+    if (editingTransaction || editingCustomBudget) {
+      if (editingTransaction) handleCancelTransactionEdit();
+      if (editingCustomBudget) handleCancelEdit();
+      return true; // Indicates we handled it
+    }
+
+    // Priority 3: Navigate from other tabs to the main 'add' tab
+    if (activeTab !== 'add') {
+      setActiveTab('add');
+      return true; // Indicates we handled it
+    }
+
+    return false; // Indicates we did not handle it, default action should occur
+  }, [activeTab, showExportModal, showTransferModal, confirmationState.isOpen, editingTransaction, editingCustomBudget]);
+
+ 
+
   // --- Navigation Effect ---
   useEffect(() => {
     if (navigationRequest) {
@@ -431,43 +552,24 @@ const App = () => {
     });
   };
 
-  // --- Back Button Handling for Mobile ---
   useEffect(() => {
-    const handleBackButton = (_event: PopStateEvent) => {
-      // This event fires when the user navigates back (e.g., via mobile back button).
-      // We intercept it to implement custom back-navigation logic.
+    let listenerHandle: PluginListenerHandle;
 
-      // Priority 1: Close any open modal
-      if (showExportModal || showTransferModal || confirmationState.isOpen) {
-        setShowExportModal(false);
-        setShowTransferModal(false);
-        closeConfirmation();
-        // "Cancel" the back navigation by pushing the current state back onto the history stack.
-        window.history.pushState(null, '', window.location.href);
-        return;
+    const registerBackButtonListener = async () => {
+      if (Capacitor.isNativePlatform()) {
+        listenerHandle = await CapacitorApp.addListener('backButton', () => {
+          const handled = handleBackPress();
+          if (!handled) {
+            CapacitorApp.exitApp();
+          }
+        });
       }
-
-      // Priority 2: Cancel any editing mode
-      if (editingTransaction || editingCustomBudget) {
-        if (editingTransaction) handleCancelTransactionEdit();
-        if (editingCustomBudget) handleCancelEdit();
-        window.history.pushState(null, '', window.location.href);
-        return;
-      }
-
-      // Priority 3: Navigate from other tabs to the main 'add' tab
-      if (activeTab !== 'add') {
-        setActiveTab('add');
-        window.history.pushState(null, '', window.location.href);
-        return;
-      }
-
-      // If on the 'add' tab with no modals or edits active, allow the app to close by going back.
+       };
+    registerBackButtonListener();
+    return () => {
+      listenerHandle?.remove();
     };
-
-    window.addEventListener('popstate', handleBackButton);
-    return () => window.removeEventListener('popstate', handleBackButton);
-  }, [activeTab, showExportModal, showTransferModal, confirmationState.isOpen, editingTransaction, editingCustomBudget]);
+  }, [handleBackPress]);
   
   const initializeSampleData = () => {
     // Sample transactions with both budget types
@@ -590,54 +692,112 @@ const App = () => {
     }
   };
 
-  const handleSetSpendingAlert = (alertData: Omit<SpendingAlert, 'id' | 'lastNotifiedMonth'>) => {
+ const showToast = useCallback((message: string) => {
+    setToastMessage(message);
+    setIsToastVisible(true);
+    setTimeout(() => {
+      setIsToastVisible(false);
+    }, 3000); // Hide after 3 seconds
+  }, []);
+  
+  const handleSetSpendingAlert = (alertData: Omit<SpendingAlert, 'id' | 'isSilenced'>) => {
+    // Prevent duplicate alerts for the same category
+    const existingAlert = spendingAlerts.find(alert => alert.category === alertData.category);
+    if (existingAlert) {
+      showToast(`An alert for "${alertData.category}" already exists.`);
+      return;
+    }
+
     const newAlert: SpendingAlert = {
       id: Date.now(),
       ...alertData,
+      isSilenced: false, // Alerts are active by default
     };
-    setSpendingAlerts([...spendingAlerts, newAlert]);
-    alert(`Alert set for "${alertData.category}"!`);
+    setSpendingAlerts(prevAlerts => [...prevAlerts, newAlert]);
+  };
+
+  const toggleSpendingAlertSilence = (alertId: number) => {
+    setSpendingAlerts(prevAlerts =>
+      prevAlerts.map(alert =>
+        alert.id === alertId
+          ? { ...alert, isSilenced: !alert.isSilenced }
+          : alert
+      )
+    );
   };
 
   const handleDeleteSpendingAlert = (alertId: number) => {
     showConfirmation('Delete Alert', 'Are you sure you want to delete this spending alert?', () => {
-      setSpendingAlerts(spendingAlerts.filter(a => a.id !== alertId));
+      setSpendingAlerts(prevAlerts => prevAlerts.filter(a => a.id !== alertId));
     });
   };
 
-  const checkSpendingAlerts = useCallback((currentTransactions: Transaction[]) => {
-    const currentMonthKey = `${new Date().getFullYear()}-${new Date().getMonth()}`;
-    const updatedAlerts = [...spendingAlerts];
-    let notificationFired = false;
+ const checkSpendingAlerts = useCallback((allTransactions: Transaction[], currentAlerts: SpendingAlert[], changedTransactions: Transaction[]) => {
+  
+    const currentMonth = new Date().getMonth();
+    const currentYear = new Date().getFullYear();
 
-    spendingAlerts.forEach((alert, index) => {
-      if (alert.lastNotifiedMonth === currentMonthKey) {
-        return; // Already notified this month
-      }
-
-      const categorySpending = currentTransactions
-        .filter(t => {
-          const transactionDate = new Date(t.date);
-          const categoryName = t.budgetType === 'custom' ? `${getCustomBudgetName(t.customBudgetId)} - ${t.customCategory}` : t.category;
-          return categoryName === alert.category && transactionDate.getMonth() === new Date().getMonth() && transactionDate.getFullYear() === new Date().getFullYear();
-        })
-        .reduce((sum, t) => sum + Math.abs(t.amount), 0);
-
-      if (categorySpending > alert.threshold) {
-        LocalNotifications.schedule({
-          notifications: [{
-            title: 'BudgetWise Alert',
-            body: `You've spent ₹${categorySpending.toFixed(0)} in "${alert.category}", which is over your set threshold of ₹${alert.threshold}.`,
-            id: alert.id,
-          }]
-        });
-        updatedAlerts[index] = { ...alert, lastNotifiedMonth: currentMonthKey };
-        notificationFired = true;
-      }
+ const changedCategoryNames = new Set<string>();
+    changedTransactions.forEach(t => {
+        const categoryName = t.budgetType === 'custom' ? `${getCustomBudgetName(t.customBudgetId)} - ${t.customCategory}` : t.category;
+        if (categoryName) {
+            changedCategoryNames.add(categoryName);
+        }
     });
 
-    if (notificationFired) setSpendingAlerts(updatedAlerts);
-  }, [spendingAlerts, getCustomBudgetName]);
+    if (changedCategoryNames.size === 0) return;
+
+    const relevantAlerts = currentAlerts.filter(alert => changedCategoryNames.has(alert.category));
+
+   relevantAlerts.forEach((alert) => {
+      // Skip check if the alert is silenced
+      if (alert.isSilenced) {
+        return;
+      }
+
+      const categorySpending = allTransactions
+        .filter(t => {
+        const transactionDate = new Date(t.date + 'T00:00:00');
+         const categoryName = t.budgetType === 'custom' ? `${getCustomBudgetName(t.customBudgetId)} - ${t.customCategory}` : t.category;
+
+          return t.amount < 0 &&
+                 categoryName === alert.category &&
+                 transactionDate.getMonth() === currentMonth &&
+                 transactionDate.getFullYear() === currentYear;
+        })
+        .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+      if (categorySpending > alert.threshold) {
+        try {
+          // Use the more explicit 'on' schedule format for maximum compatibility, similar to Bill Reminders.
+          const now = new Date(Date.now() + 2000); // 2 seconds in the future for robustness
+          LocalNotifications.schedule({
+            notifications: [{
+              title: 'BudgetWise Alert',
+              body: `You've spent ₹${categorySpending.toFixed(0)} in "${alert.category}", which is over your set threshold of ₹${alert.threshold}.`,
+              id: Math.floor(Math.random() * 2147483647), // Use a unique ID for each notification instance to ensure it always fires
+              schedule: {
+                on: {
+                  year: now.getFullYear(),
+                  month: now.getMonth() + 1, // Capacitor's 'on' uses 1-based month
+                  day: now.getDate(),
+                  hour: now.getHours(),
+                  minute: now.getMinutes(),
+                  second: now.getSeconds(),
+                },
+                allowWhileIdle: true,
+              },
+            }]
+          });
+        } catch (e) {
+          console.error("Failed to schedule spending alert notification", e);
+          // Optionally, show a toast or alert to the user on web
+          if (!Capacitor.isNativePlatform()) {
+            showToast(`ALERT: Spending in ${alert.category} is over ₹${alert.threshold}!`);
+          }
+        }
+      }
+    });
+   }, [getCustomBudgetName, showToast]);
 
   const deleteTransaction = (id: number) => {
     const transactionToDelete = transactions.find(t => t.id === id);
@@ -869,11 +1029,20 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
     }
 
     // Prevent adding a transaction to a locked or paused budget
-   if (currentFormData.budgetType === 'custom' && currentFormData.customBudgetId) {
+    if (currentFormData.budgetType === 'custom' && currentFormData.customBudgetId) {
       const budget = customBudgets.find(b => b.id === currentFormData.customBudgetId);
       if (budget && (budget.status === 'locked' || budget.status === 'paused')) {
         alert(`Cannot add new transactions to a '${budget.status}' budget. Please set it to 'active' first.`);
         return; // Stop the addition
+      }
+      // Prevent adding transactions dated after a budget's deadline
+      if (budget && budget.deadline) {
+        const transactionDate = new Date(currentFormData.date + 'T00:00:00');
+        const deadlineDate = new Date(budget.deadline + 'T00:00:00');
+        if (transactionDate > deadlineDate) {
+          alert(`The transaction date (${currentFormData.date}) cannot be after the budget's deadline (${budget.deadline}).`);
+          return;
+        }
       }
     }
 
@@ -891,9 +1060,10 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
             }
           : t
       );
+      const changedTransaction = updatedTransactions.find(t => t.id === editingTransaction.id);
       setTransactions(updatedTransactions);
       recalculateCustomBudgetSpending(updatedTransactions, budgetsForRecalculation);
-      checkSpendingAlerts(updatedTransactions); // Check alerts after updating a transaction
+      if (changedTransaction) checkSpendingAlerts(updatedTransactions, spendingAlerts, [changedTransaction]);
       handleCancelTransactionEdit();
     } else {
       // Add logic
@@ -908,7 +1078,7 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
       const newTransactions = [...transactions, transaction];
       setTransactions(newTransactions);
       recalculateCustomBudgetSpending(newTransactions, budgetsForRecalculation);
-      checkSpendingAlerts(newTransactions); // Check alerts after adding transactions
+      checkSpendingAlerts(newTransactions, spendingAlerts, [transaction]);
       // Reset form
       setFormData({
         category: '', amount: '', description: '', date: new Date().toISOString().split('T')[0],
@@ -1658,7 +1828,9 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
     });
 
     if (newTransactions.length > 0) {
-      setTransactions([...updatedOriginals, ...newTransactions]);
+      const allNewTransactions = [...updatedOriginals, ...newTransactions];
+      setTransactions(allNewTransactions);
+      checkSpendingAlerts(allNewTransactions, spendingAlerts, newTransactions); // Check alerts for the newly created transactions
       if (!isSilent) alert(`${processedCount} recurring transaction(s) have been created.`);
     } else if (!isSilent) {
       alert("No new recurring transactions are due.");
@@ -1844,6 +2016,7 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
         <AlertManagement
           spendingAlerts={spendingAlerts}
           onDeleteAlert={handleDeleteSpendingAlert}
+          onToggleSilence={toggleSpendingAlertSilence}
         />
 
         {/* Recurring Transactions */}
@@ -2832,9 +3005,12 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
                     const percentage = budget.totalAmount > 0 ? (budget.spentAmount / budget.totalAmount) * 100 : 0;
                     const isOverBudget = budget.spentAmount > budget.totalAmount;
                     const isLocked = budget.status === 'locked';
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    const isDeadlinePassed = budget.deadline ? new Date(budget.deadline + 'T00:00:00') < today : false;
 
                     return (
-                      <div key={budget.id} className={`border border-gray-200 rounded-xl p-4 ${isLocked ? 'bg-gray-100 opacity-80' : ''}`}>
+                      <div key={budget.id} className={`border rounded-xl p-4 transition-colors ${isDeadlinePassed ? 'bg-violet-50 border-violet-300' : isLocked ? 'bg-gray-100 opacity-80 border-gray-200' : 'border-gray-200'}`}>
                         <div className="flex justify-between items-start mb-3">
                           <div>
                             <h3 className="font-semibold text-gray-800 flex items-center">
@@ -2909,10 +3085,10 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
                             {percentage.toFixed(0)}% funded
                             {percentage >= 100 && ' 🎉'}
                           </span>
-                          <span className={`${
-                            budget.spentAmount >= budget.totalAmount ? 'text-blue-600' : 'text-green-600'
+                          <span className={`font-medium ${
+                            isDeadlinePassed ? 'text-violet-500' : budget.spentAmount >= budget.totalAmount ? 'text-blue-600' : 'text-green-600'
                           }`}>
-                            {budget.spentAmount >= budget.totalAmount ? 'completed' : 'active'}
+                            {isDeadlinePassed ? 'Deadline Passed' : budget.spentAmount >= budget.totalAmount ? 'Completed' : 'Active'}
                           </span>
                         </div>
 
@@ -3412,6 +3588,7 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
                   analyticsTimeframe={analyticsTimeframe}
                   setAnalyticsTimeframe={setAnalyticsTimeframe}
                   onSetAlert={handleSetSpendingAlert}
+                  spendingAlerts={spendingAlerts}
                   handleNavigationRequest={handleNavigationRequest}
                 />
               )}
@@ -3433,6 +3610,11 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
         onConfirm={confirmationState.onConfirm}
         title={confirmationState.title}
         message={confirmationState.message}
+      />
+
+      <Toast
+        message={toastMessage}
+        isVisible={isToastVisible}
       />
 
       {/* Bottom Navigation */}
