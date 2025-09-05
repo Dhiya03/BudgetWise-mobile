@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Plus, List, PieChart, BarChart3, Repeat, Bell, X} from 'lucide-react';
 
 import { App as CapacitorApp } from '@capacitor/app';
-import {Capacitor, PluginListenerHandle} from '@capacitor/core';
+import { Capacitor, PluginListenerHandle } from '@capacitor/core';
 import {Filesystem, Directory, Encoding} from '@capacitor/filesystem';
 import {
   Transaction,
@@ -1842,51 +1842,52 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
     return str;
   };
 
-  const quickCSVExport = () => {
+  const quickCSVExport = async () => {
     try {
+      if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android') {
+        const permStatus = await Filesystem.checkPermissions();
+        if (permStatus.publicStorage !== 'granted') {
+          const permResult = await Filesystem.requestPermissions();
+          if (permResult.publicStorage !== 'granted') {
+            alert('Permission to write to storage was denied.');
+            return;
+          }
+        }
+      }
+
       const filename = `BudgetWise_Quick_Export_${new Date().toISOString().split('T')[0]}.csv`;
       const headers = 'Date,BudgetType,Category,CustomBudget,CustomCategory,Description,Amount,Type,Tags,TransactionID\n';
       const rows = transactions
-        .map(t => {
-          const budgetName = t.budgetType === 'custom' ? getCustomBudgetName(t.customBudgetId) : '';
-          const category = t.budgetType === 'custom' ? '' : t.category;
-          const customCategory = t.budgetType === 'custom' ? t.customCategory : '';
-          const tags = t.tags?.join('; ') || '';
-          const rowData = [
-            t.date,
-            t.budgetType || 'monthly',
-            category,
-            budgetName,
-            customCategory,
-            t.description || '',
-            t.amount,
-            t.amount < 0 ? 'Expense' : 'Income',
-            tags,
-            t.id,
-          ];
-          return rowData.map(escapeCsvField).join(',');
-        }).join('\n');
+        .map(t => [
+          t.date,
+          t.budgetType || 'monthly',
+          t.budgetType === 'custom' ? '' : t.category,
+          t.budgetType === 'custom' ? getCustomBudgetName(t.customBudgetId) : '',
+          t.budgetType === 'custom' ? t.customCategory : '',
+          t.description || '',
+          t.amount,
+          t.amount < 0 ? 'Expense' : 'Income',
+          t.tags?.join('; ') || '',
+          t.id,
+        ].map(escapeCsvField).join(',')).join('\n');
       
       const content = '\uFEFF' + headers + rows;
 
       if (Capacitor.isNativePlatform()) {
-        Filesystem.writeFile({
+        await Filesystem.writeFile({
           path: filename,
           data: content,
           directory: Directory.Documents,
           encoding: Encoding.UTF8,
-        }).then(() => {
-          alert(`CSV saved to Documents: ${filename}`);
-        }).catch((e: any) => {
-          alert(`Error saving CSV: ${(e as Error).message}`);
         });
+        alert(`CSV saved to Documents: ${filename}`);
       } else {
         const type = 'text/csv;charset=utf-8;';
         const blob = new Blob([content], { type });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
-        link.href = url;
         link.download = filename;
+        link.href = url;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -1894,7 +1895,7 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
       }
     } catch (error) {
       console.error('Quick CSV Export failed:', error);
-      alert('Quick CSV Export failed. Please try again.');
+      alert(`Quick CSV Export failed: ${(error as Error).message}`);
     }
   };
   const getRemainingBudget = (category: string, year: number, month: number) => {
