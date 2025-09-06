@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Repeat, X } from 'lucide-react';
 
 import { App as CapacitorApp } from '@capacitor/app';
@@ -24,6 +24,7 @@ import AlertManagement from './components/AlertManagement';
 import HistoryTab from './components/HistoryTab';
 import BillReminderTab from './components/BillReminderTab';
 import BudgetTab from './components/BudgetTab';
+import AddTab from './components/AddTab';
 import Header from './components/Header';
 import BottomNavigation from './components/BottomNavigation';
 import { LocalNotifications } from '@capacitor/local-notifications';
@@ -89,11 +90,6 @@ const App = () => {
   const [customBudgets, setCustomBudgets] = useState<CustomBudget[]>([]);
   const [categories, setCategories] = useState(['Food', 'Transport', 'Entertainment', 'Shopping', 'Bills', 'Health']);
   const [transferLog, setTransferLog] = useState<TransferEvent[]>([]);
-  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
-  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
-  const [sortBy, setSortBy] = useState('date');
-  const [filterCategory, setFilterCategory] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [editingCustomBudget, setEditingCustomBudget] = useState<CustomBudget | null>(null);
   const [filterTag, setFilterTag] = useState('');
@@ -101,6 +97,10 @@ const App = () => {
   const [dailySpendingGoal, setDailySpendingGoal] = useState(500);
   const [analyticsTimeframe, setAnalyticsTimeframe] = useState('30');
   const [savingsGoal, setSavingsGoal] = useState(15000);
+  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
+  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+  const [filterCategory, setFilterCategory] = useState(''); // This is used by Analytics, so it stays
+
 
   // --- New State for Advanced Features ---
 
@@ -186,23 +186,8 @@ const App = () => {
     categories: [],
     categoryBudgets: {},
   });
-  const [showCustomCategoryInput, setShowCustomCategoryInput] = useState(false);
   const [newCustomCategory, setNewCustomCategory] = useState('');
-  const [newCustomCategoryBudget, setNewCustomCategoryBudget] = useState('');
-  const [selectedCustomBudgetForCategory, setSelectedCustomBudgetForCategory] = useState<number | null>(null);
-
   const customBudgetFormRef = useRef<HTMLDivElement>(null);
-
-  const [showCategoryInput, setShowCategoryInput] = useState(false);
-  const [newCategory, setNewCategory] = useState('');
-  const [newCategoryBudget, setNewCategoryBudget] = useState('');
-  
-  // Export modal state
-  const [showExportModal, setShowExportModal] = useState(false);
-  const [exportStartDate, setExportStartDate] = useState('');
-  const [exportEndDate, setExportEndDate] = useState('');
-  const [exportFormat, setExportFormat] = useState('json');
-  const [exportType, setExportType] = useState('all'); // 'all', 'monthly', 'custom'
 
   // --- New State for Budget Hub Features ---
 
@@ -227,6 +212,13 @@ const App = () => {
     fromCategory: '',
     toCategoryAllocations: {} as { [key: string]: string },
   });
+
+  // Export modal state
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportStartDate, setExportStartDate] = useState('');
+  const [exportEndDate, setExportEndDate] = useState('');
+  const [exportFormat, setExportFormat] = useState('json');
+  const [exportType, setExportType] = useState('all'); // 'all', 'monthly', 'custom'
 
 
   // --- Modal Control Functions ---
@@ -986,158 +978,32 @@ const App = () => {
     }
   };
 
-     const handleAddOrUpdateTransaction = () => {
-    let currentFormData = { ...formData };
-    const isUpdate = !!editingTransaction;
-    let budgetsForRecalculation = customBudgets;
 
-    // Handle adding a new monthly category if the inputs are visible
-    if (showCategoryInput) {
-      if (newCategory && !categories.includes(newCategory) && newCategoryBudget) {
-        const newCategories = [...categories, newCategory];
-        setCategories(newCategories);
-        const newBudgets = { ...budgets, [newCategory]: parseFloat(newCategoryBudget) };
-        setBudgets(newBudgets);
-        currentFormData.category = newCategory; // Use the new category for this transaction
-        setNewCategory('');
-        setNewCategoryBudget('');
-        setShowCategoryInput(false);
-      } else {
-        alert('Please provide a category name and a budget amount for the new category.');
-        return;
-      }
-    }
 
-    // Handle adding a new custom category if the inputs are visible
-    if (showCustomCategoryInput) {
-      if (newCustomCategory && selectedCustomBudgetForCategory && newCustomCategoryBudget) {
-        const newCategoryBudgetAmount = parseFloat(newCustomCategoryBudget);
-        const updatedCustomBudgets = customBudgets.map(budget =>
-          budget.id === selectedCustomBudgetForCategory
-            ? {
-                ...budget,
-                categories: [...budget.categories, newCustomCategory],
-                categoryBudgets: { ...budget.categoryBudgets, [newCustomCategory]: newCategoryBudgetAmount },
-                totalAmount: budget.totalAmount + newCategoryBudgetAmount,
-                remainingAmount: budget.remainingAmount + newCategoryBudgetAmount,
-                updatedAt: new Date().toISOString(),
-              }
-            : budget
-        );
-        // Also add to the main categories list if it doesn't exist
-        if (!categories.includes(newCustomCategory)) {
-          const newCategories = [...categories, newCustomCategory];
-          setCategories(newCategories);
-        }
-        setCustomBudgets(updatedCustomBudgets);
-        currentFormData.customCategory = newCustomCategory; // Use the new category
-        setNewCustomCategory('');
-        setNewCustomCategoryBudget('');
-        setShowCustomCategoryInput(false);
-        setSelectedCustomBudgetForCategory(null);
-        budgetsForRecalculation = updatedCustomBudgets;
-      } else {
-        alert('Please provide a category name and a budget amount for the new custom category.');
-        return;
-      }
-    }
-
-    // --- Finish the transaction ---
-    if (!currentFormData.amount) return;
-
-    // Validate based on budget type
-if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
-      alert('Please select a category for the monthly budget.');
-      return;
-    }
-    if (currentFormData.budgetType === 'custom' && (!currentFormData.customBudgetId || !currentFormData.customCategory)) {
-      alert('Please select a custom budget and a category within it.');
-      return;
-    }
-
-    // Prevent adding a transaction to a locked or paused budget
-    if (currentFormData.budgetType === 'custom' && currentFormData.customBudgetId) {
-      const budget = customBudgets.find(b => b.id === currentFormData.customBudgetId);
-      if (budget && (budget.status === 'locked' || budget.status === 'paused')) {
-        alert(`Cannot add new transactions to a '${budget.status}' budget. Please set it to 'active' first.`);
-        return; // Stop the addition
-      }
-      // Prevent adding transactions dated after a budget's deadline
-      if (budget && budget.deadline) {
-        const transactionDate = new Date(currentFormData.date + 'T00:00:00');
-        const deadlineDate = new Date(budget.deadline + 'T00:00:00');
-        if (transactionDate > deadlineDate) {
-          alert(`The transaction date (${currentFormData.date}) cannot be after the budget's deadline (${budget.deadline}).`);
-          return;
-        }
-      }
-    }
-
-     if (isUpdate && editingTransaction) {
-      // Update logic
-      const newAmount = parseFloat(currentFormData.amount) * (currentFormData.type === 'expense' ? -1 : 1);
-      const updatedTransactions = transactions.map(t =>
-        t.id === editingTransaction.id
-          ? {
-              ...t,
-              ...currentFormData,
-              category: currentFormData.budgetType === 'custom' ? '' : currentFormData.category,
-              amount: newAmount,
-              tags: currentFormData.tags ? currentFormData.tags.split(',').map(tag => tag.trim()) : [],
-            }
-          : t
-      );
-      const changedTransaction = updatedTransactions.find(t => t.id === editingTransaction.id);
-      setTransactions(updatedTransactions);
-      recalculateCustomBudgetSpending(updatedTransactions, budgetsForRecalculation);
-      if (changedTransaction) checkSpendingAlerts(updatedTransactions, spendingAlerts, [changedTransaction]);
-      handleCancelTransactionEdit();
-    } else {
-      // Add logic
-      const transaction: Transaction = {
-        id: Date.now(),
-        ...currentFormData,
-        category: currentFormData.budgetType === 'custom' ? '' : currentFormData.category,
-        amount: parseFloat(currentFormData.amount) * (currentFormData.type === 'expense' ? -1 : 1),
-        tags: currentFormData.tags ? currentFormData.tags.split(',').map(tag => tag.trim()) : [],
-        timestamp: new Date().toISOString()
-      };
-      const newTransactions = [...transactions, transaction];
-      setTransactions(newTransactions);
-      recalculateCustomBudgetSpending(newTransactions, budgetsForRecalculation);
-      checkSpendingAlerts(newTransactions, spendingAlerts, [transaction]);
-      // Reset form
-      setFormData({
-        category: '', amount: '', description: '', date: new Date().toISOString().split('T')[0],
-        type: 'expense', budgetType: 'monthly', customBudgetId: null, customCategory: '',
-        tags: '', isRecurring: false, recurringFrequency: null,
-      });
-    }
+ const handleTransactionAdd = (newTransaction: Transaction) => {
+    const newTransactions = [...transactions, newTransaction];
+    setTransactions(newTransactions);
+    recalculateCustomBudgetSpending(newTransactions, customBudgets);
+    checkSpendingAlerts(newTransactions, spendingAlerts, [newTransaction]);
+    // Reset form
+    setFormData({
+      category: '', amount: '', description: '', date: new Date().toISOString().split('T')[0],
+      type: 'expense', budgetType: 'monthly', customBudgetId: null, customCategory: '',
+      tags: '', isRecurring: false, recurringFrequency: null,
+    });
   };
 
-  const updateTransaction = () => { // This function is now a wrapper
-    handleAddOrUpdateTransaction();
-    // New check: Prevent moving a transaction TO a locked or paused budget
-    if (formData.budgetType === 'custom' && formData.customBudgetId) {
-      const targetBudget = customBudgets.find(b => b.id === formData.customBudgetId);
-      if (targetBudget && (targetBudget.status === 'locked' || targetBudget.status === 'paused')) {
-        alert(`Cannot assign transaction to a '${targetBudget.status}' budget. Please set it to 'active' first.`);
-        return;
-      }
-    }
-
-    // Safeguard: Check the status of the original budget before updating
-    if (editingTransaction && editingTransaction.budgetType === 'custom' && editingTransaction.customBudgetId) {
-      const budget = customBudgets.find(b => b.id === editingTransaction.customBudgetId);
-      if (budget && (budget.status === 'paused' || budget.status === 'locked')) {
-        alert(`Cannot update transactions from a '${budget.status}' budget.`);
-        handleCancelTransactionEdit(); // Clear the form and exit edit mode
-        return;
-      }
-    }
+  const handleTransactionUpdate = (
+    updateFn: (prev: Transaction[]) => Transaction[],
+    changedTransaction: Transaction
+  ) => {
+    const updatedTransactions = updateFn(transactions);
+    setTransactions(updatedTransactions);
+    recalculateCustomBudgetSpending(updatedTransactions, customBudgets);
+    checkSpendingAlerts(updatedTransactions, spendingAlerts, [changedTransaction]);
+    handleCancelTransactionEdit();
   };
-
-
+  
   const addCustomCategoryToForm = () => {
     if (newCustomCategory && !customBudgetForm.categories.includes(newCustomCategory)) {
       const newCategories = [...customBudgetForm.categories, newCustomCategory];
@@ -1777,93 +1643,6 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
       .reduce((sum, t) => sum + Math.abs(t.amount), 0);
   };
 
-  const sortedAndFilteredHistory = useMemo(() => {
-    const transactionItems = transactions.map(t => ({ ...t, itemType: 'transaction' as const, sortDate: new Date(t.timestamp) }));
-    const transferItems = transferLog.map(t => ({ ...t, itemType: 'transfer' as const, sortDate: new Date(t.date) }));
-
- let combinedItems: (Transaction & { itemType: 'transaction', sortDate: Date } | TransferEvent & { itemType: 'transfer', sortDate: Date })[] = [...transactionItems, ...transferItems]
-      .filter(item => {
-        const itemDate = item.sortDate;
-        return itemDate.getFullYear() === currentYear && itemDate.getMonth() === currentMonth;
-      });
-
-    // Apply search term filter
-    if (searchTerm) {
-      combinedItems = combinedItems.filter(item => {
-        if (item.itemType === 'transaction') {
-        const t = item;
-          const searchableText = t.budgetType === 'custom' && t.customBudgetId
-           ? `${getCustomBudgetName(t.customBudgetId) || ''} ${t.customCategory || ''}`.toLowerCase()
-            : t.category.toLowerCase();
-          
-          return searchableText.includes(searchTerm.toLowerCase()) ||
-                 (t.description && t.description.toLowerCase().includes(searchTerm.toLowerCase()));
-        }
-        if (item.itemType === 'transfer') {
-          const fromName = getCustomBudgetName(item.fromBudgetId) || '';
-          const toName = getCustomBudgetName(item.toBudgetId) || '';
-          const searchableText = `transfer ${fromName} ${toName}`.toLowerCase();
-          return searchableText.includes(searchTerm.toLowerCase());
-        }
-        return false;
-      });
-    }
-
-    // Apply category filter (only to transactions)
-    if (filterCategory) {
-      if (filterCategory.startsWith('custom-')) {
-        const parts = filterCategory.replace('custom-', '').split('-');
-         const customBudgetId = parseInt(parts[0], 10);
-        const category = parts.length > 1 ? parts.slice(1).join('-') : null; // Handle categories with hyphens
-        combinedItems = combinedItems.filter(item =>
-          item.itemType === 'transaction' &&
-          item.customBudgetId === customBudgetId &&
-          (category ? item.customCategory === category : true));
-        }else {
-        combinedItems = combinedItems.filter(item => item.itemType === 'transaction' && item.category === filterCategory && item.budgetType !== 'custom');
-      }
-    }
-
-    // Apply tag filter
-    if (filterTag) {
-      combinedItems = combinedItems.filter(item => {
-        if (item.itemType === 'transaction') {
-          if (filterTag === 'Monthly') return item.budgetType === 'monthly' || !item.budgetType;
-          if (filterTag === 'Custom') return item.budgetType === 'custom';
-          if (filterTag === 'Recurring') return item.tags?.includes('recurring');
-          if (filterTag === 'Transfer') return false;
-          return item.tags?.includes(filterTag);
-        }
-        if (item.itemType === 'transfer') return filterTag === 'Transfer';
-        return false;
-      });
-    }
-
-    // Apply sorting
-    combinedItems.sort((a, b) => {
-      switch (sortBy) {
-        case 'amount':
-          const aAmount = a.itemType === 'transaction' ? Math.abs(a.amount) : a.itemType === 'transfer' ? a.amount : 0;
-          const bAmount = b.itemType === 'transaction' ? Math.abs(b.amount) : b.itemType === 'transfer' ? b.amount : 0;
-          if (bAmount !== aAmount) return bAmount - aAmount;
-          break;
-        case 'category':
-          const aName = a.itemType === 'transaction' ? (a.budgetType === 'custom' ? `${getCustomBudgetName(a.customBudgetId) || 'N/A'} - ${a.customCategory || 'Uncategorized'}` : a.category) : 'Fund Transfer';
-          const bName = b.itemType === 'transaction' ? (b.budgetType === 'custom' ? `${getCustomBudgetName(b.customBudgetId) || 'N/A'} - ${b.customCategory || 'Uncategorized'}` : b.category) : 'Fund Transfer';
-          if (aName.localeCompare(bName) !== 0) return aName.localeCompare(bName);
-          break;
-        case 'date':
-        default:
-          // Fall through to default date sort
-          break;
-      }
-      // Default/fallback sort by date descending
-      return b.sortDate.getTime() - a.sortDate.getTime();
-    });
-
-    return combinedItems;
-  }, [transactions, transferLog, searchTerm, filterCategory, filterTag, sortBy, currentMonth, currentYear, getCustomBudgetName]);
-
    const getCustomBudgetCategories = (customBudgetId: number | null) => {
     const budget = customBudgets.find(b => b.id === customBudgetId);
     return budget ? budget.categories : [];
@@ -2197,318 +1976,36 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
         {/* Render active tab content */}
         {/* Add Transaction Tab */}
         {activeTab === 'add' && (
-          <div className="p-4 space-y-6">
-            <div className="bg-white rounded-2xl p-6 shadow-lg">
-              <h2 className="text-xl font-bold text-gray-800 mb-4">
-                {editingTransaction ? 'Edit Transaction' : 'Add Transaction'}
-              </h2>
-              
-              <div className="space-y-4">
-                <div className="flex space-x-2">
-                  <button
-                    onClick={() => setFormData({ ...formData, type: 'expense' })}
-                    className={`flex-1 p-3 rounded-xl font-medium transition-colors ${ 
-                      formData.type === 'expense'
-                        ? 'bg-red-100 text-red-700 border-2 border-red-300'
-                        : 'bg-gray-100 text-gray-600'
-                    }`}
-                  >
-                    Expense
-                  </button>
-                  <button
-                    onClick={() => setFormData({ ...formData, type: 'income', budgetType: 'monthly', category: 'Income' })}
-                    className={`flex-1 p-3 rounded-xl font-medium transition-colors ${ 
-                      formData.type === 'income'
-                        ? 'bg-green-100 text-green-700 border-2 border-green-300'
-                        : 'bg-gray-100 text-gray-600'
-                    }`}
-                  >
-                    Income
-                  </button>
-                </div>
-
-                {formData.type === 'expense' && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Budget Type</label>
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() => {
-                          setFormData({ ...formData, budgetType: 'monthly', customBudgetId: null, customCategory: '' });
-                          setCategorySuggestion(null);
-                        }}
-                        className={`flex-1 p-3 rounded-xl font-medium transition-colors ${ 
-                          formData.budgetType === 'monthly'
-                            ? 'bg-blue-100 text-blue-700 border-2 border-blue-300'
-                            : 'bg-gray-100 text-gray-600'
-                        }`}
-                      >
-                        Monthly Budget
-                      </button>
-                      <button
-                        onClick={() => {
-                          setFormData({ ...formData, budgetType: 'custom', category: '' });
-                          setCategorySuggestion(null);
-                        }}
-                        className={`flex-1 p-3 rounded-xl font-medium transition-colors ${ 
-                          formData.budgetType === 'custom'
-                            ? 'bg-purple-100 text-purple-700 border-2 border-purple-300'
-                            : 'bg-gray-100 text-gray-600'
-                        }`}
-                      >
-                        Custom Budget
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {formData.type === 'expense' && formData.budgetType === 'monthly' ? (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
-                    <div className="space-y-2">
-                      <select
-                        value={formData.category}
-                          onChange={e => {
-                          if (e.target.value === 'add_new') {
-                            setShowCategoryInput(true);
-                              setFormData({ ...formData, category: '' });
-                          } else {
-                              setShowCategoryInput(false);
-                              setNewCategory('');
-                              setNewCategoryBudget('');
-                            setFormData({ ...formData, category: e.target.value });
-                          }
-                        }}
-                        className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                      >
-                        <option value="">Select Category</option>
-                        {categories.map(cat => (
-                          <option key={cat} value={cat}>{cat}</option>
-                        ))}
-                        <option value="add_new">+ Add New Category</option>
-                      </select>
-
-                      {showCategoryInput && (
-                        <div className="space-y-2">
-                          <div className="flex space-x-2">
-                            <input
-                              type="text"
-                              value={newCategory}
-                              onChange={(e) => setNewCategory(e.target.value)}
-                              placeholder="New category name"
-                              className="flex-1 min-w-0 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
-                            />
-                            <input
-                              type="number"
-                              value={newCategoryBudget}
-                              onChange={(e) => setNewCategoryBudget(e.target.value)}
-                              placeholder="Budget"
-                              className="w-28 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
-                            />
-                          </div>
-
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ) : formData.type === 'expense' && (
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Custom Budget</label>
-                      <select
-                        value={formData.customBudgetId || ''}
-                        onChange={(e) => setFormData({ 
-                          ...formData,
-                          customBudgetId: e.target.value ? parseInt(e.target.value) : null,
-                          customCategory: ''
-                        })}
-                        className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                      >
-                        <option value="">Select Custom Budget</option>
-                        {customBudgets.filter(budget => budget.status === 'active').map(budget => (
-                          <option key={budget.id} value={budget.id}>
-                            {budget.name} (₹{budget.remainingAmount.toFixed(0)} remaining)
-                          </option>
-                        ))}
-                      </select>
-                      {customBudgets.filter(budget => budget.status === 'active').length === 0 && (
-                        <p className="text-sm text-gray-500 mt-2">
-                          No active custom budgets. Create one in the Budget tab first.
-                        </p>
-                      )}
-                    </div>
-
-                    {formData.customBudgetId && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Category within Budget</label>
-                        <div className="space-y-2">
-                          <select
-                            value={formData.customCategory}
-                              onChange={e => {
-                              if (e.target.value === 'add_new_custom') {
-                                setShowCustomCategoryInput(true);
-                                setSelectedCustomBudgetForCategory(formData.customBudgetId);
-                                  setFormData({ ...formData, customCategory: '' });
-                              } else {
-                                  setShowCustomCategoryInput(false);
-                                  setSelectedCustomBudgetForCategory(null);
-                                  setNewCustomCategory('');
-                                  setNewCustomCategoryBudget('');
-                                setFormData({ ...formData, customCategory: e.target.value });
-                              }
-                            }}
-                            className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                          >
-                            <option value="">Select Category</option>
-                            {getCustomBudgetCategories(formData.customBudgetId).map(cat => (
-                              <option key={cat} value={cat}>{cat}</option>
-                            ))}
-                            <option value="add_new_custom">+ Add New Category</option>
-                          </select>
-
-                          {showCustomCategoryInput && selectedCustomBudgetForCategory === formData.customBudgetId && (
-                            <div className="space-y-2">
-                              <div className="flex space-x-2">
-                                <input
-                                  type="text"
-                                  value={newCustomCategory}
-                                  onChange={(e) => setNewCustomCategory(e.target.value)}
-                                  placeholder="New category name"
-                                  className="flex-1 min-w-0 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
-                                />
-                                <input
-                                  type="number"
-                                  value={newCustomCategoryBudget}
-                                  onChange={(e) => setNewCustomCategoryBudget(e.target.value)}
-                                  placeholder="Budget"
-                                  className="w-28 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
-                                />
-                              </div>
-                            </div>
-                          )}
-
-                          {formData.customBudgetId && getCustomBudgetCategories(formData.customBudgetId).length === 0 && (
-                            <p className="text-sm text-gray-500">
-                              No categories defined for this budget. Add one above.
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Amount</label>
-                  <input
-                    type="number"
-                    value={formData.amount}
-                    onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                    placeholder="0.00"
-                    className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  />
-                </div>
-
-                <div className="relative">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Description (Optional)</label>
-                  <input
-                    type="text"
-                    value={formData.description}
-                    onChange={(e) => handleDescriptionChange(e.target.value)}
-                    placeholder="Add a note..."
-                    className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  />
-                  {categorySuggestion && formData.budgetType === 'monthly' && (
-                    <div className="absolute right-2 top-9 flex items-center">
-                      <span className="text-xs text-gray-500 mr-2">Suggested:</span>
-                      <button
-                        onClick={() => {
-                          setFormData({ ...formData, category: categorySuggestion });
-                          setCategorySuggestion(null);
-                        }}
-                        className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-md hover:bg-purple-200"
-                      >
-                        {categorySuggestion}
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Tags (comma-separated)</label>
-                  <input
-                    type="text"
-                    value={formData.tags}
-                    onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
-                    placeholder="e.g., travel, business, 2024"
-                    className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
-                  <input
-                    type="date"
-                    value={formData.date}
-                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                    className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  />
-                </div>
-
-                {/* Recurring Transaction Section */}
-                <div className="space-y-3 pt-2">
-                  <div className="flex items-center justify-between">
-                    <label className="font-medium text-gray-700">Recurring Transaction</label>
-                    <button
-                      onClick={() => setFormData({ ...formData, isRecurring: !formData.isRecurring })}
-                      className={`relative w-12 h-6 rounded-full transition-colors ${
-                        formData.isRecurring ? 'bg-purple-600' : 'bg-gray-300'
-                      }`}
-                    >
-                      <div className={`absolute w-5 h-5 bg-white rounded-full top-0.5 transition-transform ${
-                        formData.isRecurring ? 'translate-x-6' : 'translate-x-0.5'
-                      }`} />
-                    </button>
-                  </div>
-                  {formData.isRecurring && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Frequency</label>
-                      <select
-                        value={formData.recurringFrequency || ''}
-                        onChange={(e) => setFormData({ ...formData, recurringFrequency: e.target.value as any })}
-                        className="w-full p-3 border border-gray-300 rounded-xl"
-                      >
-                        <option value="">Select Frequency</option>
-                        <option value="daily">Daily</option>
-                        <option value="weekly">Weekly</option>
-                        <option value="monthly">Monthly</option>
-                      </select>
-                    </div>
-                  )}
-                </div>
-
-                <button
-                  onClick={editingTransaction ? updateTransaction : handleAddOrUpdateTransaction}
-                  className="w-full p-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-semibold hover:from-purple-700 hover:to-blue-700 transition-all"
-                >
-                  {editingTransaction ? 'Update Transaction' : 'Add Transaction'}
-                </button>
-
-                {editingTransaction && (
-                  <button onClick={handleCancelTransactionEdit} className="w-full p-3 bg-gray-400 text-white rounded-xl hover:bg-gray-500">
-                    Cancel Edit
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
+          <AddTab
+            editingTransaction={editingTransaction}
+            formData={formData}
+            setFormData={setFormData}
+            categories={categories}
+            customBudgets={customBudgets}
+            budgets={budgets}
+            setCategories={setCategories}
+            setBudgets={setBudgets}
+            setCustomBudgets={setCustomBudgets}
+            onTransactionAdd={handleTransactionAdd}
+            onTransactionUpdate={handleTransactionUpdate}
+            onCancelEdit={handleCancelTransactionEdit}
+            getCustomBudgetCategories={getCustomBudgetCategories}
+            categorySuggestion={categorySuggestion}
+            onDescriptionChange={handleDescriptionChange}
+            onSetCategoryFromSuggestion={(category) => {
+              setFormData({ ...formData, category });
+              setCategorySuggestion(null);
+            }}
+          />
         )}
 
         {/* Transaction History Tab */}
         {activeTab === 'history' && (
           <HistoryTab
-            sortBy={sortBy}
-            setSortBy={setSortBy}
-            searchTerm={searchTerm}
-            setSearchTerm={setSearchTerm}
+            transactions={transactions}
+            transferLog={transferLog}
+            currentYear={currentYear}
+            currentMonth={currentMonth}
             filterCategory={filterCategory}
             setFilterCategory={setFilterCategory}
             filterTag={filterTag}
@@ -2516,7 +2013,6 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
             categories={categories}
             customBudgets={customBudgets}
             allTags={allTags}
-            sortedAndFilteredHistory={sortedAndFilteredHistory}
             editTransaction={editTransaction}
             deleteTransaction={deleteTransaction}
             getCustomBudgetName={getCustomBudgetName}

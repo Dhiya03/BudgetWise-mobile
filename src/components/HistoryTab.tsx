@@ -1,14 +1,14 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { XCircle, Edit3, Trash2, ArrowRight } from 'lucide-react';
 import { Transaction, CustomBudget, TransferEvent } from '../types';
 
 type HistoryItem = (Transaction & { itemType: 'transaction', sortDate: Date }) | (TransferEvent & { itemType: 'transfer', sortDate: Date });
 
 interface HistoryTabProps {
-  sortBy: string;
-  setSortBy: (value: string) => void;
-  searchTerm: string;
-  setSearchTerm: (value: string) => void;
+  transactions: Transaction[];
+  transferLog: TransferEvent[];
+  currentYear: number;
+  currentMonth: number;
   filterCategory: string;
   setFilterCategory: (value: string) => void;
   filterTag: string;
@@ -16,17 +16,16 @@ interface HistoryTabProps {
   categories: string[];
   customBudgets: CustomBudget[];
   allTags: string[];
-  sortedAndFilteredHistory: HistoryItem[];
   editTransaction: (transaction: Transaction) => void;
   deleteTransaction: (id: number) => void;
   getCustomBudgetName: (id: number | null) => string;
 }
 
 const HistoryTab: React.FC<HistoryTabProps> = ({
-  sortBy,
-  setSortBy,
-  searchTerm,
-  setSearchTerm,
+  transactions,
+  transferLog,
+  currentYear,
+  currentMonth,
   filterCategory,
   setFilterCategory,
   filterTag,
@@ -34,11 +33,98 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
   categories,
   customBudgets,
   allTags,
-  sortedAndFilteredHistory,
   editTransaction,
   deleteTransaction,
   getCustomBudgetName,
 }) => {
+  const [sortBy, setSortBy] = useState('date');
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const sortedAndFilteredHistory = useMemo(() => {
+    const transactionItems = transactions.map(t => ({ ...t, itemType: 'transaction' as const, sortDate: new Date(t.timestamp) }));
+    const transferItems = transferLog.map(t => ({ ...t, itemType: 'transfer' as const, sortDate: new Date(t.date) }));
+
+    let combinedItems: HistoryItem[] = [...transactionItems, ...transferItems]
+      .filter(item => {
+        const itemDate = item.sortDate;
+        return itemDate.getFullYear() === currentYear && itemDate.getMonth() === currentMonth;
+      });
+
+    // Apply search term filter
+    if (searchTerm) {
+      combinedItems = combinedItems.filter(item => {
+        if (item.itemType === 'transaction') {
+          const t = item;
+          const searchableText = t.budgetType === 'custom' && t.customBudgetId
+            ? `${getCustomBudgetName(t.customBudgetId) || ''} ${t.customCategory || ''}`.toLowerCase()
+            : t.category.toLowerCase();
+          
+          return searchableText.includes(searchTerm.toLowerCase()) ||
+                 (t.description && t.description.toLowerCase().includes(searchTerm.toLowerCase()));
+        }
+        if (item.itemType === 'transfer') {
+          const fromName = getCustomBudgetName(item.fromBudgetId) || '';
+          const toName = getCustomBudgetName(item.toBudgetId) || '';
+          const searchableText = `transfer ${fromName} ${toName}`.toLowerCase();
+          return searchableText.includes(searchTerm.toLowerCase());
+        }
+        return false;
+      });
+    }
+
+    // Apply category filter (only to transactions)
+    if (filterCategory) {
+      if (filterCategory.startsWith('custom-')) {
+        const parts = filterCategory.replace('custom-', '').split('-');
+        const customBudgetId = parseInt(parts[0], 10);
+        const category = parts.length > 1 ? parts.slice(1).join('-') : null; // Handle categories with hyphens
+        combinedItems = combinedItems.filter(item =>
+          item.itemType === 'transaction' &&
+          item.customBudgetId === customBudgetId &&
+          (category ? item.customCategory === category : true));
+      } else {
+        combinedItems = combinedItems.filter(item => item.itemType === 'transaction' && item.category === filterCategory && item.budgetType !== 'custom');
+      }
+    }
+
+    // Apply tag filter
+    if (filterTag) {
+      combinedItems = combinedItems.filter(item => {
+        if (item.itemType === 'transaction') {
+          if (filterTag === 'Monthly') return item.budgetType === 'monthly' || !item.budgetType;
+          if (filterTag === 'Custom') return item.budgetType === 'custom';
+          if (filterTag === 'Recurring') return item.tags?.includes('recurring');
+          if (filterTag === 'Transfer') return false;
+          return item.tags?.includes(filterTag);
+        }
+        if (item.itemType === 'transfer') return filterTag === 'Transfer';
+        return false;
+      });
+    }
+
+    // Apply sorting
+    combinedItems.sort((a, b) => {
+      switch (sortBy) {
+        case 'amount':
+          const aAmount = a.itemType === 'transaction' ? Math.abs(a.amount) : a.itemType === 'transfer' ? a.amount : 0;
+          const bAmount = b.itemType === 'transaction' ? Math.abs(b.amount) : b.itemType === 'transfer' ? b.amount : 0;
+          if (bAmount !== aAmount) return bAmount - aAmount;
+          break;
+        case 'category':
+          const aName = a.itemType === 'transaction' ? (a.budgetType === 'custom' ? `${getCustomBudgetName(a.customBudgetId) || 'N/A'} - ${a.customCategory || 'Uncategorized'}` : a.category) : 'Fund Transfer';
+          const bName = b.itemType === 'transaction' ? (b.budgetType === 'custom' ? `${getCustomBudgetName(b.customBudgetId) || 'N/A'} - ${b.customCategory || 'Uncategorized'}` : b.category) : 'Fund Transfer';
+          if (aName.localeCompare(bName) !== 0) return aName.localeCompare(bName);
+          break;
+        case 'date':
+        default:
+          break;
+      }
+      return b.sortDate.getTime() - a.sortDate.getTime();
+    });
+
+    return combinedItems;
+  }, [transactions, transferLog, searchTerm, filterCategory, filterTag, sortBy, currentMonth, currentYear, getCustomBudgetName]);
+
   return (
     <div className="p-4 space-y-4">
       <div className="bg-white rounded-2xl p-4 shadow-lg">
