@@ -3,7 +3,6 @@ import { FileJson, FileSpreadsheet, FileText } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
-import { FilePicker } from '@capawesome/capacitor-file-picker';
 import { getCategoryInsights, getFinancialHealthScore, getCashFlowAnalysis, getSpendingPersonality, getDailySpendingStreak, getFinancialRunway } from '../utils/analytics';
 
 import {
@@ -16,8 +15,8 @@ import {
   SpendingAlert,
   TransferEvent,
 } from '../types';
-import { savePublicFile } from '../utils/fileSaver';
 import { Capacitor } from '@capacitor/core';
+import FileService from '../utils/FileService';
 
 interface DataManagementProps {
   transactions: Transaction[];
@@ -135,37 +134,35 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
         budgetRelationships, billReminders, transferLog, recurringProcessingMode,
         spendingAlerts: props.spendingAlerts, savingsGoal, dailySpendingGoal, analyticsTimeframe
       };
-      const dataStr = JSON.stringify(stateToBackup, null, 2);
       const filename = `budgetwise_backup_${new Date().toISOString().split('T')[0]}.json`;
-
-      const savedPath = await savePublicFile(filename, dataStr, { subfolder: 'BudgetWise' });
-      alert(`Backup saved to ${savedPath}. Check your file manager under Android/data/[app-name]/files/BudgetWise or similar location.`);
+      const { readablePath } = await FileService.saveJSON(filename, stateToBackup);
+      alert(`Backup saved to: ${readablePath}`);
     });
   };
 
   const triggerRestore = async () => {
     if (Capacitor.isNativePlatform()) {
       try {
-        const result = await FilePicker.pickFiles({ readData: true });
-        const file = result.files[0];
+        const pickedFile = await FileService.pickFile();
+        if (!pickedFile) {
+          console.log('File picker was cancelled.');
+          return;
+        }
 
-        // Manually validate the file extension after selection.
-        if (file && !file.name.endsWith('.json')) {
+        const format = FileService.detectFormat(pickedFile.name || '');
+        if (format !== 'json') {
           alert('Invalid file type. Please select a .json backup file.');
           return;
         }
 
-        if (file && file.data) {
-          try {
-            const jsonString = atob(file.data); // Data is base64 encoded
-            processRestoredData(jsonString);
-          } catch (decodeError) {
-            console.error("Failed to decode backup file:", decodeError);
-            alert("The selected file is not a valid backup file. It may be corrupted.");
-          }
-        }
+        const jsonString = await FileService.readFile(pickedFile.path || '', 'json');
+        processRestoredData(jsonString);
+
       } catch (e) {
         console.log('File picker was cancelled or failed.', e);
+        if (e instanceof Error) {
+          alert(`Error picking file: ${e.message}`);
+        }
       }
     } else {
       fileInputRef.current?.click();
@@ -234,8 +231,8 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
       XLSX.utils.book_append_sheet(wb, transferLogSheet, 'Fund Transfers');
 
       const excelData = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
-      const savedPath = await savePublicFile(filename, excelData, { isBase64: true, subfolder: 'BudgetWise' });
-      alert(`Excel report saved to ${savedPath}`);
+      const { readablePath } = await FileService.writeFile(filename, excelData, 'xlsx');
+      alert(`Excel report saved to: ${readablePath}`);
     } catch (error) {
       console.error("Failed to export to Excel", error);
       alert(`An error occurred while exporting to Excel: ${(error as Error).message}`);
@@ -370,8 +367,8 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
         headStyles: { fillColor: [217, 119, 6] },
       });
       const pdfData = doc.output("datauristring").split(",")[1];
-      const savedPath = await savePublicFile(filename, pdfData, { isBase64: true, subfolder: 'BudgetWise' });
-      alert(`PDF report saved to ${savedPath}`);
+      const { readablePath } = await FileService.writeFile(filename, pdfData, 'pdf');
+      alert(`PDF report saved to: ${readablePath}`);
     } catch (error) {
       console.error("Failed to generate PDF report", error);
       alert(`An error occurred while generating the PDF report: ${(error as Error).message}`);
@@ -546,8 +543,8 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
     `;
 
     const filename = `BudgetWise_Report_${new Date().toISOString().split('T')[0]}.html`;
-    const savedPath = await savePublicFile(filename, reportHTML, { subfolder: 'BudgetWise' });
-    alert(`HTML report saved to ${savedPath}`);
+    const { readablePath } = await FileService.writeFile(filename, reportHTML, 'html');
+    alert(`HTML report saved to: ${readablePath}`);
   };
 
   return (

@@ -26,7 +26,7 @@ import BillReminderTab from './components/BillReminderTab';
 import BudgetTab from './components/BudgetTab';
 import Header from './components/Header';
 import { LocalNotifications } from '@capacitor/local-notifications';
-import { savePublicFile } from './utils/fileSaver';
+import FileService from './utils/FileService';
 import { escapeCsvField } from './utils/csvUtils';
 
 const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }: {
@@ -1604,8 +1604,8 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
 
     if (Capacitor.isNativePlatform()) {
       try {
-        const savedPath = await savePublicFile(filename, content, { subfolder: 'BudgetWise' });
-        alert(`Export saved to ${savedPath}`);
+        const { readablePath } = await FileService.writeFile(filename, content, 'csv');
+        alert(`Export saved to: ${readablePath}`);
       } catch (e) {
         alert(`Error saving export: ${(e as Error).message}`);
       }
@@ -1953,8 +1953,8 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
         const content = '\uFEFF' + [headers, ...rows].join('\n');
 
       if (Capacitor.isNativePlatform()) {
-        const savedPath = await savePublicFile(filename, content, { subfolder: 'BudgetWise' });
-        alert(`CSV saved to ${savedPath}`);
+        const { readablePath } = await FileService.writeFile(filename, content, 'csv');
+        alert(`CSV saved to: ${readablePath}`);
       } else {
         const type = 'text/csv;charset=utf-8;';
         const blob = new Blob([content], { type });
