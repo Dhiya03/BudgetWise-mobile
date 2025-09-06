@@ -1,7 +1,8 @@
-import  { useState, useMemo, FC } from 'react';
+import { useState, useMemo, FC } from 'react';
 import { TrendingUp, TrendingDown, DollarSign, Target, Activity, HelpCircle, ShieldCheck, ShieldAlert, Shield, CalendarDays, Flame, SlidersHorizontal, AlertTriangle, X, Lightbulb, BellRing } from 'lucide-react';
 import { Transaction, MonthlyBudgets, SpendingAlert } from '../types';
-import { getCategoryInsights, getFinancialHealthScore, getCashFlowAnalysis, getSpendingPersonality, getDailySpendingStreak, getFinancialRunway, simulateBudgetScenario } from '../utils/analytics';
+import { simulateBudgetScenario } from '../utils/analytics';
+import { useAnalytics } from '../hooks/useAnalytics';
 
 interface AnalyticsTabProps {
   transactions: Transaction[];
@@ -152,13 +153,17 @@ const SetAlertModal: FC<{
   );
 };
 
-const AnalyticsTab: FC<AnalyticsTabProps> = ({ transactions, budgets, getCustomBudgetName, savingsGoal, setSavingsGoal, dailySpendingGoal, setDailySpendingGoal, analyticsTimeframe, setAnalyticsTimeframe, handleNavigationRequest, onSetAlert, spendingAlerts }) => {
-  const categoryInsights = useMemo(() => getCategoryInsights(transactions, analyticsTimeframe, getCustomBudgetName), [transactions, analyticsTimeframe, getCustomBudgetName]);
-  const healthScore = useMemo(() => getFinancialHealthScore(transactions, analyticsTimeframe, getCustomBudgetName), [transactions, analyticsTimeframe, getCustomBudgetName]);
-  const cashFlow = useMemo(() => getCashFlowAnalysis(transactions, analyticsTimeframe, budgets, savingsGoal), [transactions, analyticsTimeframe, budgets, savingsGoal]);
-  const personality = useMemo(() => getSpendingPersonality(transactions), [transactions]);
-  const streak = useMemo(() => getDailySpendingStreak(transactions, dailySpendingGoal, analyticsTimeframe), [transactions, dailySpendingGoal, analyticsTimeframe]);
-  const runway = useMemo(() => getFinancialRunway(transactions), [transactions]);
+const AnalyticsTab: FC<AnalyticsTabProps> = (props) => {
+  const { transactions, budgets, getCustomBudgetName, savingsGoal, setSavingsGoal, dailySpendingGoal, setDailySpendingGoal, analyticsTimeframe, setAnalyticsTimeframe, handleNavigationRequest, onSetAlert, spendingAlerts } = props;
+
+  const {
+    healthScore,
+    cashFlow,
+    categoryInsights,
+    personality,
+    streak,
+    runway,
+  } = useAnalytics({ transactions, budgets, getCustomBudgetName, savingsGoal, dailySpendingGoal, analyticsTimeframe });
 
   const [scenarioChanges, setScenarioChanges] = useState<{ [key: string]: number }>({});
   const simulatedSavingsResult = useMemo(() => simulateBudgetScenario(transactions, budgets, scenarioChanges, analyticsTimeframe), [transactions, budgets, scenarioChanges, analyticsTimeframe]);

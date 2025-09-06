@@ -1,10 +1,9 @@
-import React, { useRef, useMemo } from 'react';
+import React, { useRef } from 'react';
 import { FileJson, FileSpreadsheet, FileText } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
-import { getCategoryInsights, getFinancialHealthScore, getCashFlowAnalysis, getSpendingPersonality, getDailySpendingStreak, getFinancialRunway } from '../utils/analytics';
-
+import { useAnalytics } from '../hooks/useAnalytics';
 import {
   Transaction,
   MonthlyBudgets,
@@ -69,14 +68,14 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
   } = props;
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Analytics Calculations
-  const healthScore = useMemo(() => getFinancialHealthScore(transactions, analyticsTimeframe, getCustomBudgetName), [transactions, analyticsTimeframe, getCustomBudgetName]);
-  const cashFlow = useMemo(() => getCashFlowAnalysis(transactions, analyticsTimeframe, budgets, savingsGoal), [transactions, analyticsTimeframe, budgets, savingsGoal]);
-  const categoryInsights = useMemo(() => getCategoryInsights(transactions, analyticsTimeframe, getCustomBudgetName), [transactions, analyticsTimeframe, getCustomBudgetName]);
-  const personality = useMemo(() => getSpendingPersonality(transactions), [transactions]);
-  const streak = useMemo(() => getDailySpendingStreak(transactions, dailySpendingGoal, analyticsTimeframe), [transactions, dailySpendingGoal, analyticsTimeframe]);
-  const runway = useMemo(() => getFinancialRunway(transactions), [transactions]);
+  const {
+    healthScore,
+    cashFlow,
+    categoryInsights,
+    personality,
+    streak,
+    runway,
+  } = useAnalytics({ transactions, budgets, getCustomBudgetName, savingsGoal, dailySpendingGoal, analyticsTimeframe });
 
   const processRestoredData = (jsonString: string) => {
     try {
@@ -243,10 +242,6 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
     try {
       const doc = new jsPDF() as jsPDF & { lastAutoTable: { finalY: number } };
       const filename = `BudgetWise_Report_${new Date().toISOString().split('T')[0]}.pdf`;
-
-      const healthScore = getFinancialHealthScore(transactions, analyticsTimeframe, getCustomBudgetName);
-      const cashFlow = getCashFlowAnalysis(transactions, analyticsTimeframe, budgets, savingsGoal);
-      const categoryInsights = getCategoryInsights(transactions, analyticsTimeframe, getCustomBudgetName);
 
       const getScoreDescription = (score: number) => {
         if (score >= 75) return "Thriving";

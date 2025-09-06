@@ -3,6 +3,8 @@ import { FilePicker } from '@capawesome/capacitor-file-picker';
 
 export type SupportedFormat = 'csv' | 'json' | 'txt' | 'html' | 'pdf' | 'xlsx';
 
+const SUBFOLDER = 'BudgetWise';
+
 class FileService {
   /**
    * Let user pick a file (Scoped Storage + SAF on Android 11+)
@@ -55,9 +57,10 @@ class FileService {
     format: SupportedFormat
   ): Promise<{ filename: string; uri: string; readablePath: string }> {
     const encoding = (format === 'pdf' || format === 'xlsx') ? undefined : Encoding.UTF8;
+    const path = `${SUBFOLDER}/${filename}`;
 
-    await Filesystem.writeFile({ path: filename, data, directory: Directory.Documents, encoding, recursive: true });
-    const fileUri = await Filesystem.getUri({ directory: Directory.Documents, path: filename });
+    await Filesystem.writeFile({ path, data, directory: Directory.Documents, encoding, recursive: true });
+    const fileUri = await Filesystem.getUri({ directory: Directory.Documents, path });
 
     return {
       filename,
@@ -83,7 +86,7 @@ class FileService {
   static getReadablePath(uri: string, filename: string): string {
     if (uri.startsWith('file://')) return uri.replace('file://', '');
     // This is a heuristic for Android's content URIs. The actual path might vary.
-    if (uri.startsWith('content://')) return `Documents/${filename}`;
+    if (uri.startsWith('content://')) return `Documents/${SUBFOLDER}/${filename}`;
     return uri;
   }
 
@@ -92,7 +95,8 @@ class FileService {
    */
   static async deleteFile(filename: string): Promise<boolean> {
     try {
-      await Filesystem.deleteFile({ directory: Directory.Documents, path: filename });
+      const path = `${SUBFOLDER}/${filename}`;
+      await Filesystem.deleteFile({ directory: Directory.Documents, path });
       return true;
     } catch (err) {
       console.warn(`Failed to delete file "${filename}":`, err);

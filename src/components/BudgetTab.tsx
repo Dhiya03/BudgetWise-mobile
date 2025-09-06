@@ -267,7 +267,7 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
                   value={newCustomCategory}
                   onChange={(e) => setNewCustomCategory(e.target.value)}
                   placeholder="Add a category (e.g., Venue, Catering)"
-                  className="flex-1 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
+                  className="flex-1 min-w-0 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
                   onKeyPress={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();

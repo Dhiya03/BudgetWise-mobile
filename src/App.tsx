@@ -51,11 +51,9 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }: {
             No
           </button>
           <button
-            onClick={async () => {
-              if (onConfirm) {
-                await onConfirm();
-              }
+            onClick={() => {
               onClose();
+              if (onConfirm) onConfirm();
             }}
             className="px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors"
           >
@@ -2296,7 +2294,7 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
                               value={newCategory}
                               onChange={(e) => setNewCategory(e.target.value)}
                               placeholder="New category name"
-                              className="flex-1 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
+                              className="flex-1 min-w-0 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
                             />
                             <input
                               type="number"
@@ -2374,7 +2372,7 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
                                   value={newCustomCategory}
                                   onChange={(e) => setNewCustomCategory(e.target.value)}
                                   placeholder="New category name"
-                                  className="flex-1 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
+                                  className="flex-1 min-w-0 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
                                 />
                                 <input
                                   type="number"
@@ -2965,56 +2963,66 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
       />
 
       {/* Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t border-gray-200 px-2 py-2">
+      <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t border-gray-200">
         <div className="flex justify-around">
           <button
             onClick={() => setActiveTab('add')}
-            className={`flex flex-col items-center py-2 px-3 rounded-xl transition-colors ${
-              activeTab === 'add' ? 'bg-purple-100 text-purple-600' : 'text-gray-600'
-            }`}
+            className="w-1/5 flex justify-center items-center py-2 group"
           >
-            <Plus size={20} />
-            <span className="text-xs mt-1">Add</span>
+            <div className={`flex flex-col items-center justify-center w-16 py-2 rounded-xl transition-colors ${
+              activeTab === 'add' ? 'bg-purple-100 text-purple-600' : 'text-gray-600 group-hover:bg-gray-100'
+            }`}>
+              <Plus size={24} />
+              <span className="text-xs mt-1">Add</span>
+            </div>
           </button>
 
           <button
             onClick={() => setActiveTab('history')}
-            className={`flex flex-col items-center py-2 px-3 rounded-xl transition-colors ${
-              activeTab === 'history' ? 'bg-purple-100 text-purple-600' : 'text-gray-600'
-            }`}
+            className="w-1/5 flex justify-center items-center py-2 group"
           >
-            <List size={20} />
-            <span className="text-xs mt-1">History</span>
+            <div className={`flex flex-col items-center justify-center w-16 py-2 rounded-xl transition-colors ${
+              activeTab === 'history' ? 'bg-purple-100 text-purple-600' : 'text-gray-600 group-hover:bg-gray-100'
+            }`}>
+              <List size={24} />
+              <span className="text-xs mt-1">History</span>
+            </div>
           </button>
 
           <button
             onClick={() => setActiveTab('analytics')}
-            className={`flex flex-col items-center py-2 px-3 rounded-xl transition-colors ${
-              activeTab === 'analytics' ? 'bg-purple-100 text-purple-600' : 'text-gray-600'
-            }`}
+            className="w-1/5 flex justify-center items-center py-2 group"
           >
-            <BarChart3 size={20} />
-            <span className="text-xs mt-1">Analytics</span>
+            <div className={`flex flex-col items-center justify-center w-16 py-2 rounded-xl transition-colors ${
+              activeTab === 'analytics' ? 'bg-purple-100 text-purple-600' : 'text-gray-600 group-hover:bg-gray-100'
+            }`}>
+              <BarChart3 size={24} />
+              <span className="text-xs mt-1">Analytics</span>
+            </div>
           </button>
 
           <button
             onClick={() => setActiveTab('budget')}
-            className={`flex flex-col items-center py-2 px-4 rounded-xl transition-colors ${
-              activeTab === 'budget' ? 'bg-purple-100 text-purple-600' : 'text-gray-600'
-            }`}
+            className="w-1/5 flex justify-center items-center py-2 group"
           >
-            <PieChart size={24} />
-            <span className="text-xs mt-1">Budget</span>
+            <div className={`flex flex-col items-center justify-center w-16 py-2 rounded-xl transition-colors ${
+              activeTab === 'budget' ? 'bg-purple-100 text-purple-600' : 'text-gray-600 group-hover:bg-gray-100'
+            }`}>
+              <PieChart size={24} />
+              <span className="text-xs mt-1">Budget</span>
+            </div>
           </button>
 
           <button
             onClick={() => setActiveTab('reminders')}
-            className={`flex flex-col items-center py-2 px-4 rounded-xl transition-colors ${
-              activeTab === 'reminders' ? 'bg-purple-100 text-purple-600' : 'text-gray-600'
-            }`}
+            className="w-1/5 flex justify-center items-center py-2 group"
           >
-            <Bell size={24} />
-            <span className="text-xs mt-1">Reminders</span>
+            <div className={`flex flex-col items-center justify-center w-16 py-2 rounded-xl transition-colors ${
+              activeTab === 'reminders' ? 'bg-purple-100 text-purple-600' : 'text-gray-600 group-hover:bg-gray-100'
+            }`}>
+              <Bell size={24} />
+              <span className="text-xs mt-1">Reminders</span>
+            </div>
           </button>
         </div>
       </div>
