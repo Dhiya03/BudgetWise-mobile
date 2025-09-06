@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { XCircle, Edit3, Trash2, ArrowRight } from 'lucide-react';
 import { Transaction, CustomBudget, TransferEvent } from '../types';
+import { hasAccessTo, Feature } from '../subscriptionManager';
 
 type HistoryItem = (Transaction & { itemType: 'transaction', sortDate: Date }) | (TransferEvent & { itemType: 'transfer', sortDate: Date });
 
@@ -183,6 +184,7 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
           <div className="relative">
             <select
               value={filterTag}
+              disabled={!hasAccessTo(Feature.Tagging)}
               onChange={(e) => setFilterTag(e.target.value)}
               className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 appearance-none pr-8"
             >

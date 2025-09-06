@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Bell, Edit3, Trash2 } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { BillReminder } from '../types';
+import { isLimitReached, Limit } from '../subscriptionManager';
 
 interface BillReminderTabProps {
   billReminders: BillReminder[];
@@ -13,6 +14,13 @@ interface BillReminderTabProps {
 const BillReminderTab = ({ billReminders, setBillReminders, showConfirmation }: BillReminderTabProps) => {
   const [editingBillReminder, setEditingBillReminder] = useState<BillReminder | null>(null);
   const [billForm, setBillForm] = useState({ name: '', amount: '', dueDate: '' });
+
+  const reminderLimitReached = useMemo(() => {
+    if (editingBillReminder) {
+      return false;
+    }
+    return isLimitReached(Limit.BillReminders, billReminders.length);
+  }, [billReminders.length, editingBillReminder]);
 
   const handleCancelBillEdit = () => {
     setEditingBillReminder(null);
@@ -72,6 +80,10 @@ const BillReminderTab = ({ billReminders, setBillReminders, showConfirmation }: 
       handleCancelBillEdit();
     } else {
       // --- Add Logic ---
+      if (reminderLimitReached) {
+        alert("You have reached the maximum number of reminders for your plan. Please upgrade to add more.");
+        return;
+      }
       const newReminder: BillReminder = { id: Math.floor(Math.random() * 2147483647), name: billForm.name, amount: parseFloat(billForm.amount), dueDate: billForm.dueDate };
       setBillReminders([...billReminders, newReminder]);
 
@@ -151,11 +163,17 @@ const BillReminderTab = ({ billReminders, setBillReminders, showConfirmation }: 
           </div>
           <button
             onClick={addOrUpdateBillReminder}
-            className="w-full p-3 bg-yellow-500 text-white rounded-xl font-semibold hover:bg-yellow-600 flex items-center justify-center"
+            disabled={reminderLimitReached && !editingBillReminder}
+            className="w-full p-3 bg-yellow-500 text-white rounded-xl font-semibold hover:bg-yellow-600 flex items-center justify-center disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
             <Bell size={18} className="mr-2" />
             {editingBillReminder ? 'Update Reminder' : 'Add Reminder'}
           </button>
+          {reminderLimitReached && !editingBillReminder && (
+            <p className="text-center text-sm text-red-600 mt-2">
+              Limit reached for your current plan.
+            </p>
+          )}
           {editingBillReminder && (
             <button
               onClick={handleCancelBillEdit}

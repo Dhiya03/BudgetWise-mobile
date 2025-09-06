@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Transaction, TransactionFormData, CustomBudget, MonthlyBudgets } from '../types';
+import { hasAccessTo, Feature } from '../subscriptionManager';
 
 interface AddTabProps {
   editingTransaction: Transaction | null;
@@ -213,6 +214,7 @@ const AddTab: React.FC<AddTabProps> = (props) => {
                       ? 'bg-purple-100 text-purple-700 border-2 border-purple-300'
                       : 'bg-gray-100 text-gray-600'
                   }`}
+                  disabled={!hasAccessTo(Feature.CustomBudgets)}
                 >
                   Custom Budget
                 </button>
@@ -418,6 +420,7 @@ const AddTab: React.FC<AddTabProps> = (props) => {
                 className={`relative w-12 h-6 rounded-full transition-colors ${
                   formData.isRecurring ? 'bg-purple-600' : 'bg-gray-300'
                 }`}
+                disabled={!hasAccessTo(Feature.RecurringTransactions)}
               >
                 <div className={`absolute w-5 h-5 bg-white rounded-full top-0.5 transition-transform ${
                   formData.isRecurring ? 'translate-x-6' : 'translate-x-0.5'

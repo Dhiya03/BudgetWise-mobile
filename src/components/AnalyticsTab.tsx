@@ -1,6 +1,7 @@
 import { useState, useMemo, FC } from 'react';
 import { TrendingUp, TrendingDown, DollarSign, Target, Activity, HelpCircle, ShieldCheck, ShieldAlert, Shield, CalendarDays, Flame, SlidersHorizontal, AlertTriangle, X, Lightbulb, BellRing } from 'lucide-react';
 import { Transaction, MonthlyBudgets, SpendingAlert } from '../types';
+import { hasAccessTo, Feature } from '../subscriptionManager';
 import { simulateBudgetScenario } from '../utils/analytics';
 import { useAnalytics } from '../hooks/useAnalytics';
 
@@ -155,6 +156,20 @@ const SetAlertModal: FC<{
 
 const AnalyticsTab: FC<AnalyticsTabProps> = (props) => {
   const { transactions, budgets, getCustomBudgetName, savingsGoal, setSavingsGoal, dailySpendingGoal, setDailySpendingGoal, analyticsTimeframe, setAnalyticsTimeframe, handleNavigationRequest, onSetAlert, spendingAlerts } = props;
+
+  if (!hasAccessTo(Feature.LimitedAnalytics)) {
+    return (
+      <div className="p-6 text-center bg-white rounded-2xl m-4 shadow-lg">
+        <h2 className="text-xl font-bold text-gray-800 mb-4">Unlock Your Financial Insights</h2>
+        <p className="text-gray-600 mb-4">Upgrade to Plus or Premium to access the Analytics Dashboard and take control of your finances.</p>
+        {/* In a real app, this would navigate to the subscription screen */}
+        <button 
+          onClick={() => handleNavigationRequest({ type: 'navigate', payload: { tab: 'settings' }})} 
+          className="p-3 bg-purple-600 text-white rounded-xl font-semibold"
+        >View Plans</button>
+      </div>
+    );
+  }
 
   const {
     healthScore,
@@ -394,7 +409,7 @@ const AnalyticsTab: FC<AnalyticsTabProps> = (props) => {
       </div>
 
       {/* Budget Scenario Planning */}
-      <div className="bg-white rounded-2xl p-6 shadow-lg">
+      {hasAccessTo(Feature.FullAnalytics) && <div className="bg-white rounded-2xl p-6 shadow-lg">
         <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center"><SlidersHorizontal size={20} className="mr-2 text-purple-600" />Budget Scenario Planning</h3>
         <div className="space-y-3">
           {Object.entries(budgets).sort(([, a], [, b]) => b - a).slice(0, 3).map(([category]) => (
@@ -434,7 +449,7 @@ const AnalyticsTab: FC<AnalyticsTabProps> = (props) => {
           </div>
           <p className="text-xs text-gray-500">Based on projected income of ₹{simulatedSavingsResult.monthlyIncome.toFixed(0)} and a budget of ₹{simulatedSavingsResult.simulatedTotalBudget.toFixed(0)}</p>
         </div>
-      </div>
+      </div>}
 
       {/* Smart Category Breakdown */}
       <div className="bg-white rounded-2xl p-6 shadow-lg">
