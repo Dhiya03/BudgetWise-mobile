@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Repeat, X } from 'lucide-react';
+import { Repeat, X, Star } from 'lucide-react';
 
 import { App as CapacitorApp } from '@capacitor/app';
 import * as CryptoJS from 'crypto-js';
-import { Capacitor, PluginListenerHandle } from '@capacitor/core';
+import { Capacitor } from '@capacitor/core';
 import {
   Transaction,
   MonthlyBudgets,
@@ -30,6 +30,10 @@ import BottomNavigation from './components/BottomNavigation';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import FileService from './utils/FileService';
 import { escapeCsvField } from './utils/csvUtils';
+import AdsManager, { SubscriptionTier } from './billing/AdsManager';
+import BillingManager from './billing/BillingManager';
+import SubscriptionScreen from './billing/SubscriptionScreen';
+
 
 const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }: {
   isOpen: boolean;
@@ -100,7 +104,7 @@ const App = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [filterCategory, setFilterCategory] = useState(''); // This is used by Analytics, so it stays
-
+  const [subscriptionTier, setSubscriptionTier] = useState<SubscriptionTier>('free');
 
   // --- New State for Advanced Features ---
 
@@ -345,6 +349,12 @@ const App = () => {
     initializeSampleData();
   };
 
+  const refreshSubscriptionStatus = useCallback(() => {
+    BillingManager.checkUserTier().then((tier) => {
+      setSubscriptionTier(tier);
+    });
+  }, []);
+
   // Load data from localStorage on initial render
   useEffect(() => {
     const savedPassword = localStorage.getItem('appPasswordHash_v2');
@@ -357,6 +367,25 @@ const App = () => {
       loadAndInitializeData(); // Load existing data or initialize samples
     }
   }, []);
+
+  useEffect(() => {
+    AdsManager.init();
+    BillingManager.init(refreshSubscriptionStatus);
+    refreshSubscriptionStatus(); // Initial check on app start
+  }, [refreshSubscriptionStatus]);
+
+      useEffect(() => {
+        AdsManager.setTier(subscriptionTier);
+      }, [subscriptionTier]);
+
+            // Show banners only on Home tab (skip if premium)
+      useEffect(() => {
+        if (subscriptionTier !== 'premium' && activeTab === 'add') {
+          AdsManager.showBanner();
+        } else {
+          AdsManager.hideBanner();
+        }
+      }, [activeTab, subscriptionTier]);
 
   // Encrypt and save data to localStorage whenever it changes
   const saveDataToStorage = () => {
@@ -519,8 +548,8 @@ const App = () => {
     }
   }, [activeTab]);
 
-   // --- Back Button Handling ---
-   const handleBackPress = useCallback(() => {
+  // --- Back Button Handling ---
+  const handleBackPress = useCallback(() => {
     // Priority 1: Close any open modal
     if (showExportModal || showTransferModal || confirmationState.isOpen) {
       setShowExportModal(false);
@@ -535,6 +564,11 @@ const App = () => {
       if (editingCustomBudget) handleCancelEdit();
       return true; // Indicates we handled it
     }
+    // Priority 2.5: Go back from subscriptions to settings
+    if (activeTab === 'subscriptions') {
+      setActiveTab('settings');
+      return true;
+    }
 
     // Priority 3: Navigate from other tabs to the main 'add' tab
     if (activeTab !== 'add') {
@@ -542,10 +576,19 @@ const App = () => {
       return true; // Indicates we handled it
     }
 
-    return false; // Indicates we did not handle it, default action should occur
+    AdsManager.showInterstitial().then(() => {
+      CapacitorApp.exitApp();
+    });
+
+    return true; 
   }, [activeTab, showExportModal, showTransferModal, confirmationState.isOpen, editingTransaction, editingCustomBudget]);
 
- 
+  useEffect(() => {
+    const listenerPromise = CapacitorApp.addListener('backButton', handleBackPress);
+    return () => {
+      listenerPromise.then(listener => listener.remove());
+    };
+  }, [handleBackPress]);
 
   // --- Navigation Effect ---
   useEffect(() => {
@@ -582,25 +625,6 @@ const App = () => {
       priority: 'medium', categories: [], categoryBudgets: {}
     });
   };
-
-  useEffect(() => {
-    let listenerHandle: PluginListenerHandle;
-
-    const registerBackButtonListener = async () => {
-      if (Capacitor.isNativePlatform()) {
-        listenerHandle = await CapacitorApp.addListener('backButton', () => {
-          const handled = handleBackPress();
-          if (!handled) {
-            CapacitorApp.exitApp();
-          }
-        });
-      }
-       };
-    registerBackButtonListener();
-    return () => {
-      listenerHandle?.remove();
-    };
-  }, [handleBackPress]);
   
   const initializeSampleData = () => {
     // Sample transactions with both budget types
@@ -1902,6 +1926,21 @@ const App = () => {
           )}
         </div>
 
+        {/* Subscriptions Section */}
+        <div className="bg-white rounded-2xl p-6 shadow-lg">
+          <h2 className="text-xl font-bold text-gray-800 mb-4">Manage Subscription</h2>
+          <p className="text-sm text-gray-600 mb-3">
+            You are currently on the <span className="font-semibold">{subscriptionTier.charAt(0).toUpperCase() + subscriptionTier.slice(1)}</span> plan.
+          </p>
+          <button
+            onClick={() => setActiveTab('subscriptions')}
+            className="w-full p-3 bg-yellow-100 text-yellow-800 rounded-xl font-semibold hover:bg-yellow-200 flex items-center justify-center"
+          >
+            <Star size={18} className="mr-2" />
+            View Subscription Plans
+          </button>
+        </div>
+
       </div>
     );
   };
@@ -2444,6 +2483,15 @@ const App = () => {
 
         {/* Settings Tab */}
         {activeTab === 'settings' && renderSettingsTab()}
+
+        {/* Subscription Screen */}
+        {activeTab === 'subscriptions' && (
+          <SubscriptionScreen
+            onBack={() => setActiveTab('settings')}
+            subscriptionTier={subscriptionTier}
+            showToast={showToast}
+          />
+        )}
       </div>
 
       <ConfirmationModal
