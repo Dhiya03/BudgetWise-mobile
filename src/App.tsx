@@ -4,7 +4,6 @@ import { Plus, List, PieChart, BarChart3, Repeat, Bell, X} from 'lucide-react';
 import { App as CapacitorApp } from '@capacitor/app';
 import * as CryptoJS from 'crypto-js';
 import { Capacitor, PluginListenerHandle } from '@capacitor/core';
-import {Filesystem} from '@capacitor/filesystem';
 import {
   Transaction,
   MonthlyBudgets,
@@ -28,6 +27,7 @@ import BudgetTab from './components/BudgetTab';
 import Header from './components/Header';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { savePublicFile } from './utils/fileSaver';
+import { escapeCsvField } from './utils/csvUtils';
 
 const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }: {
   isOpen: boolean;
@@ -1419,19 +1419,6 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
     return { isValid: true, dayCount: diffDays };
   };
 
-  // Escapes CSV fields correctly for Google Sheets, Excel, etc.
-  const escapeCsvField = (field: any): string => {
-    if (field === null || field === undefined) return '';
-    if (typeof field === 'number') return String(field); 
-    const str = String(field);
-    // Check if the field contains a comma, a double quote, or a newline
-    if (/[",\n]/.test(str)) {
-      // Wrap in double quotes and escape any existing double quotes by doubling them
-      return `"${str.replace(/"/g, '""')}"`;
-    }
-    return str;
-  };
-
   const getTransactionsInDateRange = (startDate: string, endDate: string, type: 'all' | 'monthly' | 'custom' = 'all') => {
     const start = new Date(startDate);
     const end = new Date(endDate);
@@ -1935,19 +1922,6 @@ if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
 
   const quickCSVExport = async () => {
     try {
-      if (Capacitor.isNativePlatform()) {
-        if (Capacitor.getPlatform() === 'android') {
-          const permStatus = await Filesystem.checkPermissions();
-          if (permStatus.publicStorage !== 'granted') {
-            const permResult = await Filesystem.requestPermissions();
-            if (permResult.publicStorage !== 'granted') {
-              alert('Permission to write to storage was denied.');
-              return;
-            }
-          }
-        }
-      }
-
       const filename = `BudgetWise_Quick_Export_${new Date().toISOString().split('T')[0]}.csv`;
       const headers = [
         'Date',

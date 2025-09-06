@@ -139,7 +139,7 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
       const filename = `budgetwise_backup_${new Date().toISOString().split('T')[0]}.json`;
 
       const savedPath = await savePublicFile(filename, dataStr, { subfolder: 'BudgetWise' });
-      alert(`Backup saved to ${savedPath}`);
+      alert(`Backup saved to ${savedPath}. Check your file manager under Android/data/[app-name]/files/BudgetWise or similar location.`);
     });
   };
 
