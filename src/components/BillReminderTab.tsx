@@ -55,33 +55,47 @@ const BillReminderTab = ({ billReminders, setBillReminders, showConfirmation }: 
           await LocalNotifications.cancel({ notifications: [{ id: editingBillReminder.id }] });
 
           // --- New Notification Scheduling Logic ---
-          const [year, month, day] = updatedReminder.dueDate.split('-').map(Number);
-          const scheduleDate = new Date(year, month - 1, day, 9, 0, 0);
-          const now = new Date();
-          const todayMidnight = new Date();
-          todayMidnight.setHours(0, 0, 0, 0);
-          const dueDateMidnight = new Date(year, month - 1, day);
-          dueDateMidnight.setHours(0, 0, 0, 0);
+          // const [year, month, day] = updatedReminder.dueDate.split('-').map(Number);
+          // const scheduleDate = new Date(year, month - 1, day, 9, 0, 0);
+          // const now = new Date();
+          // const todayMidnight = new Date();
+          // todayMidnight.setHours(0, 0, 0, 0);
+          // const dueDateMidnight = new Date(year, month - 1, day);
+          // dueDateMidnight.setHours(0, 0, 0, 0);
+         
+          // --- FOR TESTING ONLY: Schedule for 2 minutes from now ---
+          const scheduleOptions = { at: new Date(Date.now() + 2 * 60 * 1000), allowWhileIdle: true };
 
-          if (dueDateMidnight < todayMidnight) {
-            alert('Reminder updated, but the due date is in the past. No new notification was scheduled.');
-          } else {
-            // If the target time (9 AM on due date) has passed, schedule it for 1 second from now.
-            // Otherwise, schedule it for the target time.
-            const scheduleOptions = scheduleDate > now
-              ? { on: { year, month, day, hour: 9, minute: 0 }, repeats: false, allowWhileIdle: true }
-              : { at: new Date(Date.now() + 1000), allowWhileIdle: true };
+          // if (dueDateMidnight < todayMidnight) {
+          //   alert('Reminder updated, but the due date is in the past. No new notification was scheduled.');
+          // } else {
+          //   // If the target time (9 AM on due date) has passed, schedule it for 1 second from now.
+          //   // Otherwise, schedule it for the target time.
+          //   const scheduleOptions = scheduleDate > now
+          //     ? { on: { year, month, day, hour: 9, minute: 0 }, repeats: false, allowWhileIdle: true }
+          //     : { at: new Date(Date.now() + 1000), allowWhileIdle: true };
 
-            await LocalNotifications.schedule({
-              notifications: [{
-                title: `Bill Reminder: ${updatedReminder.name}`,
-                body: `Your bill of ₹${updatedReminder.amount.toFixed(2)} is due today!`,
-                id: updatedReminder.id,
-                schedule: scheduleOptions
-              }]
-            });
-            alert('Reminder and notification updated successfully!');
-          }
+          //   await LocalNotifications.schedule({
+          //     notifications: [{
+          //       title: `Bill Reminder: ${updatedReminder.name}`,
+          //       body: `Your bill of ₹${updatedReminder.amount.toFixed(2)} is due today!`,
+          //       id: updatedReminder.id,
+          //       schedule: scheduleOptions
+          //     }]
+          //   });
+          //   alert('Reminder and notification updated successfully!');
+          // }
+
+          await LocalNotifications.schedule({
+            notifications: [{
+              title: `Bill Reminder: ${updatedReminder.name}`,
+              body: `Your bill of ₹${updatedReminder.amount.toFixed(2)} is due today!`,
+              id: updatedReminder.id,
+              schedule: scheduleOptions
+            }]
+          });
+          alert('Reminder and notification updated successfully! (TEST MODE: fires in 2 mins)');
+         
         } catch (e) {
           console.error("Error updating notification", e);
           alert('Reminder updated, but failed to update the notification.');
@@ -101,34 +115,48 @@ const BillReminderTab = ({ billReminders, setBillReminders, showConfirmation }: 
 
       if (Capacitor.isNativePlatform()) {
         try {
-          // --- New Notification Scheduling Logic ---
-          const [year, month, day] = newReminder.dueDate.split('-').map(Number);
-          const scheduleDate = new Date(year, month - 1, day, 9, 0, 0);
-          const now = new Date();
-          const todayMidnight = new Date();
-          todayMidnight.setHours(0, 0, 0, 0);
-          const dueDateMidnight = new Date(year, month - 1, day);
-          dueDateMidnight.setHours(0, 0, 0, 0);
+           // --- New Notification Scheduling Logic ---
+          // const [year, month, day] = newReminder.dueDate.split('-').map(Number);
+          // const scheduleDate = new Date(year, month - 1, day, 9, 0, 0);
+          // const now = new Date();
+          // const todayMidnight = new Date();
+          // todayMidnight.setHours(0, 0, 0, 0);
+          // const dueDateMidnight = new Date(year, month - 1, day);
+          // dueDateMidnight.setHours(0, 0, 0, 0);
+         
+            // --- FOR TESTING ONLY: Schedule for 2 minutes from now ---
+          const scheduleOptions = { at: new Date(Date.now() + 2 * 60 * 1000), allowWhileIdle: true };
 
-          if (dueDateMidnight < todayMidnight) {
-            alert('Bill reminder added, but the due date is in the past. No notification was scheduled.');
-          } else {
-            // If the target time (9 AM on due date) has passed, schedule it for 1 second from now.
-            // Otherwise, schedule it for the target time.
-            const scheduleOptions = scheduleDate > now
-              ? { on: { year, month, day, hour: 9, minute: 0 }, repeats: false, allowWhileIdle: true }
-              : { at: new Date(Date.now() + 1000), allowWhileIdle: true };
+          //  if (dueDateMidnight < todayMidnight) {
+          //   alert('Bill reminder added, but the due date is in the past. No notification was scheduled.');
+          // } else {
+          //   // If the target time (9 AM on due date) has passed, schedule it for 1 second from now.
+          //   // Otherwise, schedule it for the target time.
+          //   const scheduleOptions = scheduleDate > now
+          //     ? { on: { year, month, day, hour: 9, minute: 0 }, repeats: false, allowWhileIdle: true }
+          //     : { at: new Date(Date.now() + 1000), allowWhileIdle: true };
 
-            await LocalNotifications.schedule({
-              notifications: [{
-                title: `Bill Reminder: ${newReminder.name}`,
-                body: `Your bill of ₹${newReminder.amount.toFixed(2)} is due today!`,
-                id: newReminder.id,
-                schedule: scheduleOptions
-              }]
-            });
-            alert('Bill reminder and notification scheduled successfully!');
-          }
+          //   await LocalNotifications.schedule({
+          //     notifications: [{
+          //       title: `Bill Reminder: ${newReminder.name}`,
+          //       body: `Your bill of ₹${newReminder.amount.toFixed(2)} is due today!`,
+          //       id: newReminder.id,
+          //       schedule: scheduleOptions
+          //     }]
+          //   });
+          //   alert('Bill reminder and notification scheduled successfully!');
+          // }
+          
+           await LocalNotifications.schedule({
+            notifications: [{
+              title: `Bill Reminder: ${newReminder.name}`,
+              body: `Your bill of ₹${newReminder.amount.toFixed(2)} is due today!`,
+              id: newReminder.id,
+              schedule: scheduleOptions
+            }]
+          });
+          alert('Bill reminder and notification scheduled successfully! (TEST MODE: fires in 2 mins)');
+        
         } catch (e) { console.error("Error scheduling notification", e); alert('Bill reminder added, but failed to schedule the notification.'); }
       } else {
         alert('Bill reminder added successfully! (Notifications only work on mobile devices)');
