@@ -104,7 +104,7 @@ const App = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [filterCategory, setFilterCategory] = useState(''); // This is used by Analytics, so it stays
-  const [subscriptionTier, setSubscriptionTier] = useState<SubscriptionTier>('free');
+  const [subscriptionTier, setSubscriptionTier] = useState<SubscriptionTier>('premium'); // TEMP: Default to premium for testing
 
   // --- New State for Advanced Features ---
 
