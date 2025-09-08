@@ -7,6 +7,7 @@ export type Tier = 'free' | 'plus' | 'premium';
 // 'plus' tier would also need an expiry date in a real app.
 let currentTier: Tier = (localStorage.getItem('budgetwise_tier') as Tier) || 'free';
 
+
 export const getTier = (): Tier => {
   // In a real app, you might check an expiry date for 'plus' here.
   return currentTier;
