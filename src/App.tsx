@@ -1520,29 +1520,34 @@ const App = () => {
   };
 
   const handleDescriptionChange = (description: string) => {
-    setFormData({ ...formData, description });
+    setFormData(prevFormData => {
+      const updatedFormData = { ...prevFormData, description };
 
-    // Only suggest for monthly budgets if no category is selected
-    if (formData.budgetType !== 'monthly' || formData.category) {
-      setCategorySuggestion(null);
-      return;
-    }
-
-    if (description.length < 3) {
-      setCategorySuggestion(null);
-      return;
-    }
-
-    const lowerDesc = description.toLowerCase();
-    for (const category in CATEGORY_KEYWORDS) {
-      for (const keyword of CATEGORY_KEYWORDS[category]) {
-        if (lowerDesc.includes(keyword)) {
-          setCategorySuggestion(category);
-          return;
+ // Suggestion logic now uses the most up-to-date state
+      if (updatedFormData.budgetType !== 'monthly' || updatedFormData.category) {
+        setCategorySuggestion(null);
+      } else if (description.length < 3) {
+        setCategorySuggestion(null);
+      } else {
+        const lowerDesc = description.toLowerCase();
+        let suggestionFound = false;
+        for (const category in CATEGORY_KEYWORDS) {
+          for (const keyword of CATEGORY_KEYWORDS[category]) {
+            if (lowerDesc.includes(keyword)) {
+              setCategorySuggestion(category);
+              suggestionFound = true;
+              break;
+            }
+          }
+          if (suggestionFound) break;
+        }
+        if (!suggestionFound) {
+          setCategorySuggestion(null);
         }
       }
-    }
-    setCategorySuggestion(null);
+
+    return updatedFormData;
+    });  
   };
 
   const handleTransferFunds = () => {

@@ -222,7 +222,7 @@ const AddTab: React.FC<AddTabProps> = (props) => {
             </div>
           )}
 
-          {formData.type === 'expense' && formData.budgetType === 'monthly' ? (
+          {formData.type === 'expense' && formData.budgetType === 'monthly' && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
               <div className="space-y-2">
@@ -271,7 +271,9 @@ const AddTab: React.FC<AddTabProps> = (props) => {
                 )}
               </div>
             </div>
-          ) : formData.type === 'expense' && (
+          )}
+
+          {formData.type === 'expense' && formData.budgetType === 'custom' && (
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Custom Budget</label>
