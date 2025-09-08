@@ -2004,6 +2004,40 @@ const App = () => {
             >
               Unlock
             </button>
+            
+            {/* --- Temporary Tier Selector for Testing --- */}
+            <div className="mt-6 pt-4 border-t border-gray-200">
+              <p className="text-xs text-gray-500 mb-2">For Testing Only: Force Subscription Tier</p>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  onClick={() => {
+                    localStorage.setItem('budgetwise_tier', 'free');
+                    window.location.reload();
+                  }}
+                  className="p-2 bg-gray-200 text-gray-700 rounded-lg text-xs hover:bg-gray-300"
+                >
+                  Free
+                </button>
+                <button
+                  onClick={() => {
+                    localStorage.setItem('budgetwise_tier', 'plus');
+                    window.location.reload();
+                  }}
+                  className="p-2 bg-yellow-200 text-yellow-800 rounded-lg text-xs hover:bg-yellow-300"
+                >
+                  Plus
+                </button>
+                <button
+                  onClick={() => {
+                    localStorage.setItem('budgetwise_tier', 'premium');
+                    window.location.reload();
+                  }}
+                  className="p-2 bg-purple-200 text-purple-800 rounded-lg text-xs hover:bg-purple-300"
+                >
+                  Premium
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
