@@ -31,6 +31,7 @@ import { LocalNotifications } from '@capacitor/local-notifications';
 import FileService from './utils/FileService';
 import { escapeCsvField } from './utils/csvUtils';
 import AdsManager, { SubscriptionTier } from './billing/AdsManager';
+import { hasAccessTo, Feature } from './subscriptionManager';
 import BillingManager from './billing/BillingManager';
 import SubscriptionScreen from './billing/SubscriptionScreen';
 
@@ -1895,41 +1896,45 @@ const App = () => {
           getRemainingBudget={getRemainingBudget}
         />
 
-        <AlertManagement
-          spendingAlerts={spendingAlerts}
-          onDeleteAlert={handleDeleteSpendingAlert}
-          onToggleSilence={toggleSpendingAlertSilence}
-        />
+        {hasAccessTo(Feature.SpendingAlerts) && (
+          <AlertManagement
+            spendingAlerts={spendingAlerts}
+            onDeleteAlert={handleDeleteSpendingAlert}
+            onToggleSilence={toggleSpendingAlertSilence}
+          />
+        )}
 
         {/* Recurring Transactions */}
-        <div className="bg-white rounded-2xl p-6 shadow-lg">
-          <h2 className="text-xl font-bold text-gray-800 mb-4">Recurring Transactions</h2>
-          <p className="text-sm text-gray-600 mb-3">Choose how recurring transactions are processed.</p>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => setRecurringProcessingMode('automatic')}
-              className={`p-3 rounded-xl font-medium transition-colors ${
-                recurringProcessingMode === 'automatic' ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700'
-              }`}
-            >
-              Automatic
-            </button>
-            <button
-              onClick={() => setRecurringProcessingMode('manual')}
-              className={`p-3 rounded-xl font-medium transition-colors ${
-                recurringProcessingMode === 'manual' ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700'
-              }`}
-            >
-              Manual
-            </button>
+        {hasAccessTo(Feature.RecurringTransactions) && (
+          <div className="bg-white rounded-2xl p-6 shadow-lg">
+            <h2 className="text-xl font-bold text-gray-800 mb-4">Recurring Transactions</h2>
+            <p className="text-sm text-gray-600 mb-3">Choose how recurring transactions are processed.</p>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setRecurringProcessingMode('automatic')}
+                className={`p-3 rounded-xl font-medium transition-colors ${
+                  recurringProcessingMode === 'automatic' ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700'
+                }`}
+              >
+                Automatic
+              </button>
+              <button
+                onClick={() => setRecurringProcessingMode('manual')}
+                className={`p-3 rounded-xl font-medium transition-colors ${
+                  recurringProcessingMode === 'manual' ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700'
+                }`}
+              >
+                Manual
+              </button>
+            </div>
+            {recurringProcessingMode === 'manual' && (
+              <button onClick={() => processRecurringTransactions(false)} className="w-full mt-4 p-3 bg-teal-100 text-teal-800 rounded-xl font-semibold hover:bg-teal-200 flex items-center justify-center">
+                <Repeat size={18} className="mr-2" />
+                Process Recurring Transactions
+              </button>
+            )}
           </div>
-          {recurringProcessingMode === 'manual' && (
-            <button onClick={() => processRecurringTransactions(false)} className="w-full mt-4 p-3 bg-teal-100 text-teal-800 rounded-xl font-semibold hover:bg-teal-200 flex items-center justify-center">
-              <Repeat size={18} className="mr-2" />
-              Process Recurring Transactions
-            </button>
-          )}
-        </div>
+        )}
 
         {/* Subscriptions Section */}
         <div className="bg-white rounded-2xl p-6 shadow-lg">
@@ -2478,12 +2483,21 @@ const App = () => {
                   handleNavigationRequest={handleNavigationRequest}
                 />
               )}
-        {activeTab === 'reminders' && (
-          <BillReminderTab
-            billReminders={billReminders}
-            setBillReminders={setBillReminders}
-            showConfirmation={showConfirmation}
-          />
+        {activeTab === 'reminders' && hasAccessTo(Feature.BillReminders) ? (
+          <BillReminderTab billReminders={billReminders} setBillReminders={setBillReminders} showConfirmation={showConfirmation} />
+        ) : activeTab === 'reminders' && (
+          <div className="p-6 text-center bg-white rounded-2xl m-4 shadow-lg">
+            <h2 className="text-xl font-bold text-gray-800 mb-4">Never Miss a Payment</h2>
+            <p className="text-gray-600 mb-4">
+              Upgrade to Plus or Premium to set bill reminders and get notified before your due dates.
+            </p>
+            <button
+              onClick={() => setActiveTab('subscriptions')}
+              className="p-3 bg-purple-600 text-white rounded-xl font-semibold hover:bg-purple-700"
+            >
+              View Plans
+            </button>
+          </div>
         )}
 
         {/* Settings Tab */}

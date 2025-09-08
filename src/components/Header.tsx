@@ -1,5 +1,6 @@
 import React from 'react';
-import { Download, FileSpreadsheet, Settings } from 'lucide-react';
+import { Download, FileSpreadsheet, Settings, Star } from 'lucide-react';
+import { hasAccessTo, Feature } from '../subscriptionManager';
 
 interface HeaderProps {
   stats: {
@@ -33,10 +34,14 @@ const Header: React.FC<HeaderProps> = ({
         <div className="flex space-x-2">
           <button
             onClick={() => onSetShowExportModal(true)}
-            className="p-2 bg-white/20 rounded-lg hover:bg-white/30 transition-colors"
-            title="Advanced Export"
+            disabled={!hasAccessTo(Feature.AdvancedReporting)}
+            className="p-2 bg-white/20 rounded-lg hover:bg-white/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed relative group"
+            title="Advanced Export (Premium)"
           >
             <Download size={20} />
+            {!hasAccessTo(Feature.AdvancedReporting) && (
+              <Star size={10} className="absolute -top-1 -right-1 text-yellow-300 fill-yellow-300" />
+            )}
           </button>
           <button
             onClick={onQuickCSVExport}

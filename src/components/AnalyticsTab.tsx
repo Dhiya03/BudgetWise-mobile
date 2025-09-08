@@ -1,5 +1,5 @@
 import { useState, useMemo, FC } from 'react';
-import { TrendingUp, TrendingDown, DollarSign, Target, Activity, HelpCircle, ShieldCheck, ShieldAlert, Shield, CalendarDays, Flame, SlidersHorizontal, AlertTriangle, X, Lightbulb, BellRing } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Target, Activity, HelpCircle, ShieldCheck, ShieldAlert, Shield, CalendarDays, Flame, SlidersHorizontal, AlertTriangle, X, Lightbulb, BellRing, Star } from 'lucide-react';
 import { Transaction, MonthlyBudgets, SpendingAlert } from '../types';
 import { hasAccessTo, Feature } from '../subscriptionManager';
 import { simulateBudgetScenario } from '../utils/analytics';
@@ -473,7 +473,7 @@ const AnalyticsTab: FC<AnalyticsTabProps> = (props) => {
                       <ShieldCheck size={14} className="mr-1" />
                       Alert Set
                     </div>
-                  ) : (
+                  ) : hasAccessTo(Feature.SpendingAlerts) ? (
                     <button onClick={() => {
                       setAlertCategory(insight.category);
                       setIsAlertModalOpen(true);
@@ -481,6 +481,8 @@ const AnalyticsTab: FC<AnalyticsTabProps> = (props) => {
                       <BellRing size={14} className="mr-1" />
                       Set Alert
                     </button>
+                  ) : (
+                    <div className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full flex items-center font-medium"><Star size={12} className="mr-1" />Premium</div>
                   )}
                 </div>
                 {insight.smartText && (

@@ -12,6 +12,12 @@ import {
   Pause, Play, Save, Link2, ArrowRight, Trash2, Edit3,
   ArrowUpDown, Lock, Unlock
 } from 'lucide-react';
+import {
+  hasAccessTo,
+  isLimitReached,
+  Feature,
+  Limit,
+} from '../subscriptionManager';
 
 interface BudgetTabProps {
   monthlyIncome: number;
@@ -75,6 +81,18 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
     customCategorySpending, transactions, newCustomCategory, setNewCustomCategory, getSpentAmount,
     addCustomCategoryToForm, removeCategoryFromForm, updateCategoryBudget,
   } = props;
+
+  const monthlyBudgetLimitReached = React.useMemo(() => {
+    // Don't apply limit if editing an existing budget category
+    if (budgets[budgetForm.category]) return false;
+    return isLimitReached(Limit.MonthlyBudgets, Object.keys(budgets).length);
+  }, [budgets, budgetForm.category]);
+
+  const customBudgetLimitReached = React.useMemo(() => {
+    // Don't apply limit if editing
+    if (editingCustomBudget) return false;
+    return isLimitReached(Limit.CustomBudgets, customBudgets.length);
+  }, [customBudgets.length, editingCustomBudget]);
 
   return (
     <div className="p-4 space-y-6">
@@ -141,16 +159,23 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
 
           <button
             onClick={setBudget}
-            className="w-full p-4 bg-gradient-to-r from-green-600 to-teal-600 text-white rounded-xl font-semibold hover:from-green-700 hover:to-teal-700"
+            disabled={monthlyBudgetLimitReached}
+            className="w-full p-4 bg-gradient-to-r from-green-600 to-teal-600 text-white rounded-xl font-semibold hover:from-green-700 hover:to-teal-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
             Set Monthly Budget
           </button>
+          {monthlyBudgetLimitReached && (
+            <p className="text-center text-sm text-red-600 mt-2">
+              Monthly budget limit reached for your plan.
+            </p>
+          )}
         </div>
       </div>
 
       {/* Custom Budget Section */}
-      <div ref={customBudgetFormRef} className="bg-white rounded-2xl p-6 shadow-lg">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">Custom Purpose Budget</h2>
+      {hasAccessTo(Feature.CustomBudgets) && (
+        <div ref={customBudgetFormRef} className="bg-white rounded-2xl p-6 shadow-lg">
+          <h2 className="text-xl font-bold text-gray-800 mb-4">Custom Purpose Budget</h2>
         
         <div className="space-y-4">
           <div>
@@ -293,10 +318,16 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
 
           <button
             onClick={handleSaveCustomBudget}
-            className="w-full p-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-semibold hover:from-purple-700 hover:to-pink-700"
+            disabled={customBudgetLimitReached}
+            className="w-full p-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-semibold hover:from-purple-700 hover:to-pink-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
             {editingCustomBudget ? 'Update Custom Budget' : 'Create Custom Budget'}
           </button>
+          {customBudgetLimitReached && (
+            <p className="text-center text-sm text-red-600 mt-2">
+              Custom budget limit reached for your plan.
+            </p>
+          )}
           {editingCustomBudget && (
             <button
               onClick={handleCancelEdit}
@@ -318,6 +349,7 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
           </button>
         </div>
       </div>
+      )}
 
       {/* Budget Templates Section */}
       <div className="bg-white rounded-2xl p-6 shadow-lg">
@@ -362,8 +394,9 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
       </div>
 
       {/* Budget Automation Section */}
-      <div className="bg-white rounded-2xl p-6 shadow-lg">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">Budget Automation</h2>
+      {hasAccessTo(Feature.BudgetAutomation) && (
+        <div className="bg-white rounded-2xl p-6 shadow-lg">
+          <h2 className="text-xl font-bold text-gray-800 mb-4">Budget Automation</h2>
         <div className="space-y-4">
           <h3 className="text-md font-semibold text-gray-700">Create Rollover Rule</h3>
           <select
@@ -405,11 +438,13 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
           </button>
         </div>
       </div>
+   )}
 
       {/* Transfer Funds Button */}
-      <div className="bg-white rounded-2xl p-6 shadow-lg">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">Manage Funds</h2>
-        <button
+      {hasAccessTo(Feature.FundTransfers) && (
+        <div className="bg-white rounded-2xl p-6 shadow-lg">
+          <h2 className="text-xl font-bold text-gray-800 mb-4">Manage Funds</h2>
+       <button
           onClick={() => setShowTransferModal(true)}
           className="w-full p-3 bg-indigo-100 text-indigo-800 rounded-xl font-semibold hover:bg-indigo-200 flex items-center justify-center"
         >
@@ -417,6 +452,7 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
           Transfer Funds Between Custom Budgets
         </button>
       </div>
+      )}
 
       {/* Active Custom Budgets */}
       {customBudgets.filter(budget => ['active', 'locked'].includes(budget.status)).length > 0 && (

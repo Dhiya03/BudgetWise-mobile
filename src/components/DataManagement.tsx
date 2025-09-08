@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { FileJson, FileSpreadsheet, FileText } from 'lucide-react';
+import { FileJson, FileSpreadsheet, FileText, Star } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
@@ -15,6 +15,7 @@ import {
   TransferEvent,
 } from '../types';
 import { Capacitor } from '@capacitor/core';
+import { hasAccessTo, Feature } from '../subscriptionManager';
 import FileService from '../utils/FileService';
 
 interface DataManagementProps {
@@ -565,24 +566,36 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
         </div>
         <button
           onClick={exportToExcel}
-          className="w-full p-3 bg-green-100 text-green-800 rounded-xl font-semibold hover:bg-green-200 flex items-center justify-center"
-        >
+           disabled={!hasAccessTo(Feature.AdvancedReporting)}
+          className="w-full p-3 bg-green-100 text-green-800 rounded-xl font-semibold hover:bg-green-200 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed relative"
+      >
           <FileSpreadsheet size={18} className="mr-2" />
           Export to Excel
+          {!hasAccessTo(Feature.AdvancedReporting) && (
+            <span className="absolute top-1 right-2 text-xs font-bold bg-yellow-400 text-yellow-900 px-1.5 py-0.5 rounded-full flex items-center"><Star size={10} className="mr-1"/>Premium</span>
+          )}
         </button>
         <button
           onClick={generatePDFReport}
-          className="w-full p-3 bg-red-100 text-red-800 rounded-xl font-semibold hover:bg-red-200 flex items-center justify-center"
+          disabled={!hasAccessTo(Feature.AdvancedReporting)}
+          className="w-full p-3 bg-red-100 text-red-800 rounded-xl font-semibold hover:bg-red-200 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed relative"
         >
           <FileText size={18} className="mr-2" />
           Generate PDF Report
+          {!hasAccessTo(Feature.AdvancedReporting) && (
+            <span className="absolute top-1 right-2 text-xs font-bold bg-yellow-400 text-yellow-900 px-1.5 py-0.5 rounded-full flex items-center"><Star size={10} className="mr-1"/>Premium</span>
+          )}
         </button>
         <button
           onClick={generateHTMLReport}
-          className="w-full p-3 bg-teal-100 text-teal-800 rounded-xl font-semibold hover:bg-teal-200 flex items-center justify-center"
-        >
+         disabled={!hasAccessTo(Feature.AdvancedReporting)}
+          className="w-full p-3 bg-teal-100 text-teal-800 rounded-xl font-semibold hover:bg-teal-200 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed relative"
+         >
           <FileText size={18} className="mr-2" />
           Generate HTML Report
+           {!hasAccessTo(Feature.AdvancedReporting) && (
+            <span className="absolute top-1 right-2 text-xs font-bold bg-yellow-400 text-yellow-900 px-1.5 py-0.5 rounded-full flex items-center"><Star size={10} className="mr-1"/>Premium</span>
+          )}
         </button>
       </div>
     </div>
