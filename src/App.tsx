@@ -17,6 +17,8 @@ import {
   SpendingAlert,
   CustomBudgetFormData,
   RelationshipFormData,
+  SupportedLanguage,
+  FinancialTip,
   TransferEvent,
 } from './types';
 import AnalyticsTab from './components/AnalyticsTab';
@@ -25,6 +27,9 @@ import SecuritySettings from './components/SecuritySettings';
 import AlertManagement from './components/AlertManagement';
 import HistoryTab from './components/HistoryTab';
 import BillReminderTab from './components/BillReminderTab';
+import TipCard from './components/TipCard';
+import LocalizationSettings from './components/LocalizationSettings';
+import TipSettings from './components/TipSettings';
 import BudgetTab from './components/BudgetTab';
 import AddTab from './components/AddTab';
 import Header from './components/Header';
@@ -32,8 +37,10 @@ import BottomNavigation from './components/BottomNavigation';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import FileService from './utils/FileService';
 import { escapeCsvField } from './utils/csvUtils';
+import FinancialTipsService from './components/FinancialTipsService';
 import AdsManager, { SubscriptionTier } from './billing/AdsManager';
 import { hasAccessTo, Feature } from './subscriptionManager';
+import InAppTipWidget from './components/InAppTipWidget';
 import BillingManager from './billing/BillingManager';
 import SubscriptionScreen from './billing/SubscriptionScreen';
 
@@ -107,7 +114,15 @@ const App = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [filterCategory, setFilterCategory] = useState(''); // This is used by Analytics, so it stays
+  const [language, setLanguage] = useState<SupportedLanguage>('en');
+  const [todaysTip, setTodaysTip] = useState<FinancialTip | null>(null);
   const [subscriptionTier, setSubscriptionTier] = useState<SubscriptionTier>('premium'); // TEMP: Default to premium for testing
+  const [tipSettings, setTipSettings] = useState({
+    enabled: true,
+    time: '10:00',
+  });
+  const [inAppTip, setInAppTip] = useState<FinancialTip | null>(null);
+
 
   // --- New State for Advanced Features ---
 
@@ -371,6 +386,22 @@ const App = () => {
     }
   }, []);
 
+  // --- Language State Hook ---
+  useEffect(() => {
+    setTodaysTip(FinancialTipsService.getTodaysTip());
+    setLanguage(FinancialTipsService.getUserLanguage());
+  }, []);
+
+  // --- Tip Settings Hook ---
+  useEffect(() => {
+    const savedEnabled = localStorage.getItem('budgetwise_tip_enabled');
+    const savedTime = localStorage.getItem('budgetwise_tip_time');
+    setTipSettings({
+      enabled: savedEnabled ? JSON.parse(savedEnabled) : true,
+      time: savedTime || '10:00',
+    });
+  }, []);
+
   useEffect(() => {
     AdsManager.init();
     // Initialize the billing manager and pass it the function to call
@@ -378,6 +409,71 @@ const App = () => {
     BillingManager.init(refreshSubscriptionStatus);
     refreshSubscriptionStatus(); // Initial check on app start to get the tier
   }, [refreshSubscriptionStatus]);
+
+  const scheduleTipNotifications = useCallback(async (lang: SupportedLanguage, settings: { enabled: boolean; time: string }) => {
+    if (!Capacitor.isNativePlatform()) return;
+
+    const NOTIFICATION_ID = 999;
+
+    // 1. If disabled, cancel any pending notifications and exit.
+    if (!settings.enabled) {
+      await LocalNotifications.cancel({ notifications: [{ id: NOTIFICATION_ID }] });
+      console.log('Daily tip notifications are disabled. Canceled any pending notifications.');
+      return;
+    }
+
+    const permStatus = await LocalNotifications.checkPermissions();
+    if (permStatus.display !== 'granted') {
+      console.warn('Permissions not granted for financial tip notifications.');
+      return;
+    }
+
+    const pending = await LocalNotifications.getPending();
+    if (pending.notifications.some(n => n.id === NOTIFICATION_ID)) {
+      await LocalNotifications.cancel({ notifications: [{ id: NOTIFICATION_ID }] });
+      console.log('Cancelled previously scheduled daily tip to reschedule.');
+    }
+
+    // 3. Get today's tip and schedule it for 10 AM.
+    const todaysTip = FinancialTipsService.getTodaysTip();
+    if (todaysTip) {
+      const localizedTip = todaysTip.translations[lang];
+      const [hour, minute] = settings.time.split(':').map(Number);
+
+      await LocalNotifications.schedule({
+        notifications: [
+          {
+            title: `${todaysTip.emoji} Daily Financial Tip`,
+            body: localizedTip.tip,
+            id: NOTIFICATION_ID,
+            schedule: { on: { hour, minute }, repeats: true, allowWhileIdle: true },
+          },
+        ],
+      });
+      console.log(`Daily financial tip notification scheduled for ${settings.time} in ${lang}.`);
+    }
+  }, []);
+
+  const handleLanguageChange = (newLang: SupportedLanguage) => {
+    setLanguage(newLang);
+    localStorage.setItem('budgetwise_user_language', newLang);
+    // When language changes, we must reschedule notifications to use the new language.
+    scheduleTipNotifications(newLang, tipSettings);
+    showToast(`Language changed to ${newLang.toUpperCase()}`);
+  };
+
+  const handleTipSettingsChange = (newSettings: Partial<typeof tipSettings>) => {
+    const updatedSettings = { ...tipSettings, ...newSettings };
+    setTipSettings(updatedSettings);
+    localStorage.setItem('budgetwise_tip_enabled', JSON.stringify(updatedSettings.enabled));
+    localStorage.setItem('budgetwise_tip_time', updatedSettings.time);
+
+    // Reschedule notifications with the new settings
+    scheduleTipNotifications(language, updatedSettings);
+
+    const message = newSettings.enabled !== undefined ? (newSettings.enabled ? 'Notifications enabled' : 'Notifications disabled') : `Notification time set to ${updatedSettings.time}`;
+    showToast(message);
+  };
 
             // Show banners only on Home tab (skip if premium)
       useEffect(() => {
@@ -443,6 +539,12 @@ const App = () => {
     requestNotificationPermission();
   }, []);
   
+  // --- Financial Tip Notification Hook ---
+  useEffect(() => {
+    // Schedule notifications on initial app load or when settings change
+    scheduleTipNotifications(language, tipSettings);
+  }, [scheduleTipNotifications, language, tipSettings]);
+
   // Effect to manage the lockout timer display
   useEffect(() => {
     if (lockoutUntil) {
@@ -1010,6 +1112,16 @@ const App = () => {
     setTransactions(newTransactions);
     recalculateCustomBudgetSpending(newTransactions, customBudgets);
     checkSpendingAlerts(newTransactions, spendingAlerts, [newTransaction]);
+
+    // In-App Tip Widget Logic
+    if (newTransaction.type === 'expense' && Math.abs(newTransaction.amount) > 1000) {
+      const tip = FinancialTipsService.getTodaysTip();
+      if (tip) {
+        setInAppTip(tip);
+        setTimeout(() => setInAppTip(null), 8000); // Hide after 8 seconds
+      }
+    }
+
     // Reset form
     setFormData({
       category: '', amount: '', description: '', date: new Date().toISOString().split('T')[0],
@@ -1848,6 +1960,39 @@ const App = () => {
   const renderSettingsTab = () => {
     return (
       <div className="p-4 space-y-6">
+        {todaysTip && (
+          <div>
+            <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
+              💡 Tip of the Day
+            </h2>
+            <TipCard tip={todaysTip} language={language} />
+          </div>
+        )}
+        <TipSettings
+          notificationsEnabled={tipSettings.enabled}
+          onToggleNotifications={(enabled) => handleTipSettingsChange({ enabled })}
+          notificationTime={tipSettings.time}
+          onTimeChange={(time) => handleTipSettingsChange({ time })}
+        />
+        {hasAccessTo(Feature.LanguageSelection) ? (
+          <LocalizationSettings
+            currentLanguage={language}
+            onLanguageChange={handleLanguageChange}
+          />
+        ) : (
+          <div className="bg-white rounded-2xl p-6 shadow-lg text-center">
+            <h2 className="text-xl font-bold text-gray-800 mb-2">Unlock 3 Indian Languages</h2>
+            <p className="text-gray-600 mb-4">
+              Upgrade to Plus or Premium to use BudgetWise in Hindi, Tamil, or Telugu.
+            </p>
+            <button
+              onClick={() => setActiveTab('subscriptions')}
+              className="p-3 bg-purple-600 text-white rounded-xl font-semibold hover:bg-purple-700"
+            >
+              View Plans
+            </button>
+          </div>
+        )}
         <SecuritySettings
           appPassword={appPassword}
           setAppPassword={setAppPassword}
@@ -2004,40 +2149,6 @@ const App = () => {
             >
               Unlock
             </button>
-            
-            {/* --- Temporary Tier Selector for Testing --- */}
-            <div className="mt-6 pt-4 border-t border-gray-200">
-              <p className="text-xs text-gray-500 mb-2">For Testing Only: Force Subscription Tier</p>
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  onClick={() => {
-                    localStorage.setItem('budgetwise_tier', 'free');
-                    window.location.reload();
-                  }}
-                  className="p-2 bg-gray-200 text-gray-700 rounded-lg text-xs hover:bg-gray-300"
-                >
-                  Free
-                </button>
-                <button
-                  onClick={() => {
-                    localStorage.setItem('budgetwise_tier', 'plus');
-                    window.location.reload();
-                  }}
-                  className="p-2 bg-yellow-200 text-yellow-800 rounded-lg text-xs hover:bg-yellow-300"
-                >
-                  Plus
-                </button>
-                <button
-                  onClick={() => {
-                    localStorage.setItem('budgetwise_tier', 'premium');
-                    window.location.reload();
-                  }}
-                  className="p-2 bg-purple-200 text-purple-800 rounded-lg text-xs hover:bg-purple-300"
-                >
-                  Premium
-                </button>
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -2559,6 +2670,14 @@ const App = () => {
         message={toastMessage}
         isVisible={isToastVisible}
       />
+
+      {inAppTip && (
+        <InAppTipWidget
+          tip={inAppTip}
+          language={language}
+          onClose={() => setInAppTip(null)}
+        />
+      )}
 
       <BottomNavigation
         activeTab={activeTab}

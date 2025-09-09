@@ -35,6 +35,7 @@ export enum Feature {
   RecurringTransactions = 'recurring_transactions',
   Tagging = 'tagging',
   LimitedAnalytics = 'limited_analytics',
+  LanguageSelection = 'language_selection',
 
   // Premium
   FullAnalytics = 'full_analytics',
@@ -65,6 +66,7 @@ const featureAccess: Record<Feature, Tier[]> = {
   [Feature.RecurringTransactions]: ['plus', 'premium'],
   [Feature.Tagging]: ['plus', 'premium'],
   [Feature.LimitedAnalytics]: ['plus', 'premium'],
+  [Feature.LanguageSelection]: ['plus', 'premium'],
 
   // Premium features
   [Feature.FullAnalytics]: ['premium'],

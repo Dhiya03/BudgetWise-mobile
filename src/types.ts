@@ -120,3 +120,25 @@ export interface TransferEvent {
   toBudgetId: number;
   toCategoryAllocations: { [key: string]: number };
 }
+
+// Describes the languages supported for financial tips
+export type SupportedLanguage = 'en' | 'hi' | 'ta' | 'te';
+
+// Defines an array of supported languages for easier validation.
+export const SUPPORTED_LANGUAGES: SupportedLanguage[] = ['en', 'hi', 'ta', 'te'];
+
+// Describes a financial tip for the notification system
+export interface FinancialTip {
+  id: string;
+  category: 'funny' | 'fact' | 'advice' | 'myth-buster';
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  emoji: string;
+  tags: string[];
+  translations: {
+    en: { tip: string; shareText: string };
+    hi: { tip: string; shareText: string };
+    te: { tip: string; shareText: string };
+    ta: { tip: string; shareText: string };
+  };
+  contextualTriggers?: string[];
+}
