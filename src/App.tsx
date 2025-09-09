@@ -373,8 +373,10 @@ const App = () => {
 
   useEffect(() => {
     AdsManager.init();
+    // Initialize the billing manager and pass it the function to call
+    // when a purchase is made or restored.
     BillingManager.init(refreshSubscriptionStatus);
-    refreshSubscriptionStatus(); // Initial check on app start
+    refreshSubscriptionStatus(); // Initial check on app start to get the tier
   }, [refreshSubscriptionStatus]);
 
       useEffect(() => {

@@ -483,3 +483,17 @@ This is a comprehensive and well-architected product roadmap. The phasing and us
 *   **Dependency on External Services**:
     *   **SMS Parsing**: This is highly dependent on the format of SMS messages from Indian banks, which can change without notice. The parsing logic must be designed to be easily updatable, perhaps even with rules that can be updated from a server without requiring a full app release.
     *   **Payment Gateways**: Integrating with both Google/Apple and potentially local gateways like Razorpay/PayTM adds significant complexity to the subscription management system.
+
+
+
+    🔐 10️⃣ Server-Side Webhooks (Optional)
+
+RevenueCat can send webhooks to your backend when:
+
+Sub renews
+
+Sub cancels
+
+Free trial converts
+
+You can use this for analytics or email marketing (“Your Premium trial ends tomorrow”).

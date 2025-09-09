@@ -14,7 +14,8 @@ dependencies {
     implementation project(':capacitor-filesystem')
     implementation project(':capacitor-local-notifications')
     implementation project(':capawesome-capacitor-file-picker')
-    implementation "com.android.billingclient:billing:7.1.1"
+    implementation project(':revenuecat-purchases-capacitor')
+
 }
 
 

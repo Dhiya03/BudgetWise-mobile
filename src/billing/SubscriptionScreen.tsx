@@ -1,11 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, CheckCircle, XCircle } from 'lucide-react';
 import BillingManager from '../billing/BillingManager';
-import { PLUS_SKU, PREMIUM_SKU } from '../billing/BillingManager';
-
-// For full type safety, it's better to import types from the plugin, e.g.:
-// import { CdvPurchase } from '@ionic-enterprise/capacitor-plugin-purchase';
-declare const CdvPurchase: any;
+import { Purchases } from '@revenuecat/purchases-capacitor';
+import type { PurchasesPackage } from '@revenuecat/purchases-capacitor';
 
 interface SubscriptionScreenProps {
   onBack: () => void;
@@ -14,39 +11,40 @@ interface SubscriptionScreenProps {
 }
 
 const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, subscriptionTier, showToast }) => {
-  const [plusProduct, setPlusProduct] = useState<any>(null);
-  const [premiumProduct, setPremiumProduct] = useState<any>(null);
+  const [plusProduct, setPlusProduct] = useState<PurchasesPackage | null>(null);
+  const [premiumProduct, setPremiumProduct] = useState<PurchasesPackage | null>(null);
   const [loading, setLoading] = useState(true);
   const [isPurchasing, setIsPurchasing] = useState(false);
 
+  // Fallback prices for when RevenueCat is not available (e.g., in a web browser for dev)
+  const FALLBACK_PRICES = {
+    plus: "₹149 / 3 months",
+    premium: "₹799 / year"
+  };
+
   useEffect(() => {
-    const loadProducts = () => {
-      // The store is initialized in App.tsx. A small delay can help ensure it's
-      // ready before this screen tries to access it. A more robust solution
-      // would use a global state (like Context or Redux) to track initialization.
-      setTimeout(() => {
-        try {
-          const plus = CdvPurchase.store.get(PLUS_SKU);
-          const premium = CdvPurchase.store.get(PREMIUM_SKU);
-          setPlusProduct(plus);
-          setPremiumProduct(premium);
-        } catch (e) {
-          console.error("Error loading products", e);
-        } finally {
-          setLoading(false);
+    const loadProducts = async () => {
+      try {
+        const offerings = await Purchases.getOfferings();
+        if (offerings.current) {
+          setPlusProduct(offerings.current.availablePackages.find((p: PurchasesPackage) => p.identifier.includes('plus')) || null);
+          setPremiumProduct(offerings.current.availablePackages.find((p: PurchasesPackage) => p.identifier.includes('premium')) || null);
         }
-      }, 300); // Small delay to ensure CdvPurchase is ready
+      } catch (e) {
+        console.warn("Could not load RevenueCat products, using fallback prices.", e);
+      } finally {
+        setLoading(false);
+      }
     };
 
     loadProducts();
   }, []);
 
   const handleBuyPlus = async () => {
-    if (!plusProduct) return;
     setIsPurchasing(true);
     try {
-      await BillingManager.buyPlus();
-      // The onPurchaseUpdate callback in App.tsx will handle the state change
+      await BillingManager.buy('plus');
+      showToast("Purchase successful! Your plan has been updated.");
     } catch (error) {
       showToast("Purchase was cancelled or failed.");
     } finally {
@@ -55,10 +53,10 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, subscri
   };
 
   const handleBuyPremium = async () => {
-    if (!premiumProduct) return;
     setIsPurchasing(true);
     try {
-      await BillingManager.buyPremium();
+      await BillingManager.buy('premium');
+      showToast("Purchase successful! Welcome to Premium!");
     } catch (error) {
       showToast("Purchase was cancelled or failed.");
     } finally {
@@ -67,7 +65,7 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, subscri
   };
 
   const renderFeature = (text: string, included: boolean) => (
-    <li className="flex items-start space-x-3">
+    <li className="flex items-center space-x-3">
       <div className="flex-shrink-0">
         {included ? (
           <CheckCircle className="h-5 w-5 text-green-500" />
@@ -110,13 +108,9 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, subscri
               {renderFeature('Budget Automation', false)}
             </ul>
             <div className="mt-6">
-              {subscriptionTier === 'free' ? (
+              {subscriptionTier === 'free' && (
                 <button className="w-full p-3 bg-purple-600 text-white rounded-xl font-semibold" disabled>
                   Current Plan
-                </button>
-              ) : (
-                <button className="w-full p-3 bg-gray-200 text-gray-800 rounded-xl font-semibold" disabled>
-                  Free Plan
                 </button>
               )}
             </div>
@@ -127,8 +121,8 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, subscri
             <h2 className="text-xl font-bold text-gray-800">Plus</h2>
             <p className="text-sm text-gray-500 mb-4">Achieve your short-term goals</p>
             <div className="text-center my-4">
-              <h3 className="text-3xl font-bold">{plusProduct?.pricing?.price || '...'}</h3>
-              <p className="text-sm text-gray-500">One-time 3-Month Pass</p>
+              <h3 className="text-3xl font-bold">{plusProduct?.product.priceString || FALLBACK_PRICES.plus}</h3>
+              <p className="text-sm text-gray-500">{plusProduct?.product.subscriptionPeriod ? `Billed ${plusProduct.product.subscriptionPeriod.replace('P', '')}` : 'Billed Monthly'}</p>
             </div>
             <ul className="space-y-3 flex-grow">
               {renderFeature('All Free Features', true)}
@@ -147,7 +141,7 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, subscri
               ) : (
                 <button
                   onClick={handleBuyPlus}
-                  disabled={!plusProduct || subscriptionTier === 'premium' || isPurchasing}
+                  disabled={subscriptionTier === 'premium' || isPurchasing} // A premium user doesn't need to see this button as active
                   className="w-full p-3 bg-yellow-400 text-yellow-900 rounded-xl font-semibold hover:bg-yellow-500 disabled:opacity-50 flex justify-center items-center"
                 >
                   {isPurchasing ? (
@@ -167,35 +161,35 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, subscri
             <h2 className="text-xl font-bold">Premium</h2>
             <p className="text-sm text-purple-200 mb-4">Put your budget on autopilot</p>
             <div className="text-center my-4">
-              <h3 className="text-3xl font-bold">{premiumProduct?.pricing?.price || '...'}</h3>
-              <p className="text-sm text-purple-200">{premiumProduct?.title.includes('Annual') ? 'Billed Annually' : 'Billed Monthly'}</p>
+              <h3 className="text-3xl font-bold">{premiumProduct?.product.priceString || FALLBACK_PRICES.premium}</h3>
+              <p className="text-sm text-purple-200">{premiumProduct?.product.subscriptionPeriod ? `Billed ${premiumProduct.product.subscriptionPeriod.replace('P', '')}` : 'Billed Annually'}</p>
             </div>
             <ul className="space-y-3 flex-grow">
-              <li className="flex items-start space-x-3">
+              <li className="flex items-center space-x-3">
                 <CheckCircle className="h-5 w-5 text-white" />
                 <p className="text-sm">All Plus Features</p>
               </li>
-              <li className="flex items-start space-x-3">
+              <li className="flex items-center space-x-3">
                 <CheckCircle className="h-5 w-5 text-white" />
                 <p className="text-sm">Unlimited Custom Budgets & Reminders</p>
               </li>
-              <li className="flex items-start space-x-3">
+              <li className="flex items-center space-x-3">
                 <CheckCircle className="h-5 w-5 text-white" />
                 <p className="text-sm">Full Analytics Suite</p>
               </li>
-              <li className="flex items-start space-x-3">
+              <li className="flex items-center space-x-3">
                 <CheckCircle className="h-5 w-5 text-white" />
                 <p className="text-sm">Budget Automation</p>
               </li>
-              <li className="flex items-start space-x-3">
+              <li className="flex items-center space-x-3">
                 <CheckCircle className="h-5 w-5 text-white" />
                 <p className="text-sm">Fund Transfers & Alerts</p>
               </li>
-              <li className="flex items-start space-x-3">
+              <li className="flex items-center space-x-3">
                 <CheckCircle className="h-5 w-5 text-white" />
                 <p className="text-sm">Advanced Reporting</p>
               </li>
-              <li className="flex items-start space-x-3">
+              <li className="flex items-center space-x-3">
                 <CheckCircle className="h-5 w-5 text-white" />
                 <p className="text-sm">Cloud Sync & Backup</p>
               </li>
@@ -208,7 +202,7 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, subscri
               ) : (
                 <button
                   onClick={handleBuyPremium}
-                  disabled={!premiumProduct || isPurchasing}
+                  disabled={isPurchasing}
                   className="w-full p-3 bg-white text-purple-700 rounded-xl font-semibold hover:bg-purple-100 disabled:opacity-50 flex justify-center items-center"
                 >
                   {isPurchasing ? (

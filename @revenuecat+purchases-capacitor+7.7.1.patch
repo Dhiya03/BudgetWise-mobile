@@ -1,0 +1,11 @@
+diff --git a/node_modules/@revenuecat/purchases-capacitor/package.json b/node_modules/@revenuecat/purchases-capacitor/package.json
+index 5f3d32c..037d943 100644
+--- a/node_modules/@revenuecat/purchases-capacitor/package.json
++++ b/node_modules/@revenuecat/purchases-capacitor/package.json
+@@ -36,5 +36,5 @@
+   "peerDependencies": {
+-    "@capacitor/core": "^5.0.0"
++    "@capacitor/core": "^5.0.0 || ^6.0.0"
+   },
+   "capacitor": {
+     "ios": {
