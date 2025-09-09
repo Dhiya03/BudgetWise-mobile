@@ -5,29 +5,34 @@ import {
   BannerAdPosition,
   BannerAdOptions
 } from '@capacitor-community/admob';
+import BillingManager from './BillingManager';
 
 export type SubscriptionTier = 'free' | 'plus' | 'premium';
 
 class AdsManager {
   private static initialized = false;
-  private static subscriptionTier: SubscriptionTier = 'free';
 
+  // 🔑 Initialize AdMob
   static async init() {
-    if (this.initialized) return;
-    await AdMob.initialize({
-      testingDevices: [],
-      initializeForTesting: true, // ⚠️ remove in production
-    });
-    this.initialized = true;
+    if (!this.initialized) {
+      await AdMob.initialize({
+        testingDevices: [],
+        initializeForTesting: true, // ⚠️ remove in production
+      });
+      this.initialized = true;
+    }
   }
 
-  static setTier(tier: SubscriptionTier) {
-    this.subscriptionTier = tier;
+  // This is now private as the manager should control its own state
+  private static async getTier(): Promise<SubscriptionTier> {
+    // Always fetch the latest tier from the single source of truth
+    return await BillingManager.checkUserTier();
   }
 
   // Banner
   static async showBanner() {
-    if (this.subscriptionTier === 'premium') return; // no ads
+    const tier = await this.getTier();
+    if (tier === 'premium') return; // no ads
     const options: BannerAdOptions = {
       adId: 'ca-app-pub-3940256099942544/6300978111', // TEST Banner
       adSize: BannerAdSize.BANNER,
@@ -43,9 +48,9 @@ class AdsManager {
 
   //  Interstitial
   static async showInterstitial() {
-    if (this.subscriptionTier === 'premium') return; // skip ads
-    if (this.subscriptionTier === 'plus' && Math.random() > 0.3) return; 
-    // Plus = show fewer ads (30% chance here)
+    const tier = await this.getTier();
+    if (tier === 'premium') return; // skip ads
+    if (tier === 'plus' && Math.random() > 0.3) return; 
 
     await AdMob.prepareInterstitial({
       adId: 'ca-app-pub-3940256099942544/1033173712',
@@ -56,7 +61,8 @@ class AdsManager {
 
   // Rewarded
   static async showRewarded(onReward: () => void) {
-    if (this.subscriptionTier === 'premium') return; // skip
+    const tier = await this.getTier();
+    if (tier === 'premium') return; // skip
     await AdMob.prepareRewardVideoAd({
       adId: 'ca-app-pub-3940256099942544/5224354917',
       isTesting: true,

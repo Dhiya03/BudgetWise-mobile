@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ArrowLeft, CheckCircle, XCircle } from 'lucide-react';
 import BillingManager from '../billing/BillingManager';
 import { Purchases } from '@revenuecat/purchases-capacitor';
 import type { PurchasesPackage } from '@revenuecat/purchases-capacitor';
+import { Capacitor } from '@capacitor/core';
 
 interface SubscriptionScreenProps {
   onBack: () => void;
@@ -15,6 +16,7 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, subscri
   const [premiumProduct, setPremiumProduct] = useState<PurchasesPackage | null>(null);
   const [loading, setLoading] = useState(true);
   const [isPurchasing, setIsPurchasing] = useState(false);
+  const [platform, setPlatform] = useState('Google Play');
 
   // Fallback prices for when RevenueCat is not available (e.g., in a web browser for dev)
   const FALLBACK_PRICES = {
@@ -24,6 +26,13 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, subscri
 
   useEffect(() => {
     const loadProducts = async () => {
+      if (Capacitor.isNativePlatform()) {
+        const currentPlatform = Capacitor.getPlatform();
+        if (currentPlatform === 'ios') {
+          setPlatform('App Store');
+        }
+      }
+
       try {
         const offerings = await Purchases.getOfferings();
         if (offerings.current) {
@@ -63,6 +72,28 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, subscri
       setIsPurchasing(false);
     }
   };
+
+  const formatSubscriptionPeriod = (period: string | null | undefined): string => {
+    if (!period) return '';
+    if (period === 'P1M') return 'Billed Monthly';
+    if (period === 'P3M') return 'Billed Quarterly';
+    if (period === 'P1Y') return 'Billed Annually';
+    // Fallback for other ISO 8601 durations
+    return `Billed ${period.replace('P', '')}`;
+  };
+
+  const annualSavings = useMemo(() => {
+    if (plusProduct?.product.price && premiumProduct?.product.price) {
+      const monthlyPrice = plusProduct.product.price;
+      const annualPrice = premiumProduct.product.price;
+      const totalMonthlyCost = monthlyPrice * 12;
+      if (totalMonthlyCost > annualPrice) {
+        const savings = ((totalMonthlyCost - annualPrice) / totalMonthlyCost) * 100;
+        return `Save ${Math.round(savings)}% vs monthly`;
+      }
+    }
+    return 'Save 55% vs monthly'; // Fallback
+  }, [plusProduct, premiumProduct]);
 
   const renderFeature = (text: string, included: boolean) => (
     <li className="flex items-center space-x-3">
@@ -113,16 +144,22 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, subscri
                   Current Plan
                 </button>
               )}
+              <p className="text-center text-xs text-gray-500 mt-2">
+                Always Free
+              </p>
             </div>
           </div>
 
           {/* Plus Tier */}
-          <div className="bg-white rounded-2xl p-6 shadow-lg border-2 border-yellow-400 flex flex-col">
+          <div className="relative bg-white rounded-2xl p-6 shadow-lg border-2 border-yellow-400 flex flex-col">
             <h2 className="text-xl font-bold text-gray-800">Plus</h2>
             <p className="text-sm text-gray-500 mb-4">Achieve your short-term goals</p>
+            <span className="absolute top-0 right-0 bg-yellow-400 text-xs font-bold px-2 py-1 rounded-bl-lg">
+              Most Popular
+            </span>
             <div className="text-center my-4">
               <h3 className="text-3xl font-bold">{plusProduct?.product.priceString || FALLBACK_PRICES.plus}</h3>
-              <p className="text-sm text-gray-500">{plusProduct?.product.subscriptionPeriod ? `Billed ${plusProduct.product.subscriptionPeriod.replace('P', '')}` : 'Billed Monthly'}</p>
+              <p className="text-sm text-gray-500">{formatSubscriptionPeriod(plusProduct?.product.subscriptionPeriod)}</p>
             </div>
             <ul className="space-y-3 flex-grow">
               {renderFeature('All Free Features', true)}
@@ -142,14 +179,14 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, subscri
                 <button
                   onClick={handleBuyPlus}
                   disabled={subscriptionTier === 'premium' || isPurchasing} // A premium user doesn't need to see this button as active
-                  className="w-full p-3 bg-yellow-400 text-yellow-900 rounded-xl font-semibold hover:bg-yellow-500 disabled:opacity-50 flex justify-center items-center"
+                  className="w-full p-3 bg-yellow-400 text-black rounded-xl font-semibold hover:bg-yellow-500 disabled:opacity-50 flex justify-center items-center"
                 >
                   {isPurchasing ? (
                     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-yellow-900"></div>
                   ) : (
                     subscriptionTier === 'premium'
                       ? 'Subscribed to Premium'
-                      : 'Upgrade to Plus'
+                      : `Upgrade to Plus - ${plusProduct?.product.priceString || '₹149'}`
                   )}
                 </button>
               )}
@@ -162,7 +199,10 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, subscri
             <p className="text-sm text-purple-200 mb-4">Put your budget on autopilot</p>
             <div className="text-center my-4">
               <h3 className="text-3xl font-bold">{premiumProduct?.product.priceString || FALLBACK_PRICES.premium}</h3>
-              <p className="text-sm text-purple-200">{premiumProduct?.product.subscriptionPeriod ? `Billed ${premiumProduct.product.subscriptionPeriod.replace('P', '')}` : 'Billed Annually'}</p>
+              <p className="text-sm text-purple-200">{formatSubscriptionPeriod(premiumProduct?.product.subscriptionPeriod)}</p>
+              <p className="text-xs text-yellow-300 mt-1 font-semibold">
+                {annualSavings}
+              </p>
             </div>
             <ul className="space-y-3 flex-grow">
               <li className="flex items-center space-x-3">
@@ -208,7 +248,7 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, subscri
                   {isPurchasing ? (
                     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-purple-700"></div>
                   ) : (
-                    'Go Premium'
+                    `Go Premium - ${premiumProduct?.product.priceString || '₹799'}`
                   )}
                 </button>
               )}
@@ -216,6 +256,12 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, subscri
           </div>
         </div>
       )}
+
+      {/* Trust Badge */}
+      <div className="text-center text-gray-500 text-sm mt-4">
+        <p>Secure payments processed by {platform}.</p>
+        <p>You can cancel anytime from your {platform} subscriptions.</p>
+      </div>
     </div>
   );
 };

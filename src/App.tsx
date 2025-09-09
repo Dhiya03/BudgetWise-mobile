@@ -379,10 +379,6 @@ const App = () => {
     refreshSubscriptionStatus(); // Initial check on app start to get the tier
   }, [refreshSubscriptionStatus]);
 
-      useEffect(() => {
-        AdsManager.setTier(subscriptionTier);
-      }, [subscriptionTier]);
-
             // Show banners only on Home tab (skip if premium)
       useEffect(() => {
         if (subscriptionTier !== 'premium' && activeTab === 'add') {
