@@ -1,9 +1,4 @@
 import React, { useRef } from 'react';
-import { FileJson, FileSpreadsheet, FileText, Star } from 'lucide-react';
-import * as XLSX from 'xlsx';
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
-import { useAnalytics } from '../hooks/useAnalytics';
 import {
   Transaction,
   MonthlyBudgets,
@@ -14,6 +9,9 @@ import {
   SpendingAlert,
   TransferEvent,
 } from '../types';
+import type { jsPDF as jsPDFType } from 'jspdf';
+import { FileJson, FileSpreadsheet, FileText, Star } from 'lucide-react';
+import { useAnalytics } from '../hooks/useAnalytics';
 import { Capacitor } from '@capacitor/core';
 import { hasAccessTo, Feature } from '../subscriptionManager';
 import FileService from '../utils/FileService';
@@ -179,6 +177,8 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
   };
 
   const exportToExcel = async () => {
+    // Lazy load the xlsx library
+    const { utils, write } = await import('xlsx');
     try {
       const filename = `BudgetWise_Export_${new Date().toISOString().split('T')[0]}.xlsx`;
       const transactionData = [...transactions]
@@ -194,7 +194,7 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
             Tags: t.tags?.join(', ') || '',
           };
         });
-      const transactionSheet = XLSX.utils.json_to_sheet(transactionData);
+      const transactionSheet = utils.json_to_sheet(transactionData);
 
       const monthlyBudgetsData = categories.map(cat => ({
         Category: cat,
@@ -202,7 +202,7 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
         Spent: getSpentAmount(cat, currentYear, currentMonth),
         Remaining: getRemainingBudget(cat, currentYear, currentMonth),
       }));
-      const monthlyBudgetSheet = XLSX.utils.json_to_sheet(monthlyBudgetsData);
+      const monthlyBudgetSheet = utils.json_to_sheet(monthlyBudgetsData);
 
       const customBudgetsData = customBudgets.map(b => ({
         Name: b.name,
@@ -212,7 +212,7 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
         Status: b.status,
         Deadline: b.deadline || 'N/A',
       }));
-      const customBudgetSheet = XLSX.utils.json_to_sheet(customBudgetsData);
+      const customBudgetSheet = utils.json_to_sheet(customBudgetsData);
 
       const transferLogData = transferLog.map(t => ({
         Date: new Date(t.date).toLocaleString(),
@@ -222,15 +222,15 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
         'To Budget': getCustomBudgetName(t.toBudgetId),
         'To Category Allocations': JSON.stringify(t.toCategoryAllocations),
       }));
-      const transferLogSheet = XLSX.utils.json_to_sheet(transferLogData);
+      const transferLogSheet = utils.json_to_sheet(transferLogData);
 
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, transactionSheet, 'Transactions');
-      XLSX.utils.book_append_sheet(wb, monthlyBudgetSheet, 'Monthly Budgets');
-      XLSX.utils.book_append_sheet(wb, customBudgetSheet, 'Custom Budgets');
-      XLSX.utils.book_append_sheet(wb, transferLogSheet, 'Fund Transfers');
+      const wb = utils.book_new();
+      utils.book_append_sheet(wb, transactionSheet, 'Transactions');
+      utils.book_append_sheet(wb, monthlyBudgetSheet, 'Monthly Budgets');
+      utils.book_append_sheet(wb, customBudgetSheet, 'Custom Budgets');
+      utils.book_append_sheet(wb, transferLogSheet, 'Fund Transfers');
 
-      const excelData = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
+      const excelData = write(wb, { bookType: 'xlsx', type: 'base64' });
       const { readablePath } = await FileService.writeFile(filename, excelData, 'xlsx');
       alert(`Excel report saved to: ${readablePath}`);
     } catch (error) {
@@ -240,8 +240,11 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
   };
 
   const generatePDFReport = async () => {
+    // Lazy load jspdf and autotable
+    const { default: jsPDF } = await import('jspdf');
+    const { default: autoTable } = await import('jspdf-autotable');
     try {
-      const doc = new jsPDF() as jsPDF & { lastAutoTable: { finalY: number } };
+      const doc = new jsPDF() as jsPDFType & { lastAutoTable: { finalY: number } };
       const filename = `BudgetWise_Report_${new Date().toISOString().split('T')[0]}.pdf`;
 
       const getScoreDescription = (score: number) => {
@@ -278,7 +281,7 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
       doc.setTextColor(0);
 
       // Cash Flow Summary Table
-      (doc as any).autoTable({
+      autoTable(doc, {
         startY: 70,
         head: [['Cash Flow & Preparedness', 'Amount']],
         body: [
@@ -294,7 +297,7 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
       });
 
       // Personal Habits Table
-      (doc as any).autoTable({
+      autoTable(doc, {
         startY: (doc as any).lastAutoTable.finalY + 10,
         head: [['Personal Habits', 'Insight']],
         body: [
@@ -321,7 +324,7 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
         const goalTableStartY = (doc as any).lastAutoTable.finalY + 15;
         doc.setFontSize(16);
         doc.text('Goal Progress', 14, goalTableStartY);
-        (doc as any).autoTable({
+        autoTable(doc, {
           startY: goalTableStartY + 2,
           head: [['Active Goals', 'Progress', '% Funded']],
           body: goalData,
@@ -333,7 +336,7 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
       const insightsStartY = (doc as any).lastAutoTable.finalY + 15;
       doc.setFontSize(16);
       doc.text('Spending Insights', 14, insightsStartY);
-      (doc as any).autoTable({
+      autoTable(doc, {
         startY: insightsStartY + 2,
         head: [['Top Spending Categories', 'Amount (₹)', 'Trend (%)']],
         body: categoryInsights.slice(0, 5).map(insight => [
@@ -356,7 +359,7 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
       const transactionsStartY = (doc as any).lastAutoTable.finalY + 15;
       doc.setFontSize(16);
       doc.text('Recent Transactions', 14, transactionsStartY);
-      (doc as any).autoTable({
+      autoTable(doc, {
         startY: transactionsStartY + 2,
         head: [['Date', 'Description', 'Category', 'Amount (₹)']],
         body: transactionData,

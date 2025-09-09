@@ -2,7 +2,9 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Repeat, X, Star } from 'lucide-react';
 
 import { App as CapacitorApp } from '@capacitor/app';
-import * as CryptoJS from 'crypto-js';
+import AES from 'crypto-js/aes';
+import SHA256 from 'crypto-js/sha256';
+import Utf8 from 'crypto-js/enc-utf8';
 import { Capacitor } from '@capacitor/core';
 import {
   Transaction,
@@ -396,7 +398,7 @@ const App = () => {
       
       const appState = { transactions, budgets, customBudgets, categories, budgetTemplates, budgetRelationships, billReminders, spendingAlerts, transferLog, recurringProcessingMode, savingsGoal, dailySpendingGoal, analyticsTimeframe };
       const jsonString = JSON.stringify(appState);
-      const encryptedData = encryptionKey ? CryptoJS.AES.encrypt(jsonString, encryptionKey).toString() : jsonString;
+      const encryptedData = encryptionKey ? AES.encrypt(jsonString, encryptionKey).toString() : jsonString;
       localStorage.setItem('budgetWiseData_v2', encryptedData);
     } catch (error) {
       console.error("Failed to save data to storage", error);
@@ -464,14 +466,14 @@ const App = () => {
   const handleUnlock = () => {
     if (lockoutUntil && Date.now() < lockoutUntil) return;
 
-    const inputHash = CryptoJS.SHA256(passwordInput).toString();
+    const inputHash = SHA256(passwordInput).toString();
 
     if (inputHash === appPassword) {
       const savedData = localStorage.getItem('budgetWiseData_v2');
       if (savedData) {
         try {
-          const bytes = CryptoJS.AES.decrypt(savedData, passwordInput);
-          const decryptedJson = bytes.toString(CryptoJS.enc.Utf8);
+          const bytes = AES.decrypt(savedData, passwordInput);
+          const decryptedJson = bytes.toString(Utf8);
           const appState = JSON.parse(decryptedJson);
 
           // Set all the states from the loaded data

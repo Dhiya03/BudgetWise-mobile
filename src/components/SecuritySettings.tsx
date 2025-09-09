@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Unlock , Lock} from 'lucide-react';
-import * as CryptoJS from 'crypto-js';
+import { Unlock, Lock } from 'lucide-react';
+import SHA256 from 'crypto-js/sha256';
+import AES from 'crypto-js/aes';
 import {
   Transaction,
   MonthlyBudgets,
@@ -50,7 +51,7 @@ const SecuritySettings: React.FC<SecuritySettingsProps> = (props) => {
       return;
     }
     // 1. Hash the PIN for storage (never store the raw PIN)
-    const pinHash = CryptoJS.SHA256(newPasswordInput).toString();
+    const pinHash = SHA256(newPasswordInput).toString();
 
     // 2. Encrypt the entire app state using the raw PIN as the key
     const appState = {
@@ -58,7 +59,7 @@ const SecuritySettings: React.FC<SecuritySettingsProps> = (props) => {
       billReminders, transferLog, recurringProcessingMode, savingsGoal, dailySpendingGoal, analyticsTimeframe, spendingAlerts
     };
     const jsonString = JSON.stringify(appState);
-    const encryptedData = CryptoJS.AES.encrypt(jsonString, newPasswordInput).toString();
+    const encryptedData = AES.encrypt(jsonString, newPasswordInput).toString();
 
     // 3. Store the hash and the encrypted data
     localStorage.setItem('appPasswordHash_v2', pinHash);
