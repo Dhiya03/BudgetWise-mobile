@@ -322,3 +322,11 @@ export const simulateBudgetScenario = (
   const simulatedSavings = monthlyIncome - simulatedTotalBudget;
   return { simulatedSavings, monthlyIncome, simulatedTotalBudget };
 };
+
+/**
+ * A simple analytics service for tracking user events.
+ * In a real app, this would integrate with a service like Mixpanel, Amplitude, or Google Analytics.
+ */
+export const trackEvent = (eventName: string, properties: Record<string, any> = {}) => {
+  console.log(`[ANALYTICS] Event: ${eventName}`, properties);
+};

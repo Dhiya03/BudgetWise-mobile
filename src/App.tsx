@@ -42,6 +42,7 @@ import AdsManager, { SubscriptionTier } from './billing/AdsManager';
 import { hasAccessTo, Feature } from './subscriptionManager';
 import InAppTipWidget from './components/InAppTipWidget';
 import BillingManager from './billing/BillingManager';
+import UpgradeBanner from './components/UpgradeBanner';
 import SubscriptionScreen from './billing/SubscriptionScreen';
 
 
@@ -1980,18 +1981,14 @@ const App = () => {
             onLanguageChange={handleLanguageChange}
           />
         ) : (
-          <div className="bg-white rounded-2xl p-6 shadow-lg text-center">
-            <h2 className="text-xl font-bold text-gray-800 mb-2">Unlock 3 Indian Languages</h2>
-            <p className="text-gray-600 mb-4">
-              Upgrade to Plus or Premium to use BudgetWise in Hindi, Tamil, or Telugu.
-            </p>
-            <button
-              onClick={() => setActiveTab('subscriptions')}
-              className="p-3 bg-purple-600 text-white rounded-xl font-semibold hover:bg-purple-700"
-            >
-              View Plans
-            </button>
-          </div>
+          <UpgradeBanner
+            title="Unlock 3 Indian Languages"
+            description="Upgrade to Plus or Premium to use BudgetWise in Hindi, Tamil, or Telugu."
+            buttonText="View Plans"
+            onButtonClick={() => setActiveTab('subscriptions')}
+            eventName="upgrade_prompt_viewed"
+            eventProperties={{ feature: 'language_selection' }}
+          />
         )}
         <SecuritySettings
           appPassword={appPassword}
