@@ -4,6 +4,7 @@ import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { BillReminder } from '../types';
 import { isLimitReached, Limit } from '../subscriptionManager';
+import { useLocalization } from './LocalizationContext';
 
 interface BillReminderTabProps {
   billReminders: BillReminder[];
@@ -14,6 +15,7 @@ interface BillReminderTabProps {
 const BillReminderTab = ({ billReminders, setBillReminders, showConfirmation }: BillReminderTabProps) => {
   const [editingBillReminder, setEditingBillReminder] = useState<BillReminder | null>(null);
   const [billForm, setBillForm] = useState({ name: '', amount: '', dueDate: '' });
+  const { t } = useLocalization();
 
   const reminderLimitReached = useMemo(() => {
     if (editingBillReminder) {
@@ -94,20 +96,20 @@ const BillReminderTab = ({ billReminders, setBillReminders, showConfirmation }: 
               schedule: scheduleOptions
             }]
           });
-          alert('Reminder and notification updated successfully! (TEST MODE: fires in 2 mins)');
+          alert(t('toast.reminderUpdated.testMode'));
          
         } catch (e) {
           console.error("Error updating notification", e);
-          alert('Reminder updated, but failed to update the notification.');
+          alert(t('toast.reminderUpdated.notificationError'));
         }
       } else {
-        alert('Bill reminder updated successfully!');
+        alert(t('toast.reminderUpdated.success'));
       }
       handleCancelBillEdit();
     } else {
       // --- Add Logic ---
       if (reminderLimitReached) {
-        alert("You have reached the maximum number of reminders for your plan. Please upgrade to add more.");
+        alert(t('toast.reminderLimitReached'));
         return;
       }
       const newReminder: BillReminder = { id: Math.floor(Math.random() * 2147483647), name: billForm.name, amount: parseFloat(billForm.amount), dueDate: billForm.dueDate };
@@ -155,11 +157,11 @@ const BillReminderTab = ({ billReminders, setBillReminders, showConfirmation }: 
               schedule: scheduleOptions
             }]
           });
-          alert('Bill reminder and notification scheduled successfully! (TEST MODE: fires in 2 mins)');
+          alert(t('toast.reminderAdded.testMode'));
         
-        } catch (e) { console.error("Error scheduling notification", e); alert('Bill reminder added, but failed to schedule the notification.'); }
+        } catch (e) { console.error("Error scheduling notification", e); alert(t('toast.reminderAdded.notificationError')); }
       } else {
-        alert('Bill reminder added successfully! (Notifications only work on mobile devices)');
+        alert(t('toast.reminderAdded.successWeb'));
       }
       setBillForm({ name: '', amount: '', dueDate: '' });
     }
@@ -167,8 +169,8 @@ const BillReminderTab = ({ billReminders, setBillReminders, showConfirmation }: 
 
   const deleteBillReminder = (id: number) => {
     showConfirmation(
-      'Confirm Deletion',
-      'Are you sure you want to delete this reminder?',
+      t('confirmation.deleteReminder.title'),
+      t('confirmation.deleteReminder.message'),
       async () => {
         setBillReminders(billReminders.filter(br => br.id !== id));
         // --- Cancel the corresponding notification ---
@@ -188,7 +190,7 @@ const BillReminderTab = ({ billReminders, setBillReminders, showConfirmation }: 
       {/* Add/Edit Reminder Form */}
       <div className="bg-white rounded-2xl p-6 shadow-lg">
         <h2 className="text-xl font-bold text-gray-800 mb-4">
-          {editingBillReminder ? 'Edit Bill Reminder' : 'Add Bill Reminder'}
+          {editingBillReminder ? t('reminders.editTitle') : t('reminders.addTitle')}
         </h2>
         <div className="space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -196,20 +198,21 @@ const BillReminderTab = ({ billReminders, setBillReminders, showConfirmation }: 
               type="text"
               value={billForm.name}
               onChange={e => setBillForm({ ...billForm, name: e.target.value })}
-              placeholder="Bill Name"
+              placeholder={t('reminders.billName')}
               className="sm:col-span-2 p-3 border border-gray-300 rounded-xl"
             />
             <input
               type="number"
               value={billForm.amount}
               onChange={e => setBillForm({ ...billForm, amount: e.target.value })}
-              placeholder="Amount"
+              placeholder={t('reminders.amount')}
               className="p-3 border border-gray-300 rounded-xl"
             />
             <input
               type="date"
               value={billForm.dueDate}
               onChange={e => setBillForm({ ...billForm, dueDate: e.target.value })}
+              placeholder={t('reminders.dueDate')}
               className="p-3 border border-gray-300 rounded-xl"
             />
           </div>
@@ -219,11 +222,11 @@ const BillReminderTab = ({ billReminders, setBillReminders, showConfirmation }: 
             className="w-full p-3 bg-yellow-500 text-white rounded-xl font-semibold hover:bg-yellow-600 flex items-center justify-center disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
             <Bell size={18} className="mr-2" />
-            {editingBillReminder ? 'Update Reminder' : 'Add Reminder'}
+            {editingBillReminder ? t('reminders.updateButton') : t('reminders.addButton')}
           </button>
           {reminderLimitReached && !editingBillReminder && (
             <p className="text-center text-sm text-red-600 mt-2">
-              Limit reached for your current plan.
+              {t('reminders.limitReached')}
             </p>
           )}
           {editingBillReminder && (
@@ -231,7 +234,7 @@ const BillReminderTab = ({ billReminders, setBillReminders, showConfirmation }: 
               onClick={handleCancelBillEdit}
               className="w-full p-3 bg-gray-400 text-white rounded-xl hover:bg-gray-500"
             >
-              Cancel Edit
+              {t('addTab.cancelEdit')}
             </button>
           )}
         </div>
@@ -239,10 +242,10 @@ const BillReminderTab = ({ billReminders, setBillReminders, showConfirmation }: 
 
       {/* List of Reminders */}
       <div className="bg-white rounded-2xl p-6 shadow-lg">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">Upcoming Bills</h2>
+        <h2 className="text-xl font-bold text-gray-800 mb-4">{t('reminders.upcomingBills')}</h2>
         <div className="space-y-2">
           {billReminders.length === 0 && (
-            <p className="text-gray-500 text-center py-4">No reminders set.</p>
+            <p className="text-gray-500 text-center py-4">{t('reminders.noReminders')}</p>
           )}
           {billReminders
             .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
@@ -251,21 +254,21 @@ const BillReminderTab = ({ billReminders, setBillReminders, showConfirmation }: 
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-gray-800 truncate">{reminder.name}</p>
                 <p className="text-sm text-gray-500">
-                  ₹{reminder.amount.toFixed(2)} (Due: {reminder.dueDate})
+                  ₹{reminder.amount.toFixed(2)} ({t('reminders.due')} {reminder.dueDate})
                 </p>
               </div>
               <div className="flex-shrink-0 flex space-x-1">
                 <button
                   onClick={() => editBillReminder(reminder)}
                   className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg"
-                  title="Edit Reminder"
+                  title={t('reminders.tooltip.edit')}
                 >
                   <Edit3 size={16} />
                 </button>
                 <button
                   onClick={() => deleteBillReminder(reminder.id)}
                   className="p-2 text-red-500 hover:bg-red-100 rounded-lg"
-                  title="Delete Reminder"
+                  title={t('reminders.tooltip.delete')}
                 >
                   <Trash2 size={16} />
                 </button>

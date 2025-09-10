@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import App from '../App';
 import { hasAccessTo, Feature } from '../subscriptionManager';
 import { trackEvent } from '../utils/analytics';
+import { LocalizationProvider } from '../components/LocalizationContext';
 import type { Mock } from 'vitest';
 
 // Mock dependencies
@@ -12,19 +13,34 @@ vi.mock('@capacitor/local-notifications');
 vi.mock('@capacitor/app');
 vi.mock('../billing/AdsManager');
 vi.mock('../billing/BillingManager');
+vi.mock('../components/FinancialTipsService', () => ({
+  default: {
+    getUserLanguage: () => 'en',
+    getTodaysTip: () => null,
+  }
+}));
 
 describe('SettingsTab Language Selection', () => {
   beforeEach(() => {
     // Reset mocks before each test
     vi.clearAllMocks();
+    // Mock localStorage
+    Storage.prototype.setItem = vi.fn();
+    Storage.prototype.getItem = vi.fn();
+    // Default to premium user
+    (hasAccessTo as Mock).mockReturnValue(true);
   });
+
+  const renderWithProvider = (ui: React.ReactElement) => {
+    return render(<LocalizationProvider>{ui}</LocalizationProvider>);
+  }
 
   it('should show language selection dropdown for premium users', async () => {
     // Arrange: User has access to the feature
     (hasAccessTo as Mock).mockImplementation((feature: Feature) => feature === Feature.LanguageSelection);
 
     // Act
-    render(<App />);
+    renderWithProvider(<App />);
     // Navigate to the settings tab
     const settingsButton = screen.getByRole('button', { name: /settings/i });
     fireEvent.click(settingsButton);
@@ -40,7 +56,7 @@ describe('SettingsTab Language Selection', () => {
     (hasAccessTo as Mock).mockImplementation((feature: Feature) => feature !== Feature.LanguageSelection);
 
     // Act
-    render(<App />);
+    renderWithProvider(<App />);
     // Navigate to the settings tab
     const settingsButton = screen.getByRole('button', { name: /settings/i });
     fireEvent.click(settingsButton);
@@ -61,5 +77,23 @@ describe('SettingsTab Language Selection', () => {
       feature: 'language_selection',
     });
     expect(trackEvent).toHaveBeenCalledTimes(2);
+  });
+
+  it('should call the language change handler and update localStorage when a new language is selected', async () => {
+    // Arrange: User has access
+    (hasAccessTo as Mock).mockImplementation((feature: Feature) => feature === Feature.LanguageSelection);
+
+    // Act
+    renderWithProvider(<App />);
+    // Navigate to the settings tab
+    const settingsButton = screen.getByRole('button', { name: /settings/i });
+    fireEvent.click(settingsButton);
+
+    const languageSelect = screen.getByLabelText('App Language');
+    await fireEvent.change(languageSelect, { target: { value: 'hi' } });
+
+    // Assert
+    expect(screen.getByText('Language changed to HI')).toBeInTheDocument();
+    expect(localStorage.setItem).toHaveBeenCalledWith('budgetwise_user_language', 'hi');
   });
 });

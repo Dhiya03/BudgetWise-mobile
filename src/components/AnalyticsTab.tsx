@@ -4,6 +4,7 @@ import { Transaction, MonthlyBudgets, SpendingAlert } from '../types';
 import { hasAccessTo, Feature } from '../subscriptionManager';
 import { simulateBudgetScenario } from '../utils/analytics';
 import { useAnalytics } from '../hooks/useAnalytics';
+import { useLocalization } from './LocalizationContext';
 
 interface AnalyticsTabProps {
   transactions: Transaction[];
@@ -63,7 +64,8 @@ const ImproveScoreModal: FC<{
   onClose: () => void;
   tips: ActionableTip[];
   onAction: (action: any) => void;
-}> = ({ isOpen, onClose, tips }) => {
+  t: (key: string, fallback?: string) => string;
+}> = ({ isOpen, onClose, tips, t }) => {
   if (!isOpen) return null;
 
   return (
@@ -72,7 +74,7 @@ const ImproveScoreModal: FC<{
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-bold text-gray-800 flex items-center">
             <Lightbulb size={22} className="mr-2 text-yellow-500" />
-            How to Improve Your Score
+            {t('analytics.improveModal.title')}
           </h2>
           <button onClick={onClose} className="p-2 text-gray-500 hover:bg-gray-100 rounded-full">
             <X size={20} />
@@ -92,7 +94,7 @@ const ImproveScoreModal: FC<{
             </div>
           ) : (
             <p className="text-center text-gray-500 py-4">
-              Your financial health looks great! Keep up the good work.
+              {t('analytics.improveModal.greatJob')}
             </p>
           )}
         </div>
@@ -101,7 +103,7 @@ const ImproveScoreModal: FC<{
             onClick={onClose}
             className="w-full p-3 bg-purple-600 text-white rounded-xl font-semibold hover:bg-purple-700"
           >
-            Got it!
+            {t('analytics.improveModal.gotIt')}
           </button>
         </div>
       </div>
@@ -114,7 +116,8 @@ const SetAlertModal: FC<{
   onClose: () => void;
   category: string | null;
   onSetAlert: (alert: Omit<SpendingAlert, 'id' | 'isSilenced'>) => void;
-}> = ({ isOpen, onClose, category, onSetAlert }) => {
+  t: (key: string, fallback?: string) => string;
+}> = ({ isOpen, onClose, category, onSetAlert, t }) => {
   const [threshold, setThreshold] = useState('');
 
   if (!isOpen || !category) return null;
@@ -122,7 +125,7 @@ const SetAlertModal: FC<{
   const handleSave = () => {
     const thresholdAmount = parseFloat(threshold);
     if (isNaN(thresholdAmount) || thresholdAmount <= 0) {
-      alert('Please enter a valid positive number for the threshold.');
+      alert(t('analytics.setAlertModal.validation.invalidThreshold', 'Please enter a valid positive number for the threshold.'));
       return;
     }
     onSetAlert({
@@ -137,16 +140,16 @@ const SetAlertModal: FC<{
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={onClose}>
       <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <h2 className="text-xl font-bold text-gray-800 mb-2">Set Alert for "{category}"</h2>
-        <p className="text-sm text-gray-600 mb-4">Get a notification when spending in this category goes above a certain amount this month.</p>
+        <h2 className="text-xl font-bold text-gray-800 mb-2">{t('analytics.setAlertModal.title').replace('{category}', category)}</h2>
+        <p className="text-sm text-gray-600 mb-4">{t('analytics.setAlertModal.description')}</p>
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Spending Threshold (₹)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('analytics.setAlertModal.threshold')}</label> {/* Use t() here */}
             <input type="number" value={threshold} onChange={(e) => setThreshold(e.target.value)} placeholder="e.g., 5000" className="w-full p-3 border border-gray-300 rounded-xl" />
           </div>
           <div className="flex justify-end space-x-3">
-            <button onClick={onClose} className="px-4 py-2 bg-gray-200 rounded-lg">Cancel</button>
-            <button onClick={handleSave} className="px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold">Save Alert</button>
+            <button onClick={onClose} className="px-4 py-2 bg-gray-200 rounded-lg">{t('general.cancel')}</button>
+            <button onClick={handleSave} className="px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold">{t('analytics.setAlertModal.save')}</button>
           </div>
         </div>
       </div>
@@ -156,17 +159,18 @@ const SetAlertModal: FC<{
 
 const AnalyticsTab: FC<AnalyticsTabProps> = (props) => {
   const { transactions, budgets, getCustomBudgetName, savingsGoal, setSavingsGoal, dailySpendingGoal, setDailySpendingGoal, analyticsTimeframe, setAnalyticsTimeframe, handleNavigationRequest, onSetAlert, spendingAlerts } = props;
+  const { t } = useLocalization();
 
   if (!hasAccessTo(Feature.LimitedAnalytics)) {
     return (
       <div className="p-6 text-center bg-white rounded-2xl m-4 shadow-lg">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">Unlock Your Financial Insights</h2>
-        <p className="text-gray-600 mb-4">Upgrade to Plus or Premium to access the Analytics Dashboard and take control of your finances.</p>
+        <h2 className="text-xl font-bold text-gray-800 mb-4">{t('analytics.unlockTitle')}</h2>
+        <p className="text-gray-600 mb-4">{t('analytics.unlockDescription')}</p>
         {/* In a real app, this would navigate to the subscription screen */}
         <button 
           onClick={() => handleNavigationRequest({ type: 'navigate', payload: { tab: 'settings' }})} 
           className="p-3 bg-purple-600 text-white rounded-xl font-semibold"
-        >View Plans</button>
+        >{t('upgrade.viewPlans')}</button>
       </div>
     );
   }
@@ -195,7 +199,7 @@ const AnalyticsTab: FC<AnalyticsTabProps> = (props) => {
       const highestCategory = categoryInsights[0];
       if (highestCategory) {
         tips.push({
-          text: `Your spending is high compared to your income. Review your largest category, "${highestCategory.category}", to find potential savings.`,
+          text: t('analytics.improveTips.highSpending').replace('{category}', highestCategory.category),
           icon: <DollarSign size={18} />,
         });
       }
@@ -203,22 +207,22 @@ const AnalyticsTab: FC<AnalyticsTabProps> = (props) => {
 
     if (breakdown.savingsScore < 15 && cashFlow.savings < savingsGoal) {
       tips.push({
-        text: `Your savings rate is low. Try creating a 'Rollover Rule' in the Budget tab to automatically save any monthly surpluses to a savings goal.`,
+        text: t('analytics.improveTips.lowSavings'),
         icon: <Target size={18} />,
       });
     }
 
     if (breakdown.trendScore < 10) {
       const highTrendCategory = categoryInsights.find(c => c.trend > 20);
-      tips.push({
-        text: `Your spending has been increasing. ${highTrendCategory ? `Focus on your '${highTrendCategory.category}' spending which is up ${highTrendCategory.trend.toFixed(0)}%.` : "Check the 'Smart Category Breakdown' for categories with a high upward trend."}`,
-        icon: <TrendingUp size={18} />,
-      });
+      const details = highTrendCategory
+        ? t('analytics.improveTips.increasingSpending.details').replace('{category}', highTrendCategory.category).replace('{percent}', highTrendCategory.trend.toFixed(0))
+        : t('analytics.improveTips.increasingSpending.noCategory');
+      tips.push({ text: t('analytics.improveTips.increasingSpending').replace('{details}', details), icon: <TrendingUp size={18} /> });
     }
 
     if (isFinite(runway.runwayMonths) && runway.runwayMonths < 3) {
       tips.push({
-        text: `Your financial runway is short (${runway.runwayMonths} months). Focus on building an emergency fund of 3-6 months of expenses.`,
+        text: t('analytics.improveTips.shortRunway').replace('{months}', runway.runwayMonths.toString()),
         icon: <AlertTriangle size={18} />
       });
     }
@@ -226,9 +230,9 @@ const AnalyticsTab: FC<AnalyticsTabProps> = (props) => {
   }, [healthScore, categoryInsights, cashFlow, runway, savingsGoal]);
 
   const getScoreDescription = (score: number) => {
-    if (score >= 75) return { text: "Thriving", icon: ShieldCheck, color: "text-green-600" };
-    if (score >= 50) return { text: "Caution", icon: ShieldAlert, color: "text-yellow-600" };
-    return { text: "Action Needed", icon: Shield, color: "text-red-600" };
+    if (score >= 75) return { text: t('analytics.healthStatus.thriving'), icon: ShieldCheck, color: "text-green-600" };
+    if (score >= 50) return { text: t('analytics.healthStatus.caution'), icon: ShieldAlert, color: "text-yellow-600" };
+    return { text: t('analytics.healthStatus.actionNeeded'), icon: Shield, color: "text-red-600" };
   };
 
   const scoreDescription = getScoreDescription(healthScore.score);
@@ -241,7 +245,7 @@ const AnalyticsTab: FC<AnalyticsTabProps> = (props) => {
   return (
     <div className="p-4 space-y-6">
       <div className="bg-white rounded-2xl p-6 shadow-lg">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">Analytics Dashboard</h2>
+        <h2 className="text-xl font-bold text-gray-800 mb-4">{t('analytics.dashboardTitle')}</h2>
         <div className="flex justify-center space-x-2 mb-4">
           {['This Month', '30', '60', '90'].map(period => (
             <button
@@ -251,7 +255,7 @@ const AnalyticsTab: FC<AnalyticsTabProps> = (props) => {
                 analyticsTimeframe === period ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700'
               }`}
             >
-              {period === 'This Month' ? 'This Month' : `Last ${period} Days`}
+              {period === 'This Month' ? t('analytics.timeframe.thisMonth') : t('analytics.timeframe.lastDays').replace('{days}', period)}
             </button>
           ))}
         </div>
@@ -260,11 +264,11 @@ const AnalyticsTab: FC<AnalyticsTabProps> = (props) => {
       {/* Financial Health Score */}
       <div className="bg-white rounded-2xl p-6 shadow-lg text-center">
         <div className="flex justify-center items-center mb-2">
-          <h3 className="text-lg font-bold text-gray-800">Financial Health Score</h3>
+          <h3 className="text-lg font-bold text-gray-800">{t('analytics.healthScoreTitle')}</h3>
           <div className="relative group ml-2">
             <HelpCircle size={16} className="text-gray-400 opacity-50 cursor-help" />
             <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-800 text-white text-xs text-left rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-              Your financial wellness score (0-100). It's calculated from your income, expenses, savings, and spending trends to provide a simple summary.
+              {t('analytics.healthScoreTooltip')}
               <div className="absolute right-2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-800"></div>
             </div>
           </div>
@@ -278,13 +282,13 @@ const AnalyticsTab: FC<AnalyticsTabProps> = (props) => {
           onClick={() => setIsImproveModalOpen(true)}
           className="mt-4 w-full p-3 bg-purple-100 text-purple-700 rounded-xl font-semibold hover:bg-purple-200"
         >
-          Improve Score
+          {t('analytics.improveScore')}
         </button>
       </div>
 
       {/* Cash Flow Reality Check */}
       <div className="bg-white rounded-2xl p-6 shadow-lg">
-        <h3 className="text-lg font-bold text-gray-800 mb-4">Cash Flow Reality Check</h3>
+        <h3 className="text-lg font-bold text-gray-800 mb-4">{t('analytics.cashFlowTitle')}</h3>
         <div className="space-y-2">
           {/* Waterfall Chart */}
           <div className="flex items-stretch space-x-2" style={{ height: '10rem' }}>
@@ -292,21 +296,21 @@ const AnalyticsTab: FC<AnalyticsTabProps> = (props) => {
               <div className="flex flex-1 items-end">
                 <div className="mx-auto w-4/5 rounded-t-lg bg-green-500" style={{ height: `${Math.min(100, (cashFlow.totalIncome / (cashFlow.totalIncome || 1)) * 100)}%` }}></div>
               </div>
-              <p className="text-xs mt-1">Income</p>
+              <p className="text-xs mt-1">{t('analytics.income')}</p>
               <p className="text-xs font-bold">₹{cashFlow.totalIncome.toFixed(0)}</p>
             </div>
             <div className="flex flex-1 flex-col text-center">
               <div className="flex flex-1 items-end">
                 <div className="mx-auto w-4/5 rounded-t-lg bg-red-500" style={{ height: `${Math.min(100, (cashFlow.totalExpenses / (cashFlow.totalIncome || 1)) * 100)}%` }}></div>
               </div>
-              <p className="text-xs mt-1">Expenses</p>
+              <p className="text-xs mt-1">{t('analytics.expenses')}</p>
               <p className="text-xs font-bold">₹{cashFlow.totalExpenses.toFixed(0)}</p>
             </div>
             <div className="flex flex-1 flex-col text-center">
               <div className="flex flex-1 items-end">
                 <div className="mx-auto w-4/5 rounded-t-lg bg-blue-500" style={{ height: `${Math.min(100, (Math.max(0, cashFlow.savings) / (cashFlow.totalIncome || 1)) * 100)}%` }}></div>
               </div>
-              <p className="text-xs mt-1">Savings</p>
+              <p className="text-xs mt-1">{t('analytics.savings')}</p>
               <p className="text-xs font-bold">₹{cashFlow.savings.toFixed(0)}</p>
             </div>
           </div>
@@ -315,28 +319,28 @@ const AnalyticsTab: FC<AnalyticsTabProps> = (props) => {
           <div className="bg-blue-50 p-3 rounded-lg flex items-center">
             <Target size={18} className="mr-3 text-blue-600" />
             <div>
-              <p className="text-sm font-medium">Projected Monthly Savings</p>
+              <p className="text-sm font-medium">{t('analytics.projectedSavings')}</p>
               <p className="text-lg font-bold">₹{cashFlow.projectedMonthlySavings.toFixed(0)}</p>
             </div>
           </div>
           <div className={`p-3 rounded-lg flex items-center ${cashFlow.burnRateDays < 30 ? 'bg-red-50' : 'bg-green-50'}`}>
             <Activity size={18} className={`mr-3 ${cashFlow.burnRateDays < 30 ? 'text-red-600' : 'text-green-600'}`} />
             <div>
-              <p className="text-sm font-medium">Budget Burn Rate</p>
-              <p className="text-sm">{isFinite(cashFlow.burnRateDays) ? `Budget will last ~${cashFlow.burnRateDays.toFixed(0)} days at current rate.` : 'No spending from budget.'}</p>
+              <p className="text-sm font-medium">{t('analytics.burnRate')}</p>
+              <p className="text-sm">{isFinite(cashFlow.burnRateDays) ? t('analytics.burnRate.duration').replace('{days}', cashFlow.burnRateDays.toFixed(0)) : t('analytics.burnRate.noSpending')}</p>
             </div>
           </div>
           {cashFlow.incomeNeeded > 0 && (
             <div className="bg-yellow-50 p-3 rounded-lg flex items-center">
               <DollarSign size={18} className="mr-3 text-yellow-600" />
               <div>
-                <p className="text-sm font-medium">Income Optimization</p>
-                <p className="text-sm">You need ₹{cashFlow.incomeNeeded.toFixed(0)} more income to reach your savings goal of ₹{cashFlow.savingsGoal}.</p>
+                <p className="text-sm font-medium">{t('analytics.incomeOptimization.title')}</p>
+                <p className="text-sm">{t('analytics.incomeOptimization.description').replace('{needed}', cashFlow.incomeNeeded.toFixed(0)).replace('{goal}', cashFlow.savingsGoal.toString())}</p>
               </div>
             </div>
           )}
            <div className="pt-2">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Monthly Savings Goal</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('budget.potentialSavings')}</label>
             <div className="flex items-center">
                 <span className="text-gray-500 mr-2">₹</span>
                 <input
@@ -353,36 +357,36 @@ const AnalyticsTab: FC<AnalyticsTabProps> = (props) => {
 
       {/* Behavioral Pattern Recognition */}
       <div className="bg-white rounded-2xl p-6 shadow-lg">
-        <h3 className="text-lg font-bold text-gray-800 mb-4">Your Habits</h3>
+        <h3 className="text-lg font-bold text-gray-800 mb-4">{t('analytics.habitsTitle')}</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="bg-blue-50 p-4 rounded-lg flex items-center">
             <CalendarDays size={24} className="mr-4 text-blue-600" />
             <div>
-              <p className="text-sm font-medium">Spending Personality</p>
+              <p className="text-sm font-medium">{t('analytics.personalityTitle')}</p>
               <p className="text-lg font-bold">{personality.personality}</p>
               <p className="text-xs text-gray-600">{personality.insight}</p>
             </div>
           </div>
           <div className={`p-4 rounded-lg flex items-center ${streak.isTodayUnder ? 'bg-green-50' : 'bg-yellow-50'}`}>
-            <Flame size={12} className={`flex-shrink-0 mr-4 ${streak.isTodayUnder ? 'text-green-600' : 'text-yellow-600'}`} />
+            <Flame size={24} className={`flex-shrink-0 mr-4 ${streak.isTodayUnder ? 'text-green-600' : 'text-yellow-600'}`} />
             <div>
               <p className="text-sm font-medium">
-                Daily Spending Goal
+                {t('analytics.dailyGoalTitle')}
                 <span className="relative group ml-1.5 inline-block align-middle">
                   <HelpCircle size={14} className="text-gray-500 cursor-help" />
                   <div className="absolute bottom-full right-0 mb-2 w-60 p-2 bg-gray-800 text-white text-xs text-center rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                    Challenge yourself with a daily spending goal! The streak shows how many consecutive days you've stayed under your goal.
+                    {t('analytics.dailyGoalTooltip')}
                     <div className="absolute right-2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-800"></div>
                   </div>
                 </span>
               </p>
-              <p className="text-lg font-bold">{streak.streak}-Day Streak</p>
+              <p className="text-lg font-bold">{t('analytics.streak').replace('{days}', streak.streak.toString())}</p>
               <div className="flex items-center text-xs text-gray-600">
-                <span className="mr-1">Under ₹<input
+                <span className="mr-1">{t('analytics.underPerDay').split('₹')[0]}₹<input
                   type="number"
                   value={dailySpendingGoal}
                   onChange={(e) => setDailySpendingGoal(parseInt(e.target.value) || 0)}
-                 className="w-9 bg-transparent focus:bg-white focus:ring-1 focus:ring-purple-400 rounded-md p-0.5 text-center font-medium hide-arrows"/>/ day</span>
+                 className="w-12 bg-transparent focus:bg-white focus:ring-1 focus:ring-purple-400 rounded-md p-0.5 text-center font-medium hide-arrows"/>{t('analytics.underPerDay').split('}')[1]}</span>
               </div>
             </div>
           </div>
@@ -391,26 +395,26 @@ const AnalyticsTab: FC<AnalyticsTabProps> = (props) => {
 
       {/* Emergency Preparedness */}
       <div className="bg-white rounded-2xl p-6 shadow-lg">
-        <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center"><AlertTriangle size={20} className="mr-2 text-orange-500" />Emergency Preparedness</h3>
+        <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center"><AlertTriangle size={20} className="mr-2 text-orange-500" />{t('analytics.emergencyTitle')}</h3>
         <div className="text-center">
           <div className="flex justify-center items-center text-sm text-gray-600">
-            <span>Financial Runway</span>
+            <span>{t('analytics.runwayTitle')}</span>
             <div className="relative group ml-1.5">
               <HelpCircle size={14} className="text-gray-500 cursor-help" />
               <div className="absolute bottom-full right-0 mb-2 w-64 p-2 bg-gray-800 text-white text-xs text-left rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                Your financial safety net. It's calculated by dividing your total savings by your net spending over the last 30 days. An infinite (∞) runway means you are saving money.
+                {t('analytics.runwayTooltip')}
                 <div className="absolute right-2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-800"></div>
               </div>
             </div>
           </div>
-          <p className="text-4xl font-bold my-2">{isFinite(runway.runwayMonths) ? `${runway.runwayMonths} months` : '∞'}</p>
-          <p className="text-xs text-gray-500">Based on your current savings and a 30-day net cash flow of <span className={runway.monthlyNet < 0 ? 'text-red-600' : 'text-green-600'}>₹{runway.monthlyNet.toFixed(0)}</span>.</p>
+          <p className="text-4xl font-bold my-2">{isFinite(runway.runwayMonths) ? t('analytics.runwayMonths').replace('{months}', runway.runwayMonths.toString()) : '∞'}</p>
+          <p className="text-xs text-gray-500">{t('analytics.runwayBasedOn')} <span className={runway.monthlyNet < 0 ? 'text-red-600' : 'text-green-600'}>₹{runway.monthlyNet.toFixed(0)}</span>.</p>
         </div>
       </div>
 
       {/* Budget Scenario Planning */}
       {hasAccessTo(Feature.FullAnalytics) && <div className="bg-white rounded-2xl p-6 shadow-lg">
-        <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center"><SlidersHorizontal size={20} className="mr-2 text-purple-600" />Budget Scenario Planning</h3>
+        <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center"><SlidersHorizontal size={20} className="mr-2 text-purple-600" />{t('analytics.scenarioTitle')}</h3>
         <div className="space-y-3">
           {Object.entries(budgets).sort(([, a], [, b]) => b - a).slice(0, 3).map(([category]) => (
             <div key={category}>
@@ -435,11 +439,11 @@ const AnalyticsTab: FC<AnalyticsTabProps> = (props) => {
         </div>
         <div className="mt-4 pt-4 border-t text-center">
           <div className="flex justify-center items-center text-sm text-gray-600">
-            <span>Simulated Monthly Savings</span>
+            <span>{t('analytics.simulatedSavings')}</span>
             <div className="relative group ml-1.5">
               <HelpCircle size={14} className="text-gray-400 opacity-50 cursor-help" />
               <div className="absolute bottom-full right-0 mb-2 w-64 p-2 bg-gray-800 text-white text-xs text-center rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                A quick way to simulate how changes to your main budgets can affect your monthly savings.
+                {t('analytics.simulatedSavingsTooltip')}
                 <div className="absolute right-2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-800"></div>
               </div>
             </div>
@@ -447,13 +451,13 @@ const AnalyticsTab: FC<AnalyticsTabProps> = (props) => {
           <div className={`mt-2 text-2xl font-bold ${simulatedSavingsColor}`}>
             ₹{simulatedSavingsResult.simulatedSavings.toFixed(0)}
           </div>
-          <p className="text-xs text-gray-500">Based on projected income of ₹{simulatedSavingsResult.monthlyIncome.toFixed(0)} and a budget of ₹{simulatedSavingsResult.simulatedTotalBudget.toFixed(0)}</p>
+          <p className="text-xs text-gray-500">{t('analytics.simulatedSavingsBasedOn').replace('{income}', simulatedSavingsResult.monthlyIncome.toFixed(0)).replace('{budget}', simulatedSavingsResult.simulatedTotalBudget.toFixed(0))}</p>
         </div>
       </div>}
 
       {/* Smart Category Breakdown */}
       <div className="bg-white rounded-2xl p-6 shadow-lg">
-        <h3 className="text-lg font-bold text-gray-800 mb-4">Smart Category Breakdown</h3>
+        <h3 className="text-lg font-bold text-gray-800 mb-4">{t('analytics.categoryBreakdownTitle')}</h3>
         <div className="space-y-3">
           {categoryInsights.map(insight => {
             const isAlertSet = spendingAlerts.some(alert => alert.category === insight.category);
@@ -471,7 +475,7 @@ const AnalyticsTab: FC<AnalyticsTabProps> = (props) => {
                   {isAlertSet ? (
                     <div className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full flex items-center font-medium">
                       <ShieldCheck size={14} className="mr-1" />
-                      Alert Set
+                       {t('analytics.alertSet')}
                     </div>
                   ) : hasAccessTo(Feature.SpendingAlerts) ? (
                     <button onClick={() => {
@@ -479,7 +483,7 @@ const AnalyticsTab: FC<AnalyticsTabProps> = (props) => {
                       setIsAlertModalOpen(true);
                     }} className="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-full hover:bg-gray-300 flex items-center">
                       <BellRing size={14} className="mr-1" />
-                      Set Alert
+                         {t('analytics.setAlert')}
                     </button>
                   ) : (
                     <div className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full flex items-center font-medium"><Star size={12} className="mr-1" />Premium</div>
@@ -490,7 +494,7 @@ const AnalyticsTab: FC<AnalyticsTabProps> = (props) => {
                 )}
                 {insight.largestTransaction && (
                   <div className="text-xs text-gray-500 mt-2 pt-2 border-t border-gray-100">
-                    <strong>Largest Tx:</strong> ₹{Math.abs(insight.largestTransaction.amount).toFixed(0)}{insight.largestTransaction.description ? ` - ${insight.largestTransaction.description}` : ''}
+                    <strong>{t('analytics.largestTx')}</strong> ₹{Math.abs(insight.largestTransaction.amount).toFixed(0)}{insight.largestTransaction.description ? ` - ${insight.largestTransaction.description}` : ''}
                   </div>
                 )}
               </div>
@@ -503,10 +507,10 @@ const AnalyticsTab: FC<AnalyticsTabProps> = (props) => {
       <div className="bg-white rounded-2xl p-6 shadow-lg text-center">
         <div className="flex items-center justify-center text-gray-600">
           <HelpCircle size={18} className="mr-2" />
-          <h3 className="text-lg font-bold">How to Read This</h3>
+          <h3 className="text-lg font-bold">{t('analytics.howToRead')}</h3>
         </div>
         <p className="text-sm text-gray-500 mt-2">
-          This dashboard analyzes your spending over the last {analyticsTimeframe} days to provide insights into your financial habits and health.
+          {t('analytics.howToReadDescription').replace('{timeframe}', analyticsTimeframe)}
         </p>
       </div>
 
@@ -518,6 +522,7 @@ const AnalyticsTab: FC<AnalyticsTabProps> = (props) => {
           setIsImproveModalOpen(false);
         }}
         tips={improvementTips}
+        t={t}
       />
 
       <SetAlertModal
@@ -525,6 +530,7 @@ const AnalyticsTab: FC<AnalyticsTabProps> = (props) => {
         onClose={() => setIsAlertModalOpen(false)}
         category={alertCategory}
         onSetAlert={onSetAlert}
+        t={t}
       />
     </div>
   );

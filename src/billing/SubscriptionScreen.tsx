@@ -9,9 +9,10 @@ interface SubscriptionScreenProps {
   onBack: () => void;
   subscriptionTier: 'free' | 'plus' | 'premium';
   showToast: (message: string) => void;
+  t: (key: string, fallback?: string) => string;
 }
 
-const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, subscriptionTier, showToast }) => {
+const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, subscriptionTier, showToast, t }) => {
   const [plusProduct, setPlusProduct] = useState<PurchasesPackage | null>(null);
   const [premiumProduct, setPremiumProduct] = useState<PurchasesPackage | null>(null);
   const [loading, setLoading] = useState(true);
@@ -53,9 +54,9 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, subscri
     setIsPurchasing(true);
     try {
       await BillingManager.buy('plus');
-      showToast("Purchase successful! Your plan has been updated.");
+      showToast(t('subscriptions.success'));
     } catch (error) {
-      showToast("Purchase was cancelled or failed.");
+      showToast(t('subscriptions.failed'));
     } finally {
       setIsPurchasing(false);
     }
@@ -65,9 +66,9 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, subscri
     setIsPurchasing(true);
     try {
       await BillingManager.buy('premium');
-      showToast("Purchase successful! Welcome to Premium!");
+      showToast(t('subscriptions.success'));
     } catch (error) {
-      showToast("Purchase was cancelled or failed.");
+      showToast(t('subscriptions.failed'));
     } finally {
       setIsPurchasing(false);
     }
@@ -75,11 +76,11 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, subscri
 
   const formatSubscriptionPeriod = (period: string | null | undefined): string => {
     if (!period) return '';
-    if (period === 'P1M') return 'Billed Monthly';
-    if (period === 'P3M') return 'Billed Quarterly';
-    if (period === 'P1Y') return 'Billed Annually';
+    if (period === 'P1M') return t('subscriptions.billed', 'Billed {period}').replace('{period}', 'Monthly');
+    if (period === 'P3M') return t('subscriptions.billed', 'Billed {period}').replace('{period}', 'Quarterly');
+    if (period === 'P1Y') return t('subscriptions.billed', 'Billed {period}').replace('{period}', 'Annually');
     // Fallback for other ISO 8601 durations
-    return `Billed ${period.replace('P', '')}`;
+    return t('subscriptions.billed', 'Billed {period}').replace('{period}', period.replace('P', ''));
   };
 
   const annualSavings = useMemo(() => {
@@ -89,10 +90,10 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, subscri
       const totalMonthlyCost = monthlyPrice * 12;
       if (totalMonthlyCost > annualPrice) {
         const savings = ((totalMonthlyCost - annualPrice) / totalMonthlyCost) * 100;
-        return `Save ${Math.round(savings)}% vs monthly`;
+        return t('subscriptions.save', 'Save {percent}% vs monthly').replace('{percent}', Math.round(savings).toString());
       }
     }
-    return 'Save 55% vs monthly'; // Fallback
+    return t('subscriptions.save', 'Save {percent}% vs monthly').replace('{percent}', '55'); // Fallback
   }, [plusProduct, premiumProduct]);
 
   const renderFeature = (text: string, included: boolean) => (
@@ -114,7 +115,7 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, subscri
         <button onClick={onBack} className="p-2 rounded-full hover:bg-gray-200">
           <ArrowLeft size={24} />
         </button>
-        <h1 className="text-2xl font-bold text-gray-800 ml-4">Subscription Plans</h1>
+        <h1 className="text-2xl font-bold text-gray-800 ml-4">{t('subscriptions.title')}</h1>
       </div>
 
       {loading ? (
@@ -125,23 +126,23 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, subscri
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Free Tier */}
           <div className="bg-white rounded-2xl p-6 shadow-lg flex flex-col">
-            <h2 className="text-xl font-bold text-gray-800">Lite (Free)</h2>
-            <p className="text-sm text-gray-500 mb-4">Master your daily spending</p>
+            <h2 className="text-xl font-bold text-gray-800">{t('subscriptions.features.free.title')}</h2>
+            <p className="text-sm text-gray-500 mb-4">{t('subscriptions.features.free.description')}</p>
             <ul className="space-y-3 flex-grow">
-              {renderFeature('Unlimited Transactions', true)}
-              {renderFeature('Monthly Budgeting (5 categories)', true)}
-              {renderFeature('Full History View', true)}
-              {renderFeature('PIN Lock Security', true)}
-              {renderFeature('Quick CSV Export', true)}
-              {renderFeature('Custom Budgets', false)}
-              {renderFeature('Bill Reminders', false)}
-              {renderFeature('Advanced Analytics', false)}
-              {renderFeature('Budget Automation', false)}
+              {renderFeature(t('subscriptions.features.free.item1'), true)}
+              {renderFeature(t('subscriptions.features.free.item2'), true)}
+              {renderFeature(t('subscriptions.features.free.item3'), true)}
+              {renderFeature(t('subscriptions.features.free.item4'), true)}
+              {renderFeature(t('subscriptions.features.free.item5'), true)}
+              {renderFeature(t('subscriptions.features.free.item6'), false)}
+              {renderFeature(t('subscriptions.features.free.item7'), false)}
+              {renderFeature(t('subscriptions.features.free.item8'), false)}
+              {renderFeature(t('subscriptions.features.free.item9'), false)}
             </ul>
             <div className="mt-6">
               {subscriptionTier === 'free' && (
                 <button className="w-full p-3 bg-purple-600 text-white rounded-xl font-semibold" disabled>
-                  Current Plan
+                  {t('subscriptions.currentPlan')}
                 </button>
               )}
               <p className="text-center text-xs text-gray-500 mt-2">
@@ -152,28 +153,28 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, subscri
 
           {/* Plus Tier */}
           <div className="relative bg-white rounded-2xl p-6 shadow-lg border-2 border-yellow-400 flex flex-col">
-            <h2 className="text-xl font-bold text-gray-800">Plus</h2>
-            <p className="text-sm text-gray-500 mb-4">Achieve your short-term goals</p>
+            <h2 className="text-xl font-bold text-gray-800">{t('subscriptions.features.plus.title')}</h2>
+            <p className="text-sm text-gray-500 mb-4">{t('subscriptions.features.plus.description')}</p>
             <span className="absolute top-0 right-0 bg-yellow-400 text-xs font-bold px-2 py-1 rounded-bl-lg">
-              Most Popular
+              {t('subscriptions.mostPopular')}
             </span>
             <div className="text-center my-4">
               <h3 className="text-3xl font-bold">{plusProduct?.product.priceString || FALLBACK_PRICES.plus}</h3>
               <p className="text-sm text-gray-500">{formatSubscriptionPeriod(plusProduct?.product.subscriptionPeriod)}</p>
             </div>
             <ul className="space-y-3 flex-grow">
-              {renderFeature('All Free Features', true)}
-              {renderFeature('Custom Budgets (3 active)', true)}
-              {renderFeature('Bill Reminders (5 active)', true)}
-              {renderFeature('Recurring Transactions', true)}
-              {renderFeature('Tagging & Filtering', true)}
-              {renderFeature('Limited Analytics', true)}
-              {renderFeature('Full Analytics Suite', false)}
+              {renderFeature(t('subscriptions.features.plus.item1'), true)}
+              {renderFeature(t('subscriptions.features.plus.item2'), true)}
+              {renderFeature(t('subscriptions.features.plus.item3'), true)}
+              {renderFeature(t('subscriptions.features.plus.item4'), true)}
+              {renderFeature(t('subscriptions.features.plus.item5'), true)}
+              {renderFeature(t('subscriptions.features.plus.item6'), true)}
+              {renderFeature(t('subscriptions.features.plus.item7'), false)}
             </ul>
             <div className="mt-6">
               {subscriptionTier === 'plus' ? (
                 <button className="w-full p-3 bg-purple-600 text-white rounded-xl font-semibold" disabled>
-                  Current Plan
+                  {t('subscriptions.currentPlan')}
                 </button>
               ) : (
                 <button
@@ -185,8 +186,8 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, subscri
                     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-yellow-900"></div>
                   ) : (
                     subscriptionTier === 'premium'
-                      ? 'Subscribed to Premium'
-                      : `Upgrade to Plus - ${plusProduct?.product.priceString || '₹149'}`
+                      ? t('subscriptions.subscribedToPremium', 'Subscribed to Premium')
+                      : t('subscriptions.upgradeTo', 'Upgrade to {plan}').replace('{plan}', t('subscriptions.features.plus.title')) + ` - ${plusProduct?.product.priceString || '₹149'}`
                   )}
                 </button>
               )}
@@ -195,8 +196,8 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, subscri
 
           {/* Premium Tier */}
           <div className="bg-purple-700 text-white rounded-2xl p-6 shadow-lg flex flex-col">
-            <h2 className="text-xl font-bold">Premium</h2>
-            <p className="text-sm text-purple-200 mb-4">Put your budget on autopilot</p>
+            <h2 className="text-xl font-bold">{t('subscriptions.features.premium.title')}</h2>
+            <p className="text-sm text-purple-200 mb-4">{t('subscriptions.features.premium.description')}</p>
             <div className="text-center my-4">
               <h3 className="text-3xl font-bold">{premiumProduct?.product.priceString || FALLBACK_PRICES.premium}</h3>
               <p className="text-sm text-purple-200">{formatSubscriptionPeriod(premiumProduct?.product.subscriptionPeriod)}</p>
@@ -207,37 +208,37 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, subscri
             <ul className="space-y-3 flex-grow">
               <li className="flex items-center space-x-3">
                 <CheckCircle className="h-5 w-5 text-white" />
-                <p className="text-sm">All Plus Features</p>
+                <p className="text-sm">{t('subscriptions.features.premium.item1')}</p>
               </li>
               <li className="flex items-center space-x-3">
                 <CheckCircle className="h-5 w-5 text-white" />
-                <p className="text-sm">Unlimited Custom Budgets & Reminders</p>
+                <p className="text-sm">{t('subscriptions.features.premium.item2')}</p>
               </li>
               <li className="flex items-center space-x-3">
                 <CheckCircle className="h-5 w-5 text-white" />
-                <p className="text-sm">Full Analytics Suite</p>
+                <p className="text-sm">{t('subscriptions.features.premium.item3')}</p>
               </li>
               <li className="flex items-center space-x-3">
                 <CheckCircle className="h-5 w-5 text-white" />
-                <p className="text-sm">Budget Automation</p>
+                <p className="text-sm">{t('subscriptions.features.premium.item4')}</p>
               </li>
               <li className="flex items-center space-x-3">
                 <CheckCircle className="h-5 w-5 text-white" />
-                <p className="text-sm">Fund Transfers & Alerts</p>
+                <p className="text-sm">{t('subscriptions.features.premium.item5')}</p>
               </li>
               <li className="flex items-center space-x-3">
                 <CheckCircle className="h-5 w-5 text-white" />
-                <p className="text-sm">Advanced Reporting</p>
+                <p className="text-sm">{t('subscriptions.features.premium.item6')}</p>
               </li>
               <li className="flex items-center space-x-3">
                 <CheckCircle className="h-5 w-5 text-white" />
-                <p className="text-sm">Cloud Sync & Backup</p>
+                <p className="text-sm">{t('subscriptions.features.premium.item7')}</p>
               </li>
             </ul>
             <div className="mt-6">
               {subscriptionTier === 'premium' ? (
                 <button className="w-full p-3 bg-yellow-400 text-yellow-900 rounded-xl font-semibold" disabled>
-                  Current Plan
+                  {t('subscriptions.currentPlan')}
                 </button>
               ) : (
                 <button
@@ -248,7 +249,7 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, subscri
                   {isPurchasing ? (
                     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-purple-700"></div>
                   ) : (
-                    `Go Premium - ${premiumProduct?.product.priceString || '₹799'}`
+                    t('subscriptions.goToPremium').replace('{price}', premiumProduct?.product.priceString || '₹799')
                   )}
                 </button>
               )}
@@ -259,8 +260,8 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, subscri
 
       {/* Trust Badge */}
       <div className="text-center text-gray-500 text-sm mt-4">
-        <p>Secure payments processed by {platform}.</p>
-        <p>You can cancel anytime from your {platform} subscriptions.</p>
+        <p>{t('subscriptions.securePayments').replace('{store}', platform)}</p>
+        <p>{t('subscriptions.cancelAnytime').replace('{store}', platform)}</p>
       </div>
     </div>
   );

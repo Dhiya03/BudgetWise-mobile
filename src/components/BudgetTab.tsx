@@ -1,12 +1,7 @@
 import React from 'react';
 import {
-  Transaction,
-  MonthlyBudgets,
-  CustomBudget,
-  BudgetTemplate,
+  BudgetTabProps,
   BudgetRelationship,
-  CustomBudgetFormData,
-  RelationshipFormData,
 } from '../types';
 import {
   Pause, Play, Save, Link2, ArrowRight, Trash2, Edit3,
@@ -18,54 +13,7 @@ import {
   Feature,
   Limit,
 } from '../subscriptionManager';
-
-interface BudgetTabProps {
-  monthlyIncome: number;
-  totalMonthlyBudget: number;
-  budgetForm: { category: string; amount: string };
-  setBudgetForm: React.Dispatch<React.SetStateAction<{ category: string; amount: string }>>;
-  categories: string[];
-  budgets: MonthlyBudgets;
-  setBudget: () => void;
-  customBudgetFormRef: React.RefObject<HTMLDivElement>;
-  editingCustomBudget: CustomBudget | null;
-  customBudgetForm: CustomBudgetFormData;
-  setCustomBudgetForm: React.Dispatch<React.SetStateAction<CustomBudgetFormData>>;
-  handleSaveCustomBudget: () => void;
-  handleCancelEdit: () => void;
-  saveAsTemplate: () => void;
-  budgetTemplates: BudgetTemplate[];
-  selectedTemplate: string;
-  setSelectedTemplate: React.Dispatch<React.SetStateAction<string>>;
-  applyTemplate: (templateId: number) => void;
-  deleteTemplate: (templateId: number) => void;
-  relationshipForm: RelationshipFormData;
-  setRelationshipForm: React.Dispatch<React.SetStateAction<RelationshipFormData>>;
-  getRemainingBudget: (category: string, year: number, month: number) => number;
-  currentYear: number;
-  currentMonth: number;
-  customBudgets: CustomBudget[];
-  addRelationship: () => void;
-  budgetRelationships: BudgetRelationship[];
-  getCustomBudgetName: (id: number | null) => string;
-  deleteRelationship: (id: number) => void;
-  processEndOfMonthRollovers: () => void;
-  setShowTransferModal: React.Dispatch<React.SetStateAction<boolean>>;
-  handleLockBudget: (budgetId: number) => void;
-  pauseCustomBudget: (budgetId: number) => void;
-  handleEditCustomBudget: (budget: CustomBudget) => void;
-  deleteCustomBudget: (budgetId: number) => void;
-  resumeCustomBudget: (budgetId: number) => void;
-  getCustomBudgetCategoryBudget: (customBudgetId: number, category: string) => number;
-  customCategorySpending: { [budgetId: number]: { [category: string]: number } };
-  transactions: Transaction[];
-  newCustomCategory: string;
-  setNewCustomCategory: React.Dispatch<React.SetStateAction<string>>;
-  addCustomCategoryToForm: () => void;
-  getSpentAmount: (category: string, year: number, month: number) => number;
-  removeCategoryFromForm: (category: string) => void;
-  updateCategoryBudget: (category: string, amount: string) => void;
-}
+import { useLocalization } from './LocalizationContext';
 
 const BudgetTab: React.FC<BudgetTabProps> = (props) => {
   const {
@@ -81,6 +29,7 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
     customCategorySpending, transactions, newCustomCategory, setNewCustomCategory, getSpentAmount,
     addCustomCategoryToForm, removeCategoryFromForm, updateCategoryBudget,
   } = props;
+  const { t } = useLocalization();
 
   const monthlyBudgetLimitReached = React.useMemo(() => {
     // Don't apply limit if editing an existing budget category
@@ -98,36 +47,36 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
     <div className="p-4 space-y-6">
       {/* NEW: Monthly Income vs Budgeted Summary */}
       <div className="bg-white rounded-2xl p-6 shadow-lg">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">Monthly Financial Plan</h2>
+        <h2 className="text-xl font-bold text-gray-800 mb-4">{t('budget.monthlyPlanTitle')}</h2>
         <div className="space-y-3">
           <div className="flex justify-between items-center">
-            <span className="font-medium text-green-700">Total Monthly Income</span>
+            <span className="font-medium text-green-700">{t('budget.totalIncome')}</span>
             <span className="font-bold text-lg text-green-700">₹{monthlyIncome.toFixed(0)}</span>
           </div>
           <div className="flex justify-between items-center">
-            <span className="font-medium text-red-700">Total Budgeted Expenses</span>
+            <span className="font-medium text-red-700">{t('budget.totalBudgeted')}</span>
             <span className="font-bold text-lg text-red-700">₹{totalMonthlyBudget.toFixed(0)}</span>
           </div>
           <hr className="my-2"/>
           <div className="flex justify-between items-center">
-            <span className="font-semibold text-blue-800">Potential Savings</span>
+            <span className="font-semibold text-blue-800">{t('budget.potentialSavings')}</span>
             <span className={`font-bold text-xl ${monthlyIncome - totalMonthlyBudget >= 0 ? 'text-blue-800' : 'text-red-600'}`}>
               ₹{(monthlyIncome - totalMonthlyBudget).toFixed(0)}
             </span>
           </div>
           {totalMonthlyBudget > monthlyIncome && (
-            <p className="text-xs text-center text-red-600 bg-red-50 p-2 rounded-lg">⚠️ Your budgeted expenses are higher than your income.</p>
+            <p className="text-xs text-center text-red-600 bg-red-50 p-2 rounded-lg">{t('budget.overBudgetWarning')}</p>
           )}
         </div>
       </div>
 
       {/* Monthly Budget Section */}
       <div className="bg-white rounded-2xl p-6 shadow-lg">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">Monthly Budget</h2>
+        <h2 className="text-xl font-bold text-gray-800 mb-4">{t('budget.monthlyBudgetTitle')}</h2>
         
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">{t('addTab.category')}</label>
             <select
               value={budgetForm.category}
               onChange={(e) => {
@@ -139,7 +88,7 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
               }}
               className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
             >
-              <option value="">Select Category</option>
+              <option value="">{t('addTab.selectCategory')}</option>
               {categories.map(cat => (
                 <option key={cat} value={cat}>{cat}</option>
               ))}
@@ -147,7 +96,7 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Budget Amount</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">{t('addTab.amount')}</label>
             <input
               type="number"
               value={budgetForm.amount}
@@ -161,12 +110,12 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
             onClick={setBudget}
             disabled={monthlyBudgetLimitReached}
             className="w-full p-4 bg-gradient-to-r from-green-600 to-teal-600 text-white rounded-xl font-semibold hover:from-green-700 hover:to-teal-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-          >
-            Set Monthly Budget
+          > 
+            {t('budget.setMonthlyBudget')}
           </button>
           {monthlyBudgetLimitReached && (
-            <p className="text-center text-sm text-red-600 mt-2">
-              Monthly budget limit reached for your plan.
+            <p className="text-center text-sm text-red-600 mt-2"> 
+              {t('budget.limitReached.monthly')}
             </p>
           )}
         </div>
@@ -175,44 +124,44 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
       {/* Custom Budget Section */}
       {hasAccessTo(Feature.CustomBudgets) && (
         <div ref={customBudgetFormRef} className="bg-white rounded-2xl p-6 shadow-lg">
-          <h2 className="text-xl font-bold text-gray-800 mb-4">Custom Purpose Budget</h2>
+          <h2 className="text-xl font-bold text-gray-800 mb-4">{t('budget.customBudgetTitle')}</h2>
         
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Budget Name</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">{t('budget.budgetName')}</label>
             <input
               type="text"
               value={customBudgetForm.name}
               onChange={(e) => setCustomBudgetForm({ ...customBudgetForm, name: e.target.value })}
-              placeholder="e.g., Vacation, Wedding, Home Renovation"
+              placeholder={t('budget.namePlaceholder')}
               className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Budget Amount</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">{t('addTab.amount')}</label>
             <input
               type="number"
               value={customBudgetForm.amount}
               onChange={(e) => setCustomBudgetForm({ ...customBudgetForm, amount: e.target.value })}
-              placeholder="0.00"
+              placeholder="0.00" 
               className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">{t('addTab.description')}</label>
             <textarea
               value={customBudgetForm.description}
               onChange={(e) => setCustomBudgetForm({ ...customBudgetForm, description: e.target.value })}
-              placeholder="Brief description of this budget purpose"
+              placeholder={t('budget.descriptionPlaceholder')}
               rows={2}
               className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Deadline (Optional)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">{t('budget.deadlineOptional')}</label>
             <input
               type="date"
               value={customBudgetForm.deadline}
@@ -222,25 +171,25 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Priority</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">{t('budget.priority')}</label>
             <select
               value={customBudgetForm.priority}
               onChange={(e) => setCustomBudgetForm({ ...customBudgetForm, priority: e.target.value as 'low' | 'medium' | 'high' })}
               className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
-            >
-              <option value="low">Low Priority</option>
-              <option value="medium">Medium Priority</option>
-              <option value="high">High Priority</option>
+            > 
+              <option value="low">{t('budget.priority.low')}</option>
+              <option value="medium">{t('budget.priority.medium')}</option>
+              <option value="high">{t('budget.priority.high')}</option>
             </select>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Budget Categories</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">{t('budget.categoriesTitle')}</label>
             <div className="space-y-4">
               {/* Display current categories with budget inputs */}
               {customBudgetForm.categories.length > 0 && (
                 <div className="space-y-3 p-4 bg-gray-50 rounded-xl">
-                  <h4 className="text-sm font-medium text-gray-700">Category Budgets:</h4>
+                  <h4 className="text-sm font-medium text-gray-700">{t('budget.categoryBudgetsTitle')}</h4>
                   {customBudgetForm.categories.map((category) => (
                     <div key={category} className="flex items-center space-x-2">
                       <div className="flex-1">
@@ -248,37 +197,37 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
                         <input
                           type="number"
                           value={customBudgetForm.categoryBudgets[category] || ''}
-                          onChange={(e) => updateCategoryBudget(category, e.target.value)}
-                          placeholder="Budget amount"
+                          onChange={(e) => updateCategoryBudget(category, e.target.value)} 
+                          placeholder={t('addTab.budgetPlaceholder')}
                           className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
                         />
                       </div>
                       <button
                         onClick={() => removeCategoryFromForm(category)}
                         className="p-2 text-red-600 hover:bg-red-100 rounded-lg mt-4"
-                      >
-                        <Trash2 size={16} />
+                      > 
+                        <Trash2 size={16} /> 
                       </button>
                     </div>
                   ))}
                   
                   {/* Show total and validation */}
                   <div className="pt-2 border-t border-gray-200">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Total Category Budgets:</span>
+                    <div className="flex justify-between text-sm"> 
+                      <span className="text-gray-600">{t('budget.totalCategoryBudgets')}</span>
                       <span className="font-medium">
                         ₹{Object.values(customBudgetForm.categoryBudgets || {}).reduce((sum, amount) => sum + (parseFloat(amount) || 0), 0).toFixed(0)}
                       </span>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Overall Budget:</span>
+                    <div className="flex justify-between text-sm"> 
+                      <span className="text-gray-600">{t('budget.overallBudget')}</span>
                       <span className="font-medium">
                         ₹{(parseFloat(customBudgetForm.amount) || 0).toFixed(0)}
                       </span>
                     </div>
                     {customBudgetForm.amount && Object.values(customBudgetForm.categoryBudgets || {}).reduce((sum, amount) => sum + (parseFloat(amount) || 0), 0) > parseFloat(customBudgetForm.amount) && (
-                      <p className="text-red-600 text-xs mt-1">
-                        ⚠️ Category budgets exceed overall budget!
+                      <p className="text-red-600 text-xs mt-1"> 
+                        {t('budget.categoryExceedsOverallWarning')}
                       </p>
                     )}
                   </div>
@@ -291,8 +240,8 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
                   type="text"
                   value={newCustomCategory}
                   onChange={(e) => setNewCustomCategory(e.target.value)}
-                  placeholder="Add a category (e.g., Venue, Catering)"
-                  className="flex-1 min-w-0 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
+                  placeholder={t('budget.addCategoryPlaceholder')}
+                  className="flex-1 min-w-0 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500" 
                   onKeyPress={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
@@ -302,15 +251,15 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
                 />
                 <button
                   onClick={addCustomCategoryToForm}
-                  className="px-4 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700"
-                >
-                  Add
+                  className="px-4 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700" 
+                > 
+                  {t('general.add')}
                 </button>
               </div>
               
               {customBudgetForm.categories.length === 0 && (
-                <p className="text-gray-500 text-sm text-center py-4">
-                  No categories added yet. Add categories above to set individual budgets.
+                <p className="text-gray-500 text-sm text-center py-4"> 
+                  {t('budget.noCategories')}
                 </p>
               )}
             </div>
@@ -320,20 +269,20 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
             onClick={handleSaveCustomBudget}
             disabled={customBudgetLimitReached}
             className="w-full p-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-semibold hover:from-purple-700 hover:to-pink-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-          >
-            {editingCustomBudget ? 'Update Custom Budget' : 'Create Custom Budget'}
+          > 
+            {editingCustomBudget ? t('budget.updateCustomBudget') : t('budget.createCustomBudget')}
           </button>
           {customBudgetLimitReached && (
-            <p className="text-center text-sm text-red-600 mt-2">
-              Custom budget limit reached for your plan.
+            <p className="text-center text-sm text-red-600 mt-2"> 
+              {t('budget.limitReached.custom')}
             </p>
           )}
           {editingCustomBudget && (
             <button
               onClick={handleCancelEdit}
               className="w-full mt-2 p-3 bg-gray-400 text-white rounded-xl hover:bg-gray-500"
-            >
-              Cancel Edit
+            > 
+              {t('addTab.cancelEdit')}
             </button>
           )}
         </div>
@@ -343,9 +292,9 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
           <button
             onClick={saveAsTemplate}
             className="w-full p-3 bg-teal-100 text-teal-800 rounded-xl font-semibold hover:bg-teal-200 flex items-center justify-center"
-          >
-            <Save size={18} className="mr-2" />
-            Save as Template
+          > 
+            <Save size={18} className="mr-2" /> 
+            {t('budget.saveAsTemplate')}
           </button>
         </div>
       </div>
@@ -353,33 +302,33 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
 
       {/* Budget Templates Section */}
       <div className="bg-white rounded-2xl p-6 shadow-lg">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">Budget Templates</h2>
+        <h2 className="text-xl font-bold text-gray-800 mb-4">{t('budget.templatesTitle')}</h2>
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Create from Template</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">{t('budget.createFromTemplate')}</label>
             <div className="flex space-x-2">
               <select
                 value={selectedTemplate}
                 onChange={(e) => setSelectedTemplate(e.target.value)}
                 className="flex-1 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
-              >
-                <option value="">Select a template</option>
+              > 
+                <option value="">{t('budget.selectTemplate')}</option>
                 {budgetTemplates.map(template => (
                   <option key={template.id} value={template.id}>{template.name}</option>
                 ))}
               </select>
               <button
                 onClick={() => applyTemplate(parseInt(selectedTemplate))}
-                disabled={!selectedTemplate}
-                className="px-4 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 disabled:bg-gray-400"
-              >
-                Apply
+                disabled={!selectedTemplate} 
+                className="px-4 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 disabled:bg-gray-400" 
+              > 
+                {t('budget.applyTemplate')}
               </button>
             </div>
           </div>
           {budgetTemplates.length > 0 && (
             <div className="space-y-2">
-              <h4 className="text-sm font-medium text-gray-700">Manage Templates:</h4>
+              <h4 className="text-sm font-medium text-gray-700">{t('budget.manageTemplates')}</h4>
               {budgetTemplates.map(template => (
                 <div key={template.id} className="flex justify-between items-center bg-gray-50 p-2 rounded-lg">
                   <span>{template.name}</span>
@@ -396,45 +345,45 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
       {/* Budget Automation Section */}
       {hasAccessTo(Feature.BudgetAutomation) && (
         <div className="bg-white rounded-2xl p-6 shadow-lg">
-          <h2 className="text-xl font-bold text-gray-800 mb-4">Budget Automation</h2>
+          <h2 className="text-xl font-bold text-gray-800 mb-4">{t('budget.automationTitle')}</h2>
         <div className="space-y-4">
-          <h3 className="text-md font-semibold text-gray-700">Create Rollover Rule</h3>
+          <h3 className="text-md font-semibold text-gray-700">{t('budget.createRolloverRule')}</h3>
           <select
             value={relationshipForm.sourceCategory}
             onChange={(e) => setRelationshipForm({ ...relationshipForm, sourceCategory: e.target.value })}
             className="w-full p-3 border border-gray-300 rounded-xl"
-          >
-            <option value="">Select Source Monthly Category</option>
-            {categories.map(cat => <option key={cat} value={cat}>{cat} (Surplus: ₹{getRemainingBudget(cat, currentYear, currentMonth).toFixed(0)})</option>)}
+          > 
+            <option value="">{t('budget.selectSourceCategory')}</option>
+            {categories.map(cat => <option key={cat} value={cat}>{cat} ({t('budget.surplus').replace('{amount}', getRemainingBudget(cat, currentYear, currentMonth).toFixed(0))})</option>)}
           </select>
           <select
             value={relationshipForm.destinationBudgetId}
             onChange={(e) => setRelationshipForm({ ...relationshipForm, destinationBudgetId: e.target.value })}
             className="w-full p-3 border border-gray-300 rounded-xl"
-          >
-            <option value="">Select Destination Custom Budget</option>
+          > 
+            <option value="">{t('budget.selectDestinationBudget')}</option>
             {customBudgets.filter(b => b.status === 'active').map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
           <button onClick={addRelationship} className="w-full p-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 flex items-center justify-center">
-            <Link2 size={18} className="mr-2" />
-            Create Rollover Rule
+            <Link2 size={18} className="mr-2" /> 
+            {t('budget.createRolloverRule')}
           </button>
           <hr />
           <div className="space-y-2">
-            <h4 className="text-sm font-medium text-gray-700">Active Rules:</h4>
-            {budgetRelationships.length === 0 && <p className="text-sm text-gray-500">No rollover rules created yet.</p>}
+            <h4 className="text-sm font-medium text-gray-700">{t('budget.activeRules')}</h4>
+            {budgetRelationships.length === 0 && <p className="text-sm text-gray-500">{t('budget.noRules')}</p>}
             {budgetRelationships.map((rel: BudgetRelationship) => (
               <div key={rel.id} className="flex justify-between items-center bg-gray-50 p-2 rounded-lg">
-                <span className="text-sm">Surplus from '{rel.sourceCategory}' → '{getCustomBudgetName(rel.destinationBudgetId)}'</span>
+                <span className="text-sm">{t('budget.rolloverRule').replace('{source}', rel.sourceCategory).replace('{destination}', getCustomBudgetName(rel.destinationBudgetId))}</span>
                 <button onClick={() => deleteRelationship(rel.id)} className="p-1 text-red-500 hover:bg-red-100 rounded-full">
                   <Trash2 size={16} />
                 </button>
               </div>
             ))}
           </div>
-          <button onClick={processEndOfMonthRollovers} className="w-full p-3 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 flex items-center justify-center">
-            <ArrowRight size={18} className="mr-2" />
-            Process End-of-Month Rollovers
+          <button onClick={processEndOfMonthRollovers} className="w-full p-3 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 flex items-center justify-center"> 
+            <ArrowRight size={18} className="mr-2" /> 
+            {t('budget.processRollovers')}
           </button>
         </div>
       </div>
@@ -443,21 +392,21 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
       {/* Transfer Funds Button */}
       {hasAccessTo(Feature.FundTransfers) && (
         <div className="bg-white rounded-2xl p-6 shadow-lg">
-          <h2 className="text-xl font-bold text-gray-800 mb-4">Manage Funds</h2>
+          <h2 className="text-xl font-bold text-gray-800 mb-4">{t('budget.manageFunds')}</h2>
        <button
           onClick={() => setShowTransferModal(true)}
           className="w-full p-3 bg-indigo-100 text-indigo-800 rounded-xl font-semibold hover:bg-indigo-200 flex items-center justify-center"
-        >
-          <ArrowUpDown size={18} className="mr-2" />
-          Transfer Funds Between Custom Budgets
+        > 
+          <ArrowUpDown size={18} className="mr-2" /> 
+          {t('budget.transferFunds')}
         </button>
       </div>
       )}
 
       {/* Active Custom Budgets */}
       {customBudgets.filter(budget => ['active', 'locked'].includes(budget.status)).length > 0 && (
-        <div className="bg-white rounded-2xl p-6 shadow-lg">
-          <h2 className="text-xl font-bold text-gray-800 mb-4">Active & Locked Budgets</h2>
+        <div className="bg-white rounded-2xl p-6 shadow-lg"> 
+          <h2 className="text-xl font-bold text-gray-800 mb-4">{t('budget.activeLockedBudgets')}</h2>
           
           <div className="space-y-4">
             {customBudgets.filter(budget => ['active', 'locked'].includes(budget.status)).map(budget => {
@@ -480,8 +429,8 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
                         <p className="text-sm text-gray-600 mt-1">{budget.description}</p>
                       )}
                       {budget.deadline && (
-                        <p className="text-xs text-gray-500 mt-1">
-                          Deadline: {new Date(budget.deadline).toLocaleDateString()}
+                        <p className="text-xs text-gray-500 mt-1"> 
+                          {t('budget.deadline').replace('{date}', new Date(budget.deadline).toLocaleDateString())}
                         </p>
                       )}
                     </div>
@@ -496,17 +445,17 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
                       <button
                         onClick={() => handleLockBudget(budget.id)}
                         className="p-1 text-gray-400 hover:text-yellow-600 rounded"
-                        title={isLocked ? "Unlock Budget" : "Lock Budget"}
-                      >
+                        title={isLocked ? t('budget.tooltip.unlock') : t('budget.tooltip.lock')}
+                      > 
                         {isLocked ? <Unlock size={16} /> : <Lock size={16} />}
                       </button>
-                      <button onClick={() => pauseCustomBudget(budget.id)} disabled={isLocked} className="p-1 text-gray-400 hover:text-blue-600 rounded disabled:opacity-50 disabled:cursor-not-allowed" title="Pause Budget">
+                      <button onClick={() => pauseCustomBudget(budget.id)} disabled={isLocked} className="p-1 text-gray-400 hover:text-blue-600 rounded disabled:opacity-50 disabled:cursor-not-allowed" title={t('budget.tooltip.pause')}>
                         <Pause size={16} />
                       </button>
-                      <button onClick={() => handleEditCustomBudget(budget)} disabled={isLocked} className="p-1 text-gray-400 hover:text-blue-600 rounded disabled:opacity-50 disabled:cursor-not-allowed" title="Edit Budget">
+                      <button onClick={() => handleEditCustomBudget(budget)} disabled={isLocked} className="p-1 text-gray-400 hover:text-blue-600 rounded disabled:opacity-50 disabled:cursor-not-allowed" title={t('budget.tooltip.edit')}>
                         <Edit3 size={16} />
                       </button>
-                      <button onClick={() => deleteCustomBudget(budget.id)} disabled={isLocked} className="p-1 text-gray-400 hover:text-red-600 rounded disabled:opacity-50 disabled:cursor-not-allowed" title="Delete Budget">
+                      <button onClick={() => deleteCustomBudget(budget.id)} disabled={isLocked} className="p-1 text-gray-400 hover:text-red-600 rounded disabled:opacity-50 disabled:cursor-not-allowed" title={t('budget.tooltip.delete')}>
                         <Trash2 size={16} />
                       </button>
                     </div>
@@ -516,8 +465,8 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
                     <span className="text-sm text-gray-600">
                       ₹{budget.spentAmount.toFixed(0)} / ₹{budget.totalAmount.toFixed(0)}
                     </span>
-                    <span className={`text-sm ${isOverBudget ? 'text-red-600' : 'text-green-600'}`}>
-                      ₹{budget.remainingAmount.toFixed(0)} remaining
+                    <span className={`text-sm ${isOverBudget ? 'text-red-600' : 'text-green-600'}`}> 
+                      {t('budget.remainingAmount').replace('{amount}', budget.remainingAmount.toFixed(0))}
                     </span>
                   </div>
                   
@@ -541,20 +490,20 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">
                       {percentage >= 100 && '🎉 '}
-                      {percentage.toFixed(0)}% funded
+                      {t('budget.funded').replace('{percent}', percentage.toFixed(0))}
                       {percentage >= 100 && ' 🎉'}
                     </span>
                     <span className={`font-medium ${
                       isDeadlinePassed ? 'text-violet-500' : budget.spentAmount >= budget.totalAmount ? 'text-blue-600' : 'text-green-600'
-                    }`}>
-                      {isDeadlinePassed ? 'Deadline Passed' : budget.spentAmount >= budget.totalAmount ? 'Completed' : 'Active'}
+                    }`}> 
+                      {isDeadlinePassed ? t('budget.status.deadlinePassed') : budget.spentAmount >= budget.totalAmount ? t('budget.status.completed') : t('budget.status.active')}
                     </span>
                   </div>
 
                   {/* Category-wise breakdown */}
                   {budget.categories && budget.categories.length > 0 && (
                     <div className="mt-4 pt-3 border-t border-gray-200">
-                      <h4 className="text-sm font-medium text-gray-700 mb-2">Category Breakdown:</h4>
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">{t('budget.categoryBreakdown')}</h4>
                       <div className="space-y-3">
                         {budget.categories.map(category => {
                           const categoryBudget = getCustomBudgetCategoryBudget(budget.id, category);
@@ -570,7 +519,7 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
                               <div className="flex justify-between items-center mb-2">
                                 <div className="flex items-center space-x-2">
                                   <span className="font-medium text-gray-700">{category}</span>
-                                  <span className="text-xs text-gray-400">({categoryTransactions} transactions)</span>
+                                  <span className="text-xs text-gray-400">{t('budget.transactionCount').replace('{count}', categoryTransactions.toString())}</span>
                                 </div>
                                 <div className="text-right">
                                   <span className="text-sm font-medium text-gray-800">
@@ -593,17 +542,17 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
                                   
                                   <div className="flex justify-between text-xs">
                                     <span className={`${categoryRemaining >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                      Remaining: ₹{categoryRemaining.toFixed(0)}
+                                      {t('budget.categoryRemaining').replace('{amount}', categoryRemaining.toFixed(0))}
                                     </span>
                                     <span className="text-gray-600">
-                                      {categoryPercentage.toFixed(0)}% used
+                                      {t('budget.categoryUsed').replace('{percent}', categoryPercentage.toFixed(0))}
                                     </span>
                                   </div>
                                 </>
                               )}
                               
                               {categoryBudget === 0 && (
-                                <p className="text-xs text-gray-500 italic">No budget set for this category</p>
+                                <p className="text-xs text-gray-500 italic">{t('budget.noBudgetSet')}</p>
                               )}
                             </div>
                           );
@@ -621,7 +570,7 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
       {/* Paused Custom Budgets */}
       {customBudgets.filter(budget => budget.status === 'paused').length > 0 && (
         <div className="bg-white rounded-2xl p-6 shadow-lg opacity-70">
-          <h2 className="text-xl font-bold text-gray-800 mb-4">Paused Custom Budgets</h2>
+          <h2 className="text-xl font-bold text-gray-800 mb-4">{t('budget.pausedBudgets')}</h2>
           <div className="space-y-4">
             {customBudgets.filter(budget => budget.status === 'paused').map(budget => (
               <div key={budget.id} className="border border-gray-200 rounded-xl p-4">
@@ -630,8 +579,8 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
                     <h3 className="font-semibold text-gray-800">{budget.name}</h3>
                     <p className="text-sm text-gray-600 mt-1">{budget.description}</p>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <button onClick={() => resumeCustomBudget(budget.id)} className="p-1 text-gray-400 hover:text-green-600 rounded" title="Resume Budget">
+                  <div className="flex items-center space-x-2"> 
+                    <button onClick={() => resumeCustomBudget(budget.id)} className="p-1 text-gray-400 hover:text-green-600 rounded" title={t('budget.tooltip.resume')}>
                       <Play size={16} />
                     </button>
                   </div>
@@ -644,7 +593,7 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
 
       {/* Monthly Budget Overview */}
       <div className="bg-white rounded-2xl p-6 shadow-lg">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">Monthly Budget Overview</h2>
+        <h2 className="text-xl font-bold text-gray-800 mb-4">{t('budget.monthlyOverview')}</h2>
         
         <div className="space-y-4">
           {categories.map(category => {
@@ -673,10 +622,10 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
                 
                 <div className="flex justify-between text-sm">
                   <span className={remaining >= 0 ? 'text-green-600' : 'text-red-600'}>
-                    Remaining: ₹{remaining.toFixed(0)}
+                    {t('budget.remaining')}: ₹{remaining.toFixed(0)}
                   </span>
                   <span className="text-gray-600">
-                    {percentage.toFixed(0)}% used
+                    {t('budget.used').replace('{percent}', percentage.toFixed(0))}
                   </span>
                 </div>
               </div>

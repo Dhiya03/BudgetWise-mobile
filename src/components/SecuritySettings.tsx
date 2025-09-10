@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Unlock, Lock } from 'lucide-react';
 import SHA256 from 'crypto-js/sha256';
 import AES from 'crypto-js/aes';
+import { useLocalization } from './LocalizationContext';
 import {
   Transaction,
   MonthlyBudgets,
@@ -33,6 +34,7 @@ interface SecuritySettingsProps {
   dailySpendingGoal: number;
   analyticsTimeframe: string;
   spendingAlerts: SpendingAlert[];
+  t: (key: string, fallback?: string) => string;
 }
 
 const SecuritySettings: React.FC<SecuritySettingsProps> = (props) => {
@@ -44,10 +46,11 @@ const SecuritySettings: React.FC<SecuritySettingsProps> = (props) => {
   } = props;
 
   const [newPasswordInput, setNewPasswordInput] = useState('');
+  const { t } = useLocalization(); // Use useLocalization hook
 
   const handleSetPassword = () => {
     if (!/^\d{4}$/.test(newPasswordInput)) {
-      alert("Please enter a valid 4-digit PIN.");
+      alert(t('settings.pinValidation', 'Please enter a valid 4-digit PIN.'));
       return;
     }
     // 1. Hash the PIN for storage (never store the raw PIN)
@@ -68,13 +71,13 @@ const SecuritySettings: React.FC<SecuritySettingsProps> = (props) => {
     setAppPassword(pinHash); // Update app state with the hash
     onPasswordSet(newPasswordInput); // Provide the raw key to the app for future saves
     setNewPasswordInput('');
-    alert('Password set successfully. The app will be locked on your next visit.');
+    alert(t('toast.passwordSet')); // Use t() here
   };
 
   const handleRemovePassword = () => {
     showConfirmation(
-      'Confirm Password Removal',
-      'Are you sure you want to remove the password?',
+      t('settings.removePassword', 'Remove Password'),
+      t('confirmation.deletePassword.message'),
       () => {
         // Re-serialize the current in-memory state to plain text
         const appState = {
@@ -88,28 +91,28 @@ const SecuritySettings: React.FC<SecuritySettingsProps> = (props) => {
 
         onPasswordRemoved(); // Clear the encryption key from app state
         setAppPassword(null);
-        alert("Password removed.");
+        alert(t('toast.passwordRemoved')); // Use t() here
       }
     );
   };
 
   return (
     <div className="bg-white rounded-2xl p-6 shadow-lg">
-      <h2 className="text-xl font-bold text-gray-800 mb-4">Security</h2>
+      <h2 className="text-xl font-bold text-gray-800 mb-4">{t('settings.securityTitle', 'Security')}</h2>
       {appPassword ? (
         <div>
-          <p className="text-gray-600 mb-2">App password is set.</p>
+          <p className="text-gray-600 mb-2">{t('settings.passwordIsSet', 'App password is set.')}</p>
           <button onClick={handleRemovePassword} className="w-full p-3 bg-red-100 text-red-700 rounded-xl hover:bg-red-200 flex items-center justify-center">
-            <Unlock size={18} className="mr-2" /> Remove Password
+            <Unlock size={18} className="mr-2" /> {t('settings.removePassword', 'Remove Password')}
           </button>
         </div>
       ) : (
         <div>
-          <p className="text-gray-600 mb-2">Set a password to lock your app.</p>
+          <p className="text-gray-600 mb-2">{t('settings.setPasswordPrompt', 'Set a password to lock your app.')}</p>
           <div className="flex space-x-2">
-            <input type="password" inputMode="numeric" pattern="[0-9]*" maxLength={4} value={newPasswordInput} onChange={(e) => setNewPasswordInput(e.target.value)} placeholder="Enter 4-digit PIN" className="flex-1 min-w-0 p-3 border border-gray-300 rounded-xl" />
+            <input type="password" inputMode="numeric" pattern="[0-9]*" maxLength={4} value={newPasswordInput} onChange={(e) => setNewPasswordInput(e.target.value)} placeholder={t('settings.pinPlaceholder', 'Enter 4-digit PIN')} className="flex-1 min-w-0 p-3 border border-gray-300 rounded-xl" />
             <button onClick={handleSetPassword} className="px-4 py-3 bg-purple-600 text-white rounded-xl font-semibold hover:bg-purple-700 flex items-center justify-center">
-              <Lock size={18} className="mr-2" /> Set
+              <Lock size={18} className="mr-2" /> {t('settings.setPassword', 'Set')}
             </button>
           </div>
         </div>

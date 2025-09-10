@@ -5,6 +5,7 @@ interface TipSettingsProps {
   onToggleNotifications: (enabled: boolean) => void;
   notificationTime: string;
   onTimeChange: (time: string) => void;
+  t: (key: string, fallback?: string) => string;
 }
 
 const TipSettings = ({
@@ -12,10 +13,11 @@ const TipSettings = ({
   onToggleNotifications,
   notificationTime,
   onTimeChange,
+  t,
 }: TipSettingsProps) => {
   return (
     <div className="bg-white rounded-2xl p-6 shadow-lg">
-      <h2 className="text-xl font-bold text-gray-800 mb-4">Tip Notifications</h2>
+      <h2 className="text-xl font-bold text-gray-800 mb-4">{t('settings.tipNotifications', 'Tip Notifications')}</h2>
       <div className="space-y-4">
         {/* Enable/Disable Toggle */}
         <div className="flex justify-between items-center">
@@ -26,7 +28,7 @@ const TipSettings = ({
               <BellOff size={20} className="mr-3 text-gray-400" />
             )}
             <label htmlFor="notif-toggle" className="font-medium text-gray-700">
-              Daily Tip Notifications
+              {t('settings.dailyTipNotifications', 'Daily Tip Notifications')}
             </label>
           </div>
           <button
@@ -50,7 +52,7 @@ const TipSettings = ({
             <div className="flex items-center">
               <Clock size={20} className="mr-3 text-purple-600" />
               <label htmlFor="notif-time" className="font-medium text-gray-700">
-                Notification Time
+                {t('settings.notificationTime', 'Notification Time')}
               </label>
             </div>
             <input

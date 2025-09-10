@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Transaction, TransactionFormData, CustomBudget, MonthlyBudgets } from '../types';
 import { hasAccessTo, Feature } from '../subscriptionManager';
 
+import { useLocalization } from '../components/LocalizationContext';
 interface AddTabProps {
   editingTransaction: Transaction | null;
   formData: TransactionFormData;
@@ -50,6 +51,8 @@ const AddTab: React.FC<AddTabProps> = (props) => {
   const [newCustomCategoryBudget, setNewCustomCategoryBudget] = useState('');
   const [selectedCustomBudgetForCategory, setSelectedCustomBudgetForCategory] = useState<number | null>(null);
 
+  const { t } = useLocalization();
+
   const handleAddOrUpdateTransaction = () => {
     let currentFormData = { ...formData };
     const isUpdate = !!editingTransaction;
@@ -66,7 +69,7 @@ const AddTab: React.FC<AddTabProps> = (props) => {
         setNewCategoryBudget('');
         setShowCategoryInput(false);
       } else {
-        alert('Please provide a category name and a budget amount for the new category.');
+        alert(t('addTab.validation.newCategory'));
         return;
       }
     }
@@ -97,7 +100,7 @@ const AddTab: React.FC<AddTabProps> = (props) => {
         setShowCustomCategoryInput(false);
         setSelectedCustomBudgetForCategory(null);
       } else {
-        alert('Please provide a category name and a budget amount for the new custom category.');
+        alert(t('addTab.validation.newCustomCategory'));
         return;
       }
     }
@@ -106,25 +109,25 @@ const AddTab: React.FC<AddTabProps> = (props) => {
     if (!currentFormData.amount) return;
 
     if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
-      alert('Please select a category for the monthly budget.');
+      alert(t('addTab.validation.selectCategory'));
       return;
     }
     if (currentFormData.budgetType === 'custom' && (!currentFormData.customBudgetId || !currentFormData.customCategory)) {
-      alert('Please select a custom budget and a category within it.');
+      alert(t('addTab.validation.selectCustomBudget'));
       return;
     }
 
     if (currentFormData.budgetType === 'custom' && currentFormData.customBudgetId) {
       const budget = customBudgets.find(b => b.id === currentFormData.customBudgetId);
       if (budget && (budget.status === 'locked' || budget.status === 'paused')) {
-        alert(`Cannot add new transactions to a '${budget.status}' budget. Please set it to 'active' first.`);
+        alert(t('addTab.validation.budgetStatus').replace('{status}', budget.status));
         return;
       }
       if (budget && budget.deadline) {
         const transactionDate = new Date(currentFormData.date + 'T00:00:00');
         const deadlineDate = new Date(budget.deadline + 'T00:00:00');
         if (transactionDate > deadlineDate) {
-          alert(`The transaction date (${currentFormData.date}) cannot be after the budget's deadline (${budget.deadline}).`);
+          alert(t('addTab.validation.deadline').replace('{transactionDate}', currentFormData.date).replace('{deadlineDate}', budget.deadline));
           return;
         }
       }
@@ -160,7 +163,7 @@ const AddTab: React.FC<AddTabProps> = (props) => {
     <div className="p-4 space-y-6">
       <div className="bg-white rounded-2xl p-6 shadow-lg">
         <h2 className="text-xl font-bold text-gray-800 mb-4">
-          {editingTransaction ? 'Edit Transaction' : 'Add Transaction'}
+          {editingTransaction ? t('editTransaction.title', 'Edit Transaction') : t('addTransaction.title', 'Add Transaction')}
         </h2>
         
         <div className="space-y-4">
@@ -172,8 +175,8 @@ const AddTab: React.FC<AddTabProps> = (props) => {
                   ? 'bg-red-100 text-red-700 border-2 border-red-300'
                   : 'bg-gray-100 text-gray-600'
               }`}
-            >
-              Expense
+            > 
+              {t('addTab.expense')}
             </button>
             <button
               onClick={() => setFormData({ ...formData, type: 'income', budgetType: 'monthly', category: 'Income' })}
@@ -182,14 +185,14 @@ const AddTab: React.FC<AddTabProps> = (props) => {
                   ? 'bg-green-100 text-green-700 border-2 border-green-300'
                   : 'bg-gray-100 text-gray-600'
               }`}
-            >
-              Income
+            > 
+              {t('addTab.income')}
             </button>
           </div>
 
           {formData.type === 'expense' && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Budget Type</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">{t('addTab.budgetType')}</label>
               <div className="flex space-x-2">
                 <button
                   onClick={() => {
@@ -201,8 +204,8 @@ const AddTab: React.FC<AddTabProps> = (props) => {
                       ? 'bg-blue-100 text-blue-700 border-2 border-blue-300'
                       : 'bg-gray-100 text-gray-600'
                   }`}
-                >
-                  Monthly Budget
+                > 
+                  {t('addTab.monthlyBudget')}
                 </button>
                 <button
                   onClick={() => {
@@ -214,17 +217,17 @@ const AddTab: React.FC<AddTabProps> = (props) => {
                       ? 'bg-purple-100 text-purple-700 border-2 border-purple-300'
                       : 'bg-gray-100 text-gray-600'
                   }`}
-                  disabled={!hasAccessTo(Feature.CustomBudgets)}
-                >
-                  Custom Budget
+                  disabled={!hasAccessTo(Feature.CustomBudgets)} 
+                > 
+                  {t('addTab.customBudget')}
                 </button>
               </div>
             </div>
           )}
 
-          {formData.type === 'expense' && formData.budgetType === 'monthly' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
+          {formData.type === 'expense' && formData.budgetType === 'monthly' && ( 
+            <div> 
+              <label className="block text-sm font-medium text-gray-700 mb-2">{t('addTab.category')}</label>
               <div className="space-y-2">
                 <select
                   value={formData.category}
@@ -240,12 +243,12 @@ const AddTab: React.FC<AddTabProps> = (props) => {
                     }
                   }}
                   className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                >
-                  <option value="">Select Category</option>
+                > 
+                  <option value="">{t('addTab.selectCategory')}</option>
                   {categories.map(cat => (
                     <option key={cat} value={cat}>{cat}</option>
                   ))}
-                  <option value="add_new">+ Add New Category</option>
+                  <option value="add_new">{t('addTab.addNewCategory')}</option>
                 </select>
 
                 {showCategoryInput && (
@@ -255,14 +258,14 @@ const AddTab: React.FC<AddTabProps> = (props) => {
                         type="text"
                         value={newCategory}
                         onChange={(e) => setNewCategory(e.target.value)}
-                        placeholder="New category name"
+                        placeholder={t('addTab.newCategoryPlaceholder')}
                         className="flex-1 min-w-0 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
                       />
                       <input
                         type="number"
                         value={newCategoryBudget}
                         onChange={(e) => setNewCategoryBudget(e.target.value)}
-                        placeholder="Budget"
+                        placeholder={t('addTab.budgetPlaceholder')}
                         className="w-28 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
                       />
                     </div>
@@ -276,7 +279,7 @@ const AddTab: React.FC<AddTabProps> = (props) => {
           {formData.type === 'expense' && formData.budgetType === 'custom' && (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Custom Budget</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">{t('addTab.customBudget')}</label>
                 <select
                   value={formData.customBudgetId || ''}
                   onChange={(e) => setFormData({ 
@@ -285,24 +288,24 @@ const AddTab: React.FC<AddTabProps> = (props) => {
                     customCategory: ''
                   })}
                   className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                >
-                  <option value="">Select Custom Budget</option>
+                > 
+                  <option value="">{t('addTab.selectCustomBudget')}</option>
                   {customBudgets.filter(budget => budget.status === 'active').map(budget => (
-                    <option key={budget.id} value={budget.id}>
-                      {budget.name} (₹{budget.remainingAmount.toFixed(0)} remaining)
+                    <option key={budget.id} value={budget.id}> 
+                      {t('addTab.customBudgetNameWithRemaining').replace('{name}', budget.name).replace('{amount}', budget.remainingAmount.toFixed(0))}
                     </option>
                   ))}
                 </select>
                 {customBudgets.filter(budget => budget.status === 'active').length === 0 && (
-                  <p className="text-sm text-gray-500 mt-2">
-                    No active custom budgets. Create one in the Budget tab first.
+                  <p className="text-sm text-gray-500 mt-2"> 
+                    {t('addTab.noActiveCustomBudgets')}
                   </p>
                 )}
               </div>
 
-              {formData.customBudgetId && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Category within Budget</label>
+              {formData.customBudgetId && ( 
+                <div> 
+                  <label className="block text-sm font-medium text-gray-700 mb-2">{t('addTab.categoryInBudget')}</label>
                   <div className="space-y-2">
                     <select
                       value={formData.customCategory}
@@ -320,12 +323,12 @@ const AddTab: React.FC<AddTabProps> = (props) => {
                         }
                       }}
                       className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    >
-                      <option value="">Select Category</option>
+                    > 
+                      <option value="">{t('addTab.selectCategory')}</option>
                       {getCustomBudgetCategories(formData.customBudgetId).map(cat => (
                         <option key={cat} value={cat}>{cat}</option>
                       ))}
-                      <option value="add_new_custom">+ Add New Category</option>
+                      <option value="add_new_custom">{t('addTab.addNewCategory')}</option>
                     </select>
 
                     {showCustomCategoryInput && selectedCustomBudgetForCategory === formData.customBudgetId && (
@@ -334,15 +337,15 @@ const AddTab: React.FC<AddTabProps> = (props) => {
                           <input
                             type="text"
                             value={newCustomCategory}
-                            onChange={(e) => setNewCustomCategory(e.target.value)}
-                            placeholder="New category name"
+                            onChange={(e) => setNewCustomCategory(e.target.value)} 
+                            placeholder={t('addTab.newCategoryPlaceholder')}
                             className="flex-1 min-w-0 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
                           />
                           <input
                             type="number"
                             value={newCustomCategoryBudget}
-                            onChange={(e) => setNewCustomCategoryBudget(e.target.value)}
-                            placeholder="Budget"
+                            onChange={(e) => setNewCustomCategoryBudget(e.target.value)} 
+                            placeholder={t('addTab.budgetPlaceholder')}
                             className="w-28 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
                           />
                         </div>
@@ -350,8 +353,8 @@ const AddTab: React.FC<AddTabProps> = (props) => {
                     )}
 
                     {formData.customBudgetId && getCustomBudgetCategories(formData.customBudgetId).length === 0 && (
-                      <p className="text-sm text-gray-500">
-                        No categories defined for this budget. Add one above.
+                      <p className="text-sm text-gray-500"> 
+                        {t('addTab.noCategoriesInBudget')}
                       </p>
                     )}
                   </div>
@@ -360,8 +363,8 @@ const AddTab: React.FC<AddTabProps> = (props) => {
             </div>
           )}
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Amount</label>
+          <div> 
+            <label className="block text-sm font-medium text-gray-700 mb-2">{t('addTab.amount')}</label>
             <input
               type="number"
               value={formData.amount}
@@ -371,40 +374,40 @@ const AddTab: React.FC<AddTabProps> = (props) => {
             />
           </div>
 
-          <div className="relative">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Description (Optional)</label>
+          <div className="relative"> 
+            <label className="block text-sm font-medium text-gray-700 mb-2">{t('addTab.description')}</label>
             <input
               type="text"
               value={formData.description}
-              onChange={(e) => onDescriptionChange(e.target.value)}
-              placeholder="Add a note..."
+              onChange={(e) => onDescriptionChange(e.target.value)} 
+              placeholder={t('addTab.descriptionPlaceholder')}
               className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
             />
             {categorySuggestion && formData.budgetType === 'monthly' && (
               <div className="absolute right-2 top-9 flex items-center">
-                <span className="text-xs text-gray-500 mr-2">Suggested:</span>
+                <span className="text-xs text-gray-500 mr-2">{t('addTab.suggested')}</span>
                 <button
                   onClick={() => onSetCategoryFromSuggestion(categorySuggestion)}
                   className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-md hover:bg-purple-200"
-                >
-                  {categorySuggestion}
+                > 
+                  {t(`addTab.category.${categorySuggestion.toLowerCase()}`, categorySuggestion)}
                 </button>
               </div>
             )}
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Tags (comma-separated)</label>
+          <div> 
+            <label className="block text-sm font-medium text-gray-700 mb-2">{t('addTab.tags')}</label>
             <input
               type="text"
               value={formData.tags}
-              onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
-              placeholder="e.g., travel, business, 2024"
+              onChange={(e) => setFormData({ ...formData, tags: e.target.value })} 
+              placeholder={t('addTab.tagsPlaceholder')}
               className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
+          <div> 
+            <label className="block text-sm font-medium text-gray-700 mb-2">{t('addTab.date')}</label>
             <input
               type="date"
               value={formData.date}
@@ -416,7 +419,7 @@ const AddTab: React.FC<AddTabProps> = (props) => {
           {/* Recurring Transaction Section */}
           <div className="space-y-3 pt-2">
             <div className="flex items-center justify-between">
-              <label className="font-medium text-gray-700">Recurring Transaction</label>
+              <label className="font-medium text-gray-700">{t('addTab.recurringTransaction')}</label>
               <button
                 onClick={() => setFormData({ ...formData, isRecurring: !formData.isRecurring })}
                 className={`relative w-12 h-6 rounded-full transition-colors ${
@@ -431,31 +434,31 @@ const AddTab: React.FC<AddTabProps> = (props) => {
             </div>
             {formData.isRecurring && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Frequency</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">{t('addTab.frequency')}</label>
                 <select
                   value={formData.recurringFrequency || ''}
                   onChange={(e) => setFormData({ ...formData, recurringFrequency: e.target.value as any })}
                   className="w-full p-3 border border-gray-300 rounded-xl"
-                >
-                  <option value="">Select Frequency</option>
-                  <option value="daily">Daily</option>
-                  <option value="weekly">Weekly</option>
-                  <option value="monthly">Monthly</option>
+                > 
+                  <option value="">{t('addTab.selectFrequency')}</option>
+                  <option value="daily">{t('addTab.daily')}</option>
+                  <option value="weekly">{t('addTab.weekly')}</option>
+                  <option value="monthly">{t('addTab.monthly')}</option>
                 </select>
               </div>
             )}
           </div>
 
-          <button
-            onClick={handleAddOrUpdateTransaction}
-            className="w-full p-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-semibold hover:from-purple-700 hover:to-blue-700 transition-all"
-          >
-            {editingTransaction ? 'Update Transaction' : 'Add Transaction'}
+          <button 
+            onClick={handleAddOrUpdateTransaction} 
+            className="w-full p-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-semibold hover:from-purple-700 hover:to-blue-700 transition-all" 
+          > 
+            {editingTransaction ? t('addTab.updateButton') : t('addTab.addButton')}
           </button>
 
           {editingTransaction && (
-            <button onClick={onCancelEdit} className="w-full p-3 bg-gray-400 text-white rounded-xl hover:bg-gray-500">
-              Cancel Edit
+            <button onClick={onCancelEdit} className="w-full p-3 bg-gray-400 text-white rounded-xl hover:bg-gray-500"> 
+              {t('addTab.cancelEdit')}
             </button>
           )}
         </div>

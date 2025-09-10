@@ -25,6 +25,7 @@ const createDefaultProps = (): SecuritySettingsProps => ({
   dailySpendingGoal: 500,
   analyticsTimeframe: '30',
   spendingAlerts: [],
+  t: (key: string, fallback?: string) => fallback || key,
 });
 
 describe('SecuritySettings', () => {

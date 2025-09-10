@@ -3,6 +3,7 @@ import { XCircle, Edit3, Trash2, ArrowRight } from 'lucide-react';
 import { Transaction, CustomBudget, TransferEvent } from '../types';
 import { hasAccessTo, Feature } from '../subscriptionManager';
 import { formatCurrency } from '../utils/formatting';
+import { useLocalization } from '../components/LocalizationContext';
 
 type HistoryItem = (Transaction & { itemType: 'transaction', sortDate: Date }) | (TransferEvent & { itemType: 'transfer', sortDate: Date });
 
@@ -41,6 +42,7 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
 }) => {
   const [sortBy, setSortBy] = useState('date');
   const [searchTerm, setSearchTerm] = useState('');
+  const { t } = useLocalization();
 
   const sortedAndFilteredHistory = useMemo(() => {
     const transactionItems = transactions.map(t => ({ ...t, itemType: 'transaction' as const, sortDate: new Date(t.timestamp) }));
@@ -113,8 +115,8 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
           if (bAmount !== aAmount) return bAmount - aAmount;
           break;
         case 'category':
-          const aName = a.itemType === 'transaction' ? (a.budgetType === 'custom' ? `${getCustomBudgetName(a.customBudgetId) || 'N/A'} - ${a.customCategory || 'Uncategorized'}` : a.category) : 'Fund Transfer';
-          const bName = b.itemType === 'transaction' ? (b.budgetType === 'custom' ? `${getCustomBudgetName(b.customBudgetId) || 'N/A'} - ${b.customCategory || 'Uncategorized'}` : b.category) : 'Fund Transfer';
+          const aName = a.itemType === 'transaction' ? (a.budgetType === 'custom' ? `${getCustomBudgetName(a.customBudgetId) || 'N/A'} - ${a.customCategory || t('history.uncategorized')}` : a.category) : t('history.fundTransfer');
+          const bName = b.itemType === 'transaction' ? (b.budgetType === 'custom' ? `${getCustomBudgetName(b.customBudgetId) || 'N/A'} - ${b.customCategory || t('history.uncategorized')}` : b.category) : t('history.fundTransfer');
           if (aName.localeCompare(bName) !== 0) return aName.localeCompare(bName);
           break;
         case 'date':
@@ -131,16 +133,16 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
     <div className="p-4 space-y-4">
       <div className="bg-white rounded-2xl p-4 shadow-lg">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold text-gray-800">Transactions</h2>
+          <h2 className="text-xl font-bold text-gray-800">{t('history.title', 'Transactions')}</h2>
           <div className="flex space-x-2">
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
               className="p-2 border border-gray-300 rounded-lg text-sm"
             >
-              <option value="date">Sort by Date</option>
-              <option value="amount">Sort by Amount</option>
-              <option value="category">Sort by Category</option>
+              <option value="date">{t('history.sort.date')}</option>
+              <option value="amount">{t('history.sort.amount')}</option>
+              <option value="category">{t('history.sort.category')}</option>
             </select>
           </div>
         </div>
@@ -150,7 +152,7 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search transactions..."
+            placeholder={t('history.searchPlaceholder')}
             className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
           />
           <div className="relative">
@@ -159,13 +161,13 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
               onChange={(e) => setFilterCategory(e.target.value)}
               className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 appearance-none pr-8"
             >
-              <option value="">All Transactions</option>
-              <optgroup label="Monthly Categories">
+              <option value="">{t('history.allTransactions')}</option>
+              <optgroup label={t('history.monthlyCategories')}>
                 {categories.map(cat => (
                   <option key={cat} value={cat}>{cat}</option>
                 ))}
               </optgroup>
-              <optgroup label="Custom Budget Categories">
+              <optgroup label={t('history.customBudgetCategories')}>
                 {customBudgets.filter(budget => budget.status === 'active').map(budget =>
                   budget.categories?.map(category => (
                     <option key={`custom-${budget.id}-${category}`} value={`custom-${budget.id}-${category}`}>
@@ -189,7 +191,7 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
               onChange={(e) => setFilterTag(e.target.value)}
               className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 appearance-none pr-8"
             >
-              <option value="">Filter by Tag</option>
+              <option value="">{t('history.filterByTag')}</option>
               {allTags.map(tag => (
                 <option key={tag} value={tag}>{tag}</option>
               ))}
@@ -205,7 +207,7 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
         <div className="space-y-3 max-h-96 overflow-y-auto" style={{ paddingRight: '8px' }}>
           {sortedAndFilteredHistory.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
-              <p>No transactions found</p>
+              <p>{t('history.noTransactions')}</p>
             </div>
           ) : (
             sortedAndFilteredHistory.map(item => {
@@ -218,17 +220,17 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
                   <div key={`txn-${transaction.id}`} className="bg-gray-50 rounded-xl p-4 flex justify-between items-start gap-4">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center space-x-2 mb-1">
-                        <p className="font-semibold text-gray-800 truncate" title={transaction.budgetType === 'custom' && transaction.customBudgetId ? `${getCustomBudgetName(transaction.customBudgetId)} - ${transaction.customCategory || 'Uncategorized'}` : transaction.category || 'Uncategorized'}>
+                        <p className="font-semibold text-gray-800 truncate" title={transaction.budgetType === 'custom' && transaction.customBudgetId ? `${getCustomBudgetName(transaction.customBudgetId)} - ${transaction.customCategory || t('history.uncategorized')}` : transaction.category || t('history.uncategorized')}>
                           {transaction.budgetType === 'custom' && transaction.customBudgetId
-                            ? `${getCustomBudgetName(transaction.customBudgetId)} - ${transaction.customCategory || 'Uncategorized'}`
-                            : transaction.category || 'Uncategorized'}
+                            ? `${getCustomBudgetName(transaction.customBudgetId)} - ${transaction.customCategory || t('history.uncategorized')}`
+                            : transaction.category || t('history.uncategorized')}
                         </p>
                         <span className={`flex-shrink-0 px-2 py-1 rounded-full text-xs font-medium ${transaction.budgetType === 'custom' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}`}>
-                          {transaction.budgetType === 'custom' ? 'Custom' : 'Monthly'}
+                          {transaction.budgetType === 'custom' ? t('history.tag.custom') : t('history.tag.monthly')}
                         </span>
                         {transaction.tags?.includes('recurring') && (
                           <span className="flex-shrink-0 px-2 py-1 rounded-full text-xs font-medium bg-teal-100 text-teal-800">
-                            Recurring
+                            {t('history.tag.recurring')}
                           </span>
                         )}
                       </div>
@@ -245,13 +247,13 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
                         onClick={() => editTransaction(transaction)}
                         disabled={isLockedOrPaused}
                         className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                        title={isLockedOrPaused ? `Cannot edit from a ${budget?.status} budget` : "Edit Transaction"}
+                        title={isLockedOrPaused ? t('history.tooltip.editDisabled').replace('{status}', budget?.status || '') : t('history.tooltip.edit')}
                       ><Edit3 size={16} /></button>
                       <button
                         onClick={() => deleteTransaction(transaction.id)}
                         disabled={isLockedOrPaused}
                         className="p-2 text-red-600 hover:bg-red-100 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                        title={isLockedOrPaused ? `Cannot delete from a ${budget?.status} budget` : "Delete Transaction"}
+                        title={isLockedOrPaused ? t('history.tooltip.deleteDisabled').replace('{status}', budget?.status || '') : t('history.tooltip.delete')}
                       ><Trash2 size={16} /></button>
                     </div>
                   </div>
@@ -263,14 +265,14 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
                     <div className="flex-shrink-0 bg-indigo-100 text-indigo-600 rounded-full p-2 mt-1"><ArrowRight size={18} /></div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center space-x-2 mb-1">
-                        <p className="font-semibold text-indigo-800">Fund Transfer</p>
+                        <p className="font-semibold text-indigo-800">{t('history.fundTransfer')}</p>
                         <span className="flex-shrink-0 px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                          Transfer
+                          {t('history.tag.transfer')}
                         </span>
                       </div>
                       <div className="text-sm text-gray-700 mt-1 space-y-1">
-                        <p className="truncate" title={`From: ${getCustomBudgetName(transfer.fromBudgetId)} (${transfer.fromCategory})`}><span className="font-medium">From:</span> {getCustomBudgetName(transfer.fromBudgetId)} ({transfer.fromCategory})</p>
-                        <p className="truncate" title={`To: ${getCustomBudgetName(transfer.toBudgetId)}`}><span className="font-medium">To:</span> {getCustomBudgetName(transfer.toBudgetId)}</p>
+                        <p className="truncate" title={`${t('history.from')} ${getCustomBudgetName(transfer.fromBudgetId)} (${transfer.fromCategory})`}><span className="font-medium">{t('history.from')}</span> {getCustomBudgetName(transfer.fromBudgetId)} ({transfer.fromCategory})</p>
+                        <p className="truncate" title={`${t('history.to')} ${getCustomBudgetName(transfer.toBudgetId)}`}><span className="font-medium">{t('history.to')}</span> {getCustomBudgetName(transfer.toBudgetId)}</p>
                       </div>
                       <div className="flex justify-between items-center mt-2">
                         <p className="text-xs text-gray-500">{new Date(transfer.date).toLocaleString()}</p>

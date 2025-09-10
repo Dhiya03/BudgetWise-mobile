@@ -43,8 +43,10 @@ import { hasAccessTo, Feature } from './subscriptionManager';
 import InAppTipWidget from './components/InAppTipWidget';
 import BillingManager from './billing/BillingManager';
 import UpgradeBanner from './components/UpgradeBanner';
+import { LocalizationProvider, useLocalization } from './components/LocalizationContext';
 import SubscriptionScreen from './billing/SubscriptionScreen';
 
+  const { t } = useLocalization();
 
 const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }: {
   isOpen: boolean;
@@ -52,6 +54,7 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }: {
   onConfirm: (() => void | Promise<void>) | null;
   title: string;
   message: string;
+  t: (key: string) => string;
 }) => {
   if (!isOpen) return null;
 
@@ -65,7 +68,7 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }: {
             onClick={onClose}
             className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
           >
-            No
+            {t('general.no')}
           </button>
           <button
             onClick={() => {
@@ -74,7 +77,7 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }: {
             }}
             className="px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors"
           >
-            Yes
+            {t('general.yes')}
           </button>
         </div>
       </div>
@@ -82,7 +85,7 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }: {
   );
 };
 
-const Toast = ({ message, isVisible }: { message: string; isVisible: boolean }) => {
+const Toast = ({ message, isVisible }: { message: string; isVisible: boolean; }) => {
   if (!isVisible) return null;
 
   return (
@@ -115,8 +118,6 @@ const App = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [filterCategory, setFilterCategory] = useState(''); // This is used by Analytics, so it stays
-  const [language, setLanguage] = useState<SupportedLanguage>('en');
-  const [todaysTip, setTodaysTip] = useState<FinancialTip | null>(null);
   const [subscriptionTier, setSubscriptionTier] = useState<SubscriptionTier>('premium'); // TEMP: Default to premium for testing
   const [tipSettings, setTipSettings] = useState({
     enabled: true,
@@ -124,6 +125,7 @@ const App = () => {
   });
   const [inAppTip, setInAppTip] = useState<FinancialTip | null>(null);
 
+  const [todaysTip, setTodaysTip] = useState<FinancialTip | null>(null);
 
   // --- New State for Advanced Features ---
 
@@ -254,14 +256,14 @@ const App = () => {
     });
   };
 
-  const closeConfirmation = () => {
+  const closeConfirmation = useCallback(() => {
     setConfirmationState({
       isOpen: false,
       title: '',
       message: '',
       onConfirm: null,
     });
-  };
+  }, []);
   const getCustomBudgetName = useCallback((customBudgetId: number | null) => {
     if (customBudgetId === null) return 'N/A';
     const budget = customBudgets.find(b => b.id === customBudgetId);
@@ -387,13 +389,6 @@ const App = () => {
     }
   }, []);
 
-  // --- Language State Hook ---
-  useEffect(() => {
-    setTodaysTip(FinancialTipsService.getTodaysTip());
-    setLanguage(FinancialTipsService.getUserLanguage());
-  }, []);
-
-  // --- Tip Settings Hook ---
   useEffect(() => {
     const savedEnabled = localStorage.getItem('budgetwise_tip_enabled');
     const savedTime = localStorage.getItem('budgetwise_tip_time');
@@ -401,6 +396,11 @@ const App = () => {
       enabled: savedEnabled ? JSON.parse(savedEnabled) : true,
       time: savedTime || '10:00',
     });
+  }, []);
+
+  // --- Tip of the day hook ---
+  useEffect(() => {
+    setTodaysTip(FinancialTipsService.getTodaysTip());
   }, []);
 
   useEffect(() => {
@@ -438,7 +438,7 @@ const App = () => {
     // 3. Get today's tip and schedule it for 10 AM.
     const todaysTip = FinancialTipsService.getTodaysTip();
     if (todaysTip) {
-      const localizedTip = todaysTip.translations[lang];
+      const localizedTip = todaysTip.translations[lang] || todaysTip.translations.en;
       const [hour, minute] = settings.time.split(':').map(Number);
 
       await LocalNotifications.schedule({
@@ -454,27 +454,6 @@ const App = () => {
       console.log(`Daily financial tip notification scheduled for ${settings.time} in ${lang}.`);
     }
   }, []);
-
-  const handleLanguageChange = (newLang: SupportedLanguage) => {
-    setLanguage(newLang);
-    localStorage.setItem('budgetwise_user_language', newLang);
-    // When language changes, we must reschedule notifications to use the new language.
-    scheduleTipNotifications(newLang, tipSettings);
-    showToast(`Language changed to ${newLang.toUpperCase()}`);
-  };
-
-  const handleTipSettingsChange = (newSettings: Partial<typeof tipSettings>) => {
-    const updatedSettings = { ...tipSettings, ...newSettings };
-    setTipSettings(updatedSettings);
-    localStorage.setItem('budgetwise_tip_enabled', JSON.stringify(updatedSettings.enabled));
-    localStorage.setItem('budgetwise_tip_time', updatedSettings.time);
-
-    // Reschedule notifications with the new settings
-    scheduleTipNotifications(language, updatedSettings);
-
-    const message = newSettings.enabled !== undefined ? (newSettings.enabled ? 'Notifications enabled' : 'Notifications disabled') : `Notification time set to ${updatedSettings.time}`;
-    showToast(message);
-  };
 
             // Show banners only on Home tab (skip if premium)
       useEffect(() => {
@@ -539,30 +518,6 @@ const App = () => {
     };
     requestNotificationPermission();
   }, []);
-  
-  // --- Financial Tip Notification Hook ---
-  useEffect(() => {
-    // Schedule notifications on initial app load or when settings change
-    scheduleTipNotifications(language, tipSettings);
-  }, [scheduleTipNotifications, language, tipSettings]);
-
-  // Effect to manage the lockout timer display
-  useEffect(() => {
-    if (lockoutUntil) {
-      const interval = setInterval(() => {
-        if (Date.now() > lockoutUntil) {
-          setLockoutUntil(null);
-          setFailedAttempts(0);
-          setUnlockError('');
-          clearInterval(interval);
-        } else {
-          // Force a re-render to update the timer display
-          setUnlockError(`Too many failed attempts. Try again in ${Math.ceil((lockoutUntil - Date.now()) / 1000)}s`);
-        }
-      }, 1000);
-      return () => clearInterval(interval);
-    }
-  }, [lockoutUntil]);
 
   const handleUnlock = () => {
     if (lockoutUntil && Date.now() < lockoutUntil) return;
@@ -619,12 +574,11 @@ const App = () => {
         const newLockoutUntil = Date.now() + 30000; // Lock for 30 seconds
         setLockoutUntil(newLockoutUntil);
       } else {
-        setUnlockError(`Incorrect PIN. ${5 - newFailedAttempts} attempts remaining.`);
+      setUnlockError(t('lockScreen.error.incorrect').replace('{attempts}', (5 - newFailedAttempts).toString()));
       }
       setPasswordInput('');
     }
   };
-
   const handleEditCustomBudget = (budget: CustomBudget) => {
     setEditingCustomBudget(budget);
     setCustomBudgetForm({
@@ -722,14 +676,6 @@ const App = () => {
     });
   };
 
-  const handleCancelEdit = () => {
-    setEditingCustomBudget(null);
-    setCustomBudgetForm({
-      name: '', amount: '', description: '', deadline: '', 
-      priority: 'medium', categories: [], categoryBudgets: {}
-    });
-  };
-  
   const initializeSampleData = () => {
     // Sample transactions with both budget types
     const sampleTransactions: Transaction[] = [
@@ -863,7 +809,7 @@ const App = () => {
     // Prevent duplicate alerts for the same category
     const existingAlert = spendingAlerts.find(alert => alert.category === alertData.category);
     if (existingAlert) {
-      showToast(`An alert for "${alertData.category}" already exists.`);
+      showToast(t('toast.alertExists', `An alert for "${alertData.category}" already exists.`).replace('{category}', alertData.category));
       return;
     }
 
@@ -886,7 +832,7 @@ const App = () => {
   };
 
   const handleDeleteSpendingAlert = (alertId: number) => {
-    showConfirmation('Delete Alert', 'Are you sure you want to delete this spending alert?', () => {
+    showConfirmation(t('confirmation.deleteAlert.title'), t('confirmation.deleteAlert.message'), () => {
       setSpendingAlerts(prevAlerts => prevAlerts.filter(a => a.id !== alertId));
     });
   };
@@ -961,8 +907,8 @@ const App = () => {
     }
 
     showConfirmation(
-      'Confirm Deletion',
-      'Are you sure you want to delete this transaction?',
+      t('confirmation.deleteTransaction.title'),
+      t('confirmation.deleteTransaction.message'),
       () => {
         const newTransactions = transactions.filter((t) => t.id !== id);
         setTransactions(newTransactions);
@@ -1249,9 +1195,9 @@ const App = () => {
 
   const deleteCustomBudget = (budgetId: number) => {
     showConfirmation(
-      'Confirm Deletion',
-      'Are you sure you want to delete this budget? This will also delete all associated transactions and rollover rules. This action cannot be undone.',
-      () => {
+      "Delete Custom Budget",
+      "Are you sure you want to delete this budget, all its transactions, and associated rules?",
+       () => { 
         // Filter out the budget to be deleted
         const newCustomBudgets = customBudgets.filter(b => b.id !== budgetId);
         
@@ -1264,15 +1210,15 @@ const App = () => {
         setCustomBudgets(newCustomBudgets);
         setTransactions(newTransactions);
         setBudgetRelationships(newRelationships);
-        
-        alert('Custom budget, its transactions, and associated rules have been deleted.');
+
+        showToast(t('toast.customBudgetDeleted'));
       }
     );
   };
 
   const saveAsTemplate = () => {
     if (!customBudgetForm.name || !customBudgetForm.amount) {
-      alert("Please fill in at least the budget name and amount to save a template.");
+      showToast(t('toast.templateSaveError'));
       return;
     }
 
@@ -1290,14 +1236,14 @@ const App = () => {
     };
 
     setBudgetTemplates([...budgetTemplates, newTemplate]);
-    alert(`Template "${newTemplate.name}" saved successfully!`);
+    showToast(t('toast.templateSaved').replace('{name}', newTemplate.name));
   };
 
   const applyTemplate = (templateId: number) => {
     if (!templateId) return;
     const template = budgetTemplates.find(t => t.id === templateId);
     if (!template) {
-      alert("Template not found.");
+      showToast(t('toast.templateNotFound'));
       return;
     }
 
@@ -1311,23 +1257,22 @@ const App = () => {
       categoryBudgets: Object.fromEntries(Object.entries(template.categoryBudgets).map(([k, v]) => [k, v.toString()]))
     });
 
-    alert(`Template "${template.name}" applied. You can now create the budget.`);
+    showToast(t('toast.templateApplied').replace('{name}', template.name));
   };
 
   const deleteTemplate = (templateId: number) => {
     showConfirmation(
-      'Confirm Deletion',
-      'Are you sure you want to delete this template?',
+      t('confirmation.deleteTemplate.title'), // Pass t here
+      t('confirmation.deleteTemplate.message'), // Pass t here
       () => {
         setBudgetTemplates(budgetTemplates.filter(t => t.id !== templateId));
-        alert("Template deleted.");
-      }
-    );
+        showToast(t('toast.templateDeleted')); // Use toast and t()
+      });
   };
 
   const addRelationship = () => {
     if (!relationshipForm.sourceCategory || !relationshipForm.destinationBudgetId) {
-      alert("Please select both a source category and a destination budget.");
+      showToast(t('toast.selectSourceAndDestination'));
       return;
     }
 
@@ -1341,30 +1286,28 @@ const App = () => {
 
     setBudgetRelationships([...budgetRelationships, newRelationship]);
     setRelationshipForm({ sourceCategory: '', destinationBudgetId: '', condition: 'end_of_month_surplus' });
-    alert("Rollover rule created successfully.");
+    showToast(t('toast.rolloverRuleCreated')); // Use toast and t()
   };
 
   const deleteRelationship = (id: number) => {
     showConfirmation(
-      'Confirm Deletion',
-      'Are you sure you want to delete this rollover rule?',
+      t('confirmation.deleteRule.title'), // Pass t here
+      t('confirmation.deleteRule.message'), // Pass t here
       () => {
         setBudgetRelationships(budgetRelationships.filter(rel => rel.id !== id));
-        alert("Rule deleted.");
-      }
-    );
+        showToast(t('toast.ruleDeleted')); // Use toast and t()
+      });
   };
 
   const processEndOfMonthRollovers = () => {
     showConfirmation(
-      'Confirm Rollovers',
-      'This will process all end-of-month rollovers based on current monthly budget surpluses. This action cannot be undone. Proceed?',
+      t('confirmation.processRollovers.title'),
+      t('confirmation.processRollovers.message'),
       () => {
         let totalRolledOver = 0;
         const newTransactions: Transaction[] = [];
         const now = new Date().toISOString();
         const date = now.split('T')[0];
-
         budgetRelationships.forEach(rel => {
           const remaining = getRemainingBudget(rel.sourceCategory, currentYear, currentMonth);
           if (remaining > 0) {
@@ -1397,27 +1340,26 @@ const App = () => {
           const allNewTransactions = [...transactions, ...newTransactions];
           setTransactions(allNewTransactions);
           recalculateCustomBudgetSpending(allNewTransactions, customBudgets);
-          alert(`Successfully processed rollovers. Total amount transferred: ₹${totalRolledOver.toFixed(2)}`);
+          showToast(t('toast.rolloversProcessed').replace('{amount}', totalRolledOver.toFixed(2))); // Use toast and t()
         } else {
-          alert("No monthly surpluses to roll over at this time.");
+          showToast(t('toast.noSurpluses')); // Use toast and t()
         }
-      }
-    );
+      });
   };
 
   // Date range validation utilities
   const validateDateRange = (startDate: string, endDate: string) => {
-    if (!startDate || !endDate) return { isValid: false, error: 'Both start and end dates are required' };
+    if (!startDate || !endDate) return { isValid: false, error: t('export.validation.bothDatesRequired') };
     
     const start = new Date(startDate);
     const end = new Date(endDate);
     
-    if (start > end) return { isValid: false, error: 'Start date must be before end date' };
+    if (start > end) return { isValid: false, error: t('export.validation.startBeforeEnd') };
     
     const diffTime = Math.abs(end.getTime() - start.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     
-    if (diffDays > 90) return { isValid: false, error: 'Date range cannot exceed 90 days' };
+    if (diffDays > 90) return { isValid: false, error: t('export.validation.exceeds90').replace('{days}', diffDays.toString()) };
     
     return { isValid: true, dayCount: diffDays };
   };
@@ -1442,15 +1384,15 @@ const App = () => {
 
   const exportDataAdvanced = async () => {
     const validation = validateDateRange(exportStartDate, exportEndDate);
-    if (!validation.isValid) {
-      alert(validation.error);
+   if (!validation.isValid && validation.error) {
+      showToast(validation.error);
       return;
     }
 
     const filteredTransactions = getTransactionsInDateRange(exportStartDate, exportEndDate, exportType as 'all' | 'monthly' | 'custom');
     
     if (filteredTransactions.length === 0) {
-      alert('No transactions found in the selected date range and type.');
+      showToast(t('export.noTransactions'));
       return;
     }
 
@@ -1607,10 +1549,10 @@ const App = () => {
 
     if (Capacitor.isNativePlatform()) {
       try {
-        const { readablePath } = await FileService.writeFile(filename, content, 'csv');
-        alert(`Export saved to: ${readablePath}`);
+        const { readablePath } = await FileService.writeFile(filename, content, exportFormat as 'json' | 'csv');
+        showToast(t('toast.exportSaved').replace('{path}', readablePath)); // Use toast and t()
       } catch (e) {
-        alert(`Error saving export: ${(e as Error).message}`);
+        showToast(t('toast.exportError').replace('{message}', (e as Error).message)); // Use toast and t()
       }
     } else {
       // Web fallback
@@ -1640,7 +1582,7 @@ const App = () => {
  // Suggestion logic now uses the most up-to-date state
       if (updatedFormData.budgetType !== 'monthly' || updatedFormData.category) {
         setCategorySuggestion(null);
-      } else if (description.length < 3) {
+      } else if (description.length < 3) { // Use t() here
         setCategorySuggestion(null);
       } else {
         const lowerDesc = description.toLowerCase();
@@ -1670,7 +1612,7 @@ const App = () => {
 
     // 1. Validation
     if (!fromBudgetId || !toBudgetId || !fromCategory || !transferAmount || isNaN(amount) || amount <= 0) {
-      alert('Please fill all fields and enter a valid positive amount.');
+      showToast(t('transfer.validation.fillAllFields'));
       return;
     }
 
@@ -1681,7 +1623,7 @@ const App = () => {
     const destinationBudget = customBudgets.find(b => b.id === toBudgetIdNum);
 
     if (!sourceBudget || !destinationBudget) {
-      alert('Source or destination budget not found.');
+      showToast(t('transfer.validation.budgetNotFound'));
       return;
     }
 
@@ -1691,14 +1633,14 @@ const App = () => {
     const availableInCategory = sourceCategoryBudget - sourceCategorySpent;
 
     if (amount > availableInCategory) {
-      alert(`Not enough funds in category "${fromCategory}". Available: ₹${availableInCategory.toFixed(2)}`);
+      showToast(t('transfer.validation.notEnoughFunds').replace('{category}', fromCategory).replace('{amount}', availableInCategory.toFixed(2)));
       return;
     }
 
     // Check destination allocation
     const totalAllocated = Object.values(toCategoryAllocations).reduce((sum, val) => sum + (parseFloat(val) || 0), 0);
     if (Math.abs(totalAllocated - amount) > 0.01) { // Use a tolerance for float comparison
-      alert(`The allocated amount (₹${totalAllocated.toFixed(2)}) must equal the transfer amount (₹${amount.toFixed(2)}).`);
+      showToast(t('transfer.validation.amountsMustMatch').replace('{allocated}', totalAllocated.toFixed(2)).replace('{transfer}', amount.toFixed(2)));
       return;
     }
 
@@ -1774,7 +1716,7 @@ const App = () => {
     // 4. Reset and close
     setShowTransferModal(false);
     setTransferForm({ fromBudgetId: '', toBudgetId: '', transferAmount: '', fromCategory: '', toCategoryAllocations: {} });
-    alert('Fund transfer successful!');
+    showToast(t('toast.fundTransferSuccessful'));
   };
   const getSpentAmount = (category: string, year: number, month: number) => {
     return transactions
@@ -1835,9 +1777,9 @@ const App = () => {
       const allNewTransactions = [...updatedOriginals, ...newTransactions];
       setTransactions(allNewTransactions);
       checkSpendingAlerts(allNewTransactions, spendingAlerts, newTransactions); // Check alerts for the newly created transactions
-      if (!isSilent) alert(`${processedCount} recurring transaction(s) have been created.`);
+      if (!isSilent) showToast(t('toast.recurringProcessed').replace('{count}', processedCount.toString()));
     } else if (!isSilent) {
-      alert("No new recurring transactions are due.");
+      showToast(t('toast.noNewRecurringTransactions'));
     }
   };
 
@@ -1875,7 +1817,7 @@ const App = () => {
 
       if (Capacitor.isNativePlatform()) {
         const { readablePath } = await FileService.writeFile(filename, content, 'csv');
-        alert(`CSV saved to: ${readablePath}`);
+        showToast(t('toast.quickCsvExportSaved').replace('{path}', readablePath));
       } else {
         const type = 'text/csv;charset=utf-8;';
         const blob = new Blob([content], { type });
@@ -1890,7 +1832,7 @@ const App = () => {
       }
     } catch (error) {
       console.error('Quick CSV Export failed:', error);
-      alert(`Quick CSV Export failed: ${(error as Error).message}`);
+      showToast(t('toast.quickCsvExportFailed').replace('{message}', (error as Error).message));
     }
   };
   
@@ -1941,7 +1883,7 @@ const App = () => {
       staticTags.push('Transfer');
     }
     return [...staticTags, ...Array.from(dynamicTags).sort((a, b) => a.localeCompare(b))];
-  }, [transactions]);
+  }, [transactions, transferLog]);
 
   const customCategorySpending = useMemo(() => {
     const spendingMap: { [budgetId: number]: { [category: string]: number } } = {};
@@ -1957,149 +1899,50 @@ const App = () => {
     return spendingMap;
   }, [transactions]);
 
-  // Placeholder for the settings tab rendering.
-  const renderSettingsTab = () => {
-    return (
-      <div className="p-4 space-y-6">
-        {todaysTip && (
-          <div>
-            <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
-              💡 Tip of the Day
-            </h2>
-            <TipCard tip={todaysTip} language={language} />
-          </div>
-        )}
-        <TipSettings
-          notificationsEnabled={tipSettings.enabled}
-          onToggleNotifications={(enabled) => handleTipSettingsChange({ enabled })}
-          notificationTime={tipSettings.time}
-          onTimeChange={(time) => handleTipSettingsChange({ time })}
-        />
-        {hasAccessTo(Feature.LanguageSelection) ? (
-          <LocalizationSettings
-            currentLanguage={language}
-            onLanguageChange={handleLanguageChange}
-          />
-        ) : (
-          <UpgradeBanner
-            title="Unlock 3 Indian Languages"
-            description="Upgrade to Plus or Premium to use BudgetWise in Hindi, Tamil, or Telugu."
-            buttonText="View Plans"
-            onButtonClick={() => setActiveTab('subscriptions')}
-            eventName="upgrade_prompt_viewed"
-            eventProperties={{ feature: 'language_selection' }}
-          />
-        )}
-        <SecuritySettings
-          appPassword={appPassword}
-          setAppPassword={setAppPassword}
-          onPasswordSet={(pin) => setEncryptionKey(pin)}
-          onPasswordRemoved={() => setEncryptionKey(null)}
-          showConfirmation={showConfirmation}
-          transactions={transactions}
-          budgets={budgets}
-          customBudgets={customBudgets}
-          categories={categories}
-          budgetTemplates={budgetTemplates}
-          budgetRelationships={budgetRelationships}
-          billReminders={billReminders}
-          transferLog={transferLog}
-          spendingAlerts={spendingAlerts}
-          recurringProcessingMode={recurringProcessingMode}
-          savingsGoal={savingsGoal}
-          dailySpendingGoal={dailySpendingGoal}
-          analyticsTimeframe={analyticsTimeframe}
-        />
+  // Effect to manage the lockout timer display
+  useEffect(() => {
+    if (lockoutUntil) {
+      const interval = setInterval(() => {
+        if (Date.now() > lockoutUntil) {
+          setLockoutUntil(null);
+          setFailedAttempts(0);
+          setUnlockError('');
+          clearInterval(interval);
+        } else {
+          setUnlockError(`Too many failed attempts. Try again in ${Math.ceil((lockoutUntil - Date.now()) / 1000)}s`);
+        }
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [lockoutUntil]);
 
-        <DataManagement
-          transactions={transactions}
-          budgets={budgets}
-          customBudgets={customBudgets}
-          categories={categories}
-          budgetTemplates={budgetTemplates}
-          budgetRelationships={budgetRelationships}
-          billReminders={billReminders}
-          transferLog={transferLog}
-          recurringProcessingMode={recurringProcessingMode}
-          currentYear={currentYear}
-          currentMonth={currentMonth}
-          spendingAlerts={spendingAlerts}
-          setTransactions={setTransactions} setBudgets={setBudgets} setCustomBudgets={setCustomBudgets}
-          setCategories={setCategories} setBudgetTemplates={setBudgetTemplates} setBudgetRelationships={setBudgetRelationships}
-          setBillReminders={setBillReminders} setTransferLog={setTransferLog} setRecurringProcessingMode={setRecurringProcessingMode}
-          setSpendingAlerts={setSpendingAlerts} setSavingsGoal={setSavingsGoal} setDailySpendingGoal={setDailySpendingGoal}
-          setAnalyticsTimeframe={setAnalyticsTimeframe}
-          showConfirmation={showConfirmation}
-          getCustomBudgetName={getCustomBudgetName}
-          dailySpendingGoal={dailySpendingGoal}
-          analyticsTimeframe={analyticsTimeframe}
-          savingsGoal={savingsGoal}
-          getSpentAmount={getSpentAmount}
-          getRemainingBudget={getRemainingBudget}
-        />
-
-        {hasAccessTo(Feature.SpendingAlerts) && (
-          <AlertManagement
-            spendingAlerts={spendingAlerts}
-            onDeleteAlert={handleDeleteSpendingAlert}
-            onToggleSilence={toggleSpendingAlertSilence}
-          />
-        )}
-
-        {/* Recurring Transactions */}
-        {hasAccessTo(Feature.RecurringTransactions) && (
-          <div className="bg-white rounded-2xl p-6 shadow-lg">
-            <h2 className="text-xl font-bold text-gray-800 mb-4">Recurring Transactions</h2>
-            <p className="text-sm text-gray-600 mb-3">Choose how recurring transactions are processed.</p>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => setRecurringProcessingMode('automatic')}
-                className={`p-3 rounded-xl font-medium transition-colors ${
-                  recurringProcessingMode === 'automatic' ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700'
-                }`}
-              >
-                Automatic
-              </button>
-              <button
-                onClick={() => setRecurringProcessingMode('manual')}
-                className={`p-3 rounded-xl font-medium transition-colors ${
-                  recurringProcessingMode === 'manual' ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700'
-                }`}
-              >
-                Manual
-              </button>
-            </div>
-            {recurringProcessingMode === 'manual' && (
-              <button onClick={() => processRecurringTransactions(false)} className="w-full mt-4 p-3 bg-teal-100 text-teal-800 rounded-xl font-semibold hover:bg-teal-200 flex items-center justify-center">
-                <Repeat size={18} className="mr-2" />
-                Process Recurring Transactions
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Subscriptions Section */}
-        <div className="bg-white rounded-2xl p-6 shadow-lg">
-          <h2 className="text-xl font-bold text-gray-800 mb-4">Manage Subscription</h2>
-          <p className="text-sm text-gray-600 mb-3">
-            You are currently on the <span className="font-semibold">{subscriptionTier.charAt(0).toUpperCase() + subscriptionTier.slice(1)}</span> plan.
-          </p>
-          <button
-            onClick={() => setActiveTab('subscriptions')}
-            className="w-full p-3 bg-yellow-100 text-yellow-800 rounded-xl font-semibold hover:bg-yellow-200 flex items-center justify-center"
-          >
-            <Star size={18} className="mr-2" />
-            View Subscription Plans
-          </button>
-        </div>
-
-      </div>
-    );
+  const handleCancelEdit = () => {
+    setEditingCustomBudget(null);
+    setCustomBudgetForm({ name: '', amount: '', description: '', deadline: '', priority: 'medium', categories: [], categoryBudgets: {} });
   };
 
+
+    // --- Financial Tip Notification Hook ---
+  const AppContent = () => {
+    const { t, isLoaded } = useLocalization();
+    const [language, setLanguage] = useState<SupportedLanguage>('en');
+
+    // --- Financial Tip Notification Hook ---
+    useEffect(() => {
+      // Schedule notifications on initial app load or when settings change
+      scheduleTipNotifications(language, tipSettings);
+    }, [scheduleTipNotifications, language, tipSettings]);
+
+    if (!isLoaded) {
+      return (
+        <div className="fixed inset-0 flex items-center justify-center bg-purple-50">
+          <p className="text-purple-700 font-semibold animate-pulse">{t('general.loading')}</p>
+        </div>
+      );
+    }
+
   const monthlyIncome = useMemo(() => {
-    return transactions
-      .filter(t => {
+    return transactions.filter(t => {
         const transactionDate = new Date(t.date);
         return t.type === 'income' &&
                transactionDate.getFullYear() === currentYear &&
@@ -2107,49 +1950,35 @@ const App = () => {
       })
       .reduce((sum, t) => sum + t.amount, 0);
   }, [transactions, currentYear, currentMonth]);
-
   const totalMonthlyBudget = useMemo(() => {
     return Object.values(budgets).reduce((sum, b) => sum + b, 0);
   }, [budgets]);
 
   const stats = getMonthlyStats(currentYear, currentMonth);
 
-  return (
-    isLocked ? (
-      <div className="max-w-md mx-auto bg-gradient-to-br from-purple-50 to-blue-50 min-h-screen flex items-center justify-center p-4">
-        <div className="w-full bg-white rounded-2xl p-8 shadow-lg text-center">
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">BudgetWise</h1>
-          <p className="text-gray-600 mb-6">App is locked. Please enter your password.</p>
-          <div className="space-y-4">
-            <input
-              type="password"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              maxLength={4}
-              value={passwordInput}
-              onChange={(e) => setPasswordInput(e.target.value)}
-              onKeyPress={(e) => {
-                if (e.key === 'Enter') {
-                  handleUnlock();
-                }
-              }}
-              placeholder="Enter PIN"
-              className="w-full p-3 border border-gray-300 rounded-xl text-center focus:ring-2 focus:ring-purple-500"
-            />
-            {unlockError && (
-              <p className="text-red-500 text-sm min-h-[20px]">{unlockError}</p>
-            )}
-            <button
-              onClick={handleUnlock}
-              disabled={!!lockoutUntil}
-              className="w-full p-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-semibold hover:from-purple-700 hover:to-blue-700"
-            >
-              Unlock
-            </button>
-          </div>
-        </div>
-      </div>
-    ) : (
+      const handleLanguageChange = (newLang: SupportedLanguage) => {
+      setLanguage(newLang);
+      // When language changes, we must reschedule notifications to use the new language.
+      scheduleTipNotifications(newLang, tipSettings);
+      showToast(`${t('languageChangedTo')} ${newLang.toUpperCase()}`); // Use t() here
+    };
+
+        const handleTipSettingsChange = (newSettings: Partial<typeof tipSettings>) => {
+      const updatedSettings = { ...tipSettings, ...newSettings };
+      setTipSettings(updatedSettings);
+      localStorage.setItem('budgetwise_tip_enabled', JSON.stringify(updatedSettings.enabled));
+  
+      // Reschedule notifications with the new settings
+      scheduleTipNotifications(language, updatedSettings);
+  
+      if (newSettings.enabled !== undefined) {
+        showToast(newSettings.enabled ? t('toast.notificationsEnabled') : t('toast.notificationsDisabled'));
+      } else if (newSettings.time) {
+        showToast(t('toast.notificationTimeSet').replace('{time}', updatedSettings.time));
+      }
+    };
+
+    return (
     <div className="max-w-md mx-auto bg-gradient-to-br from-purple-50 to-blue-50 min-h-screen">
       <Header
         stats={stats}
@@ -2160,6 +1989,7 @@ const App = () => {
         onSetActiveTab={setActiveTab}
         onSetCurrentMonth={setCurrentMonth}
         onSetCurrentYear={setCurrentYear}
+        t={t}
       />
 
       {/* Main Content */}
@@ -2263,8 +2093,8 @@ const App = () => {
       {showExportModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-gray-800">Export Data</h2>
+            <div className="flex justify-between items-center mb-4"> 
+              <h2 className="text-xl font-bold text-gray-800">{t('export.title')}</h2>
               <button
                 onClick={() => setShowExportModal(false)}
                 className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg"
@@ -2274,8 +2104,8 @@ const App = () => {
             </div>
 
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Export Type</label>
+              <div> 
+                <label className="block text-sm font-medium text-gray-700 mb-2">{t('export.type')}</label>
                 <div className="grid grid-cols-3 gap-2">
                   <button
                     onClick={() => setExportType('all')}
@@ -2284,8 +2114,8 @@ const App = () => {
                         ? 'bg-purple-100 text-purple-700 border-2 border-purple-300'
                         : 'bg-gray-100 text-gray-600'
                     }`}
-                  >
-                    All Data
+                  > 
+                    {t('export.type.all')}
                   </button>
                   <button
                     onClick={() => setExportType('monthly')}
@@ -2294,8 +2124,8 @@ const App = () => {
                         ? 'bg-blue-100 text-blue-700 border-2 border-blue-300'
                         : 'bg-gray-100 text-gray-600'
                     }`}
-                  >
-                    Monthly Only
+                  > 
+                    {t('export.type.monthly')}
                   </button>
                   <button
                     onClick={() => setExportType('custom')}
@@ -2304,19 +2134,19 @@ const App = () => {
                         ? 'bg-green-100 text-green-700 border-2 border-green-300'
                         : 'bg-gray-100 text-gray-600'
                     }`}
-                  >
-                    Custom Only
+                  > 
+                    {t('export.type.custom')}
                   </button>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Date Range (Max 90 days)
+              <div> 
+                <label className="block text-sm font-medium text-gray-700 mb-2"> 
+                  {t('export.dateRange')}
                 </label>
                 <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">From</label>
+                  <div> 
+                    <label className="block text-xs text-gray-500 mb-1">{t('export.from')}</label>
                     <input
                       type="date"
                       value={exportStartDate}
@@ -2338,8 +2168,8 @@ const App = () => {
                       className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 text-sm"
                     />
                   </div>
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">To</label>
+                  <div> 
+                    <label className="block text-xs text-gray-500 mb-1">{t('export.to')}</label>
                     <input
                       type="date"
                       value={exportEndDate}
@@ -2374,9 +2204,9 @@ const App = () => {
                       setExportStartDate(thirtyDaysAgo.toISOString().split('T')[0]);
                       setExportEndDate(today.toISOString().split('T')[0]);
                     }}
-                    className="p-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-xs"
-                  >
-                    Last 30 Days
+                    className="p-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-xs" 
+                  > 
+                    {t('export.quickRange.30')}
                   </button>
                   <button
                     onClick={() => {
@@ -2385,10 +2215,10 @@ const App = () => {
                       sixtyDaysAgo.setDate(today.getDate() - 60);
                       setExportStartDate(sixtyDaysAgo.toISOString().split('T')[0]);
                       setExportEndDate(today.toISOString().split('T')[0]);
-                    }}
-                    className="p-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-xs"
-                  >
-                    Last 60 Days
+                    }} 
+                    className="p-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-xs" 
+                  > 
+                    {t('export.quickRange.60')}
                   </button>
                   <button
                     onClick={() => {
@@ -2397,10 +2227,10 @@ const App = () => {
                       ninetyDaysAgo.setDate(today.getDate() - 90);
                       setExportStartDate(ninetyDaysAgo.toISOString().split('T')[0]);
                       setExportEndDate(today.toISOString().split('T')[0]);
-                    }}
-                    className="p-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-xs"
-                  >
-                    Last 90 Days
+                    }} 
+                    className="p-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-xs" 
+                  > 
+                    {t('export.quickRange.90')}
                   </button>
                 </div>
 
@@ -2416,13 +2246,13 @@ const App = () => {
                         return transactionDate >= startDate && transactionDate <= endDate;
                       }).length;
                       
-                      if (daysDiff > 90) {
-                        return <p className="text-red-600">⚠️ Range exceeds 90 days ({daysDiff} days)</p>;
+                      if (daysDiff > 90) { 
+                        return <p className="text-red-600">{t('export.validation.exceeds90').replace('{days}', daysDiff.toString())}</p>;
                       }
                       return (
                         <div className="text-green-600">
-                          <p>✓ Valid range: {daysDiff} days</p>
-                          <p className="text-gray-600">{filteredCount} transactions will be exported</p>
+                          <p>{t('export.validation.valid').replace('{days}', daysDiff.toString())}</p>
+                          <p className="text-gray-600">{t('export.validation.transactionCount').replace('{count}', filteredCount.toString())}</p>
                         </div>
                       );
                     })()}
@@ -2430,8 +2260,8 @@ const App = () => {
                 )}
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Format</label>
+              <div> 
+                <label className="block text-sm font-medium text-gray-700 mb-2">{t('export.format')}</label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => setExportFormat('json')}
@@ -2440,8 +2270,8 @@ const App = () => {
                         ? 'bg-purple-100 text-purple-700 border-2 border-purple-300'
                         : 'bg-gray-100 text-gray-600'
                     }`}
-                  >
-                    JSON (Full Data)
+                  > 
+                    {t('export.format.json')}
                   </button>
                   <button
                     onClick={() => setExportFormat('csv')}
@@ -2450,8 +2280,8 @@ const App = () => {
                         ? 'bg-green-100 text-green-700 border-2 border-green-300'
                         : 'bg-gray-100 text-gray-600'
                     }`}
-                  >
-                    CSV (Spreadsheet)
+                  > 
+                    {t('export.format.csv')}
                   </button>
                 </div>
               </div>
@@ -2461,31 +2291,31 @@ const App = () => {
                   onClick={exportDataAdvanced}
                   disabled={!exportStartDate || !exportEndDate || !validateDateRange(exportStartDate, exportEndDate).isValid}
                   className="w-full p-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-semibold hover:from-purple-700 hover:to-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Export Data {exportStartDate && exportEndDate && `(${exportType})`}
+                > 
+                  {t('export.button').replace('{type}', exportStartDate && exportEndDate ? `(${exportType})` : '')}
                 </button>
                 <button
                   onClick={() => setShowExportModal(false)}
                   className="w-full p-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 transition-colors"
-                >
-                  Cancel
+                > 
+                  {t('general.cancel')}
                 </button>
               </div>
               <div className="text-xs text-gray-500 text-center mt-4 space-y-1">
-                <p>• JSON includes complete data with budgets and categories</p>
-                <p>• CSV is optimized for spreadsheet applications</p>
-                <p>• Date range limited to 90 days maximum</p>
+                <p>{t('export.note1')}</p>
+                <p>{t('export.note2')}</p>
+                <p>{t('export.note3')}</p>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Fund Transfer Modal */}
+      {/* Fund Transfer Modal */} 
       {showTransferModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={() => setShowTransferModal(false)}>
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl overflow-y-auto max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-xl font-bold text-gray-800 mb-4">Transfer Funds</h2>
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl overflow-y-auto max-h-[90vh]" onClick={(e) => e.stopPropagation()}> 
+            <h2 className="text-xl font-bold text-gray-800 mb-4">{t('transfer.title')}</h2>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">From Budget</label>
@@ -2499,7 +2329,7 @@ const App = () => {
                     toCategoryAllocations: {}
                   })}
                   className="w-full p-3 border border-gray-300 rounded-xl">
-                  <option value="">Select source</option>
+                  <option value="">{t('transfer.selectSource')}</option>
         {customBudgets.filter(b => b.status === 'active').map(b => (
                     <option key={b.id} value={b.id}>{b.name}</option>
                   ))}
@@ -2507,22 +2337,22 @@ const App = () => {
               </div>
 
               {transferForm.fromBudgetId && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">From Category</label>
+                <div> 
+                  <label className="block text-sm font-medium text-gray-700 mb-2">{t('transfer.fromCategory')}</label>
                   <select
                     value={transferForm.fromCategory}
                     onChange={(e) => setTransferForm({ ...transferForm, fromCategory: e.target.value })}
                     className="w-full p-3 border border-gray-300 rounded-xl"
-                  >
-                    <option value="">Select source category</option>
+                  > 
+                    <option value="">{t('transfer.selectSourceCategory')}</option>
                     {customBudgets.find(b => b.id === parseInt(transferForm.fromBudgetId))?.categories.map(cat => {
                       const budget = customBudgets.find(b => b.id === parseInt(transferForm.fromBudgetId))!;
                       const categoryBudget = budget.categoryBudgets[cat] || 0;
                       const categorySpent = customCategorySpending[budget.id]?.[cat] || 0;
                       const available = categoryBudget - categorySpent;
-                      return (
-                        <option key={cat} value={cat} disabled={available <= 0}>
-                          {cat} (Available: ₹{available.toFixed(2)})
+                      return ( 
+                        <option key={cat} value={cat} disabled={available <= 0}> 
+                          {cat} ({t('transfer.available').replace('{amount}', available.toFixed(2))})
                         </option>
                       );
                     })}
@@ -2530,8 +2360,8 @@ const App = () => {
                 </div>
               )}
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Amount to Transfer</label>
+              <div> 
+                <label className="block text-sm font-medium text-gray-700 mb-2">{t('transfer.amount')}</label>
                 <input
                   type="number"
                   value={transferForm.transferAmount}
@@ -2559,8 +2389,8 @@ const App = () => {
               )}
 
               {transferForm.toBudgetId && parseFloat(transferForm.transferAmount) > 0 && (
-                <div className="p-4 bg-gray-50 rounded-lg space-y-3 border border-gray-200">
-                  <h3 className="font-semibold text-gray-700">Allocate to Destination Categories</h3>
+                <div className="p-4 bg-gray-50 rounded-lg space-y-3 border border-gray-200"> 
+                  <h3 className="font-semibold text-gray-700">{t('transfer.allocateTitle')}</h3>
                   {customBudgets.find(b => b.id === parseInt(transferForm.toBudgetId))?.categories.map(cat => (
                     <div key={cat} className="flex items-center space-x-2">
                       <label className="w-1/2 text-sm text-gray-600">{cat}</label>
@@ -2578,30 +2408,30 @@ const App = () => {
                     </div>
                   ))}
                   <div className="pt-2 border-t mt-2">
-                    <div className="flex justify-between text-sm font-medium">
-                      <span>Total Allocated:</span>
+                    <div className="flex justify-between text-sm font-medium"> 
+                      <span>{t('transfer.totalAllocated')}</span>
                       <span>₹{Object.values(transferForm.toCategoryAllocations).reduce((sum, val) => sum + (parseFloat(val) || 0), 0).toFixed(2)}</span>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Transfer Amount:</span>
+                    <div className="flex justify-between text-sm"> 
+                      <span className="text-gray-600">{t('transfer.transferAmount')}</span>
                       <span className="text-gray-600">₹{(parseFloat(transferForm.transferAmount) || 0).toFixed(2)}</span>
                     </div>
                     {Math.abs(Object.values(transferForm.toCategoryAllocations).reduce((sum, val) => sum + (parseFloat(val) || 0), 0) - (parseFloat(transferForm.transferAmount) || 0)) > 0.01 && (
-                      <p className="text-red-600 text-xs text-right mt-1">Amounts must match!</p>
+                      <p className="text-red-600 text-xs text-right mt-1">{t('transfer.matchError')}</p>
                     )}
                   </div>
                 </div>
               )}
 
-              <div className="pt-4 space-y-2">
+              <div className="pt-4 space-y-2"> 
                 <button
                   onClick={handleTransferFunds}
                   className="w-full p-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold"
-                >
-                  Transfer
+                > 
+                  {t('transfer.button')}
                 </button>
-                <button onClick={() => setShowTransferModal(false)} className="w-full p-3 bg-gray-200 text-gray-700 rounded-xl">
-                  Cancel
+                <button onClick={() => setShowTransferModal(false)} className="w-full p-3 bg-gray-200 text-gray-700 rounded-xl"> 
+                  {t('general.cancel')}
                 </button>
               </div>
             </div>
@@ -2629,21 +2459,139 @@ const App = () => {
           <BillReminderTab billReminders={billReminders} setBillReminders={setBillReminders} showConfirmation={showConfirmation} />
         ) : activeTab === 'reminders' && (
           <div className="p-6 text-center bg-white rounded-2xl m-4 shadow-lg">
-            <h2 className="text-xl font-bold text-gray-800 mb-4">Never Miss a Payment</h2>
+            <h2 className="text-xl font-bold text-gray-800 mb-4">{t('reminders.neverMissPayment')}</h2>
             <p className="text-gray-600 mb-4">
-              Upgrade to Plus or Premium to set bill reminders and get notified before your due dates.
+              {t('reminders.unlockDescription')}
             </p>
             <button
               onClick={() => setActiveTab('subscriptions')}
-              className="p-3 bg-purple-600 text-white rounded-xl font-semibold hover:bg-purple-700"
+              className="p-3 bg-purple-600 text-white rounded-xl font-semibold"
             >
-              View Plans
+              {t('upgrade.viewPlans')} {/* Use t() here */}
             </button>
           </div>
         )}
 
         {/* Settings Tab */}
-        {activeTab === 'settings' && renderSettingsTab()}
+        {activeTab === 'settings' && (
+          <div className="p-4 space-y-6">
+            {todaysTip && (
+              <div>
+                <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                  💡 {t('settings.tipOfTheDay')} {/* Use t() here */}
+                </h2>
+                <TipCard tip={todaysTip} language={language} />
+              </div>
+            )}
+            <TipSettings
+              notificationsEnabled={tipSettings.enabled}
+              onToggleNotifications={(enabled: boolean) => handleTipSettingsChange({ enabled })}
+              notificationTime={tipSettings.time}
+              onTimeChange={(time: string) => handleTipSettingsChange({ time })}
+              t={t}
+            />
+            {hasAccessTo(Feature.LanguageSelection) ? (
+              <LocalizationSettings
+                currentLanguage={language}
+                onLanguageChange={handleLanguageChange}
+                t={t}
+              />
+            ) : (
+              <UpgradeBanner
+                title={t('upgrade.unlockLanguages.title')}
+                description={t('upgrade.unlockLanguages.description')}
+                buttonText={t('upgrade.viewPlans')}
+                onButtonClick={() => setActiveTab('subscriptions')}
+                eventName="upgrade_prompt_viewed"
+                eventProperties={{ feature: 'language_selection' }}
+              />
+            )}
+            <SecuritySettings
+              appPassword={appPassword}
+              setAppPassword={setAppPassword}
+              onPasswordSet={(pin) => setEncryptionKey(pin)}
+              onPasswordRemoved={() => setEncryptionKey(null)}
+              showConfirmation={showConfirmation}
+              transactions={transactions}
+              budgets={budgets}
+              customBudgets={customBudgets}
+              categories={categories}
+              budgetTemplates={budgetTemplates}
+              budgetRelationships={budgetRelationships}
+              billReminders={billReminders}
+              transferLog={transferLog}
+              spendingAlerts={spendingAlerts}
+              recurringProcessingMode={recurringProcessingMode}
+              savingsGoal={savingsGoal}
+              dailySpendingGoal={dailySpendingGoal}
+              analyticsTimeframe={analyticsTimeframe}
+              t={t}
+            />
+
+            <DataManagement
+              transactions={transactions}
+              budgets={budgets}
+              customBudgets={customBudgets}
+              categories={categories}
+              budgetTemplates={budgetTemplates}
+              budgetRelationships={budgetRelationships}
+              billReminders={billReminders}
+              transferLog={transferLog}
+              recurringProcessingMode={recurringProcessingMode}
+              currentYear={currentYear}
+              currentMonth={currentMonth}
+              spendingAlerts={spendingAlerts}
+              setTransactions={setTransactions} setBudgets={setBudgets} setCustomBudgets={setCustomBudgets}
+              setCategories={setCategories} setBudgetTemplates={setBudgetTemplates} setBudgetRelationships={setBudgetRelationships}
+              setBillReminders={setBillReminders} setTransferLog={setTransferLog} setRecurringProcessingMode={setRecurringProcessingMode}
+              setSpendingAlerts={setSpendingAlerts} setSavingsGoal={setSavingsGoal} setDailySpendingGoal={setDailySpendingGoal}
+              setAnalyticsTimeframe={setAnalyticsTimeframe}
+              showConfirmation={showConfirmation}
+              getCustomBudgetName={getCustomBudgetName}
+              dailySpendingGoal={dailySpendingGoal}
+              analyticsTimeframe={analyticsTimeframe}
+              savingsGoal={savingsGoal}
+              getSpentAmount={getSpentAmount}
+              getRemainingBudget={getRemainingBudget}
+              t={t}
+            />
+
+            {hasAccessTo(Feature.SpendingAlerts) && (
+              <AlertManagement
+                spendingAlerts={spendingAlerts}
+                onDeleteAlert={handleDeleteSpendingAlert}
+                onToggleSilence={toggleSpendingAlertSilence}
+              />
+            )}
+
+            {/* Recurring Transactions */}
+            {hasAccessTo(Feature.RecurringTransactions) && (
+              <div className="bg-white rounded-2xl p-6 shadow-lg">
+                <h2 className="text-xl font-bold text-gray-800 mb-4">{t('settings.recurringTitle')}</h2>
+                <p className="text-sm text-gray-600 mb-3">{t('settings.recurringDescription')}</p>
+                 <div className="grid grid-cols-2 gap-2">
+                  <button onClick={() => setRecurringProcessingMode('automatic')} className={`p-3 rounded-xl font-medium transition-colors ${recurringProcessingMode === 'automatic' ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700'}`}>{t('settings.recurring.automatic')}</button>
+                  <button onClick={() => setRecurringProcessingMode('manual')} className={`p-3 rounded-xl font-medium transition-colors ${recurringProcessingMode === 'manual' ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700'}`}>{t('settings.recurring.manual')}</button>
+                </div>
+                {recurringProcessingMode === 'manual' && (
+                  <button onClick={() => processRecurringTransactions(false)} className="w-full mt-4 p-3 bg-teal-100 text-teal-800 rounded-xl font-semibold hover:bg-teal-200 flex items-center justify-center">
+                    <Repeat size={18} className="mr-2" />
+                    {t('settings.recurring.processButton')}
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Subscriptions Section */}
+            <div className="bg-white rounded-2xl p-6 shadow-lg">
+              <h2 className="text-xl font-bold text-gray-800 mb-4">{t('settings.subscriptionTitle')}</h2>
+              <p className="text-sm text-gray-600 mb-3">
+                {t('settings.subscriptionDescription').replace('{tier}', subscriptionTier.charAt(0).toUpperCase() + subscriptionTier.slice(1))}
+              </p>
+              <button onClick={() => setActiveTab('subscriptions')} className="w-full p-3 bg-yellow-100 text-yellow-800 rounded-xl font-semibold hover:bg-yellow-200 flex items-center justify-center"><Star size={18} className="mr-2" />{t('settings.viewPlans')}</button>
+            </div>
+          </div>
+        )}
 
         {/* Subscription Screen */}
         {activeTab === 'subscriptions' && (
@@ -2651,6 +2599,7 @@ const App = () => {
             onBack={() => setActiveTab('settings')}
             subscriptionTier={subscriptionTier}
             showToast={showToast}
+            t={t}
           />
         )}
       </div>
@@ -2661,6 +2610,7 @@ const App = () => {
         onConfirm={confirmationState.onConfirm}
         title={confirmationState.title}
         message={confirmationState.message}
+        t={t}
       />
 
       <Toast
@@ -2679,9 +2629,48 @@ const App = () => {
       <BottomNavigation
         activeTab={activeTab}
         onTabChange={setActiveTab}
+        t={t}
       />
     </div>
-    )
+    );
+  };
+
+  return (
+    <LocalizationProvider>
+      {isLocked ? (
+        <div className="max-w-md mx-auto bg-gradient-to-br from-purple-50 to-blue-50 min-h-screen flex items-center justify-center p-4">
+          <div className="w-full bg-white rounded-2xl p-8 shadow-lg text-center"> 
+            <h1 className="text-2xl font-bold text-gray-800 mb-2">{t('lockScreen.title')}</h1>
+            <p className="text-gray-600 mb-6">{t('lockScreen.prompt')}</p>
+            <div className="space-y-4">
+              <input
+                type="password"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                onChange={(e) => setPasswordInput(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    handleUnlock();
+                  }
+                }}
+                placeholder={t('lockScreen.placeholder')}
+                className="w-full p-3 border border-gray-300 rounded-xl text-center focus:ring-2 focus:ring-purple-500"
+              />
+              {unlockError && (
+                <p className="text-red-500 text-sm min-h-[20px]">{unlockError}</p>
+              )}
+              <button
+                onClick={handleUnlock}
+                disabled={!!lockoutUntil}
+                className="w-full p-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-semibold hover:from-purple-700 hover:to-blue-700 disabled:opacity-50"
+              > 
+                {t('lockScreen.button')}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : <AppContent />}
+    </LocalizationProvider>
   );
 };
 

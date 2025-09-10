@@ -1,5 +1,6 @@
 import { Share } from '@capacitor/share';
 import { FinancialTip, SupportedLanguage } from '../types';
+import { useLocalization } from '../components/LocalizationContext';
 
 interface TipCardProps {
   tip: FinancialTip;
@@ -7,7 +8,8 @@ interface TipCardProps {
 }
 
 const TipCard = ({ tip, language }: TipCardProps) => {
-  const localizedTip = tip.translations[language];
+  const { t } = useLocalization();
+  const localizedTip = tip.translations[language] || tip.translations.en;
 
   const handleShare = async () => {
     await Share.share({
@@ -27,7 +29,7 @@ const TipCard = ({ tip, language }: TipCardProps) => {
             <span className="text-xs font-medium bg-purple-100 text-purple-800 px-2 py-1 rounded-full">
               {tip.category.replace('-', ' ')}
             </span>
-            <button onClick={handleShare} className="text-sm font-semibold text-purple-600 hover:text-purple-800">Share</button>
+            <button onClick={handleShare} className="text-sm font-semibold text-purple-600 hover:text-purple-800">{t('general.share', 'Share')}</button>
           </div>
         </div>
       </div>

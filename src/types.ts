@@ -142,3 +142,51 @@ export interface FinancialTip {
   };
   contextualTriggers?: string[];
 }
+
+export interface BudgetTabProps {
+  monthlyIncome: number;
+  totalMonthlyBudget: number;
+  budgetForm: { category: string; amount: string };
+  setBudgetForm: React.Dispatch<React.SetStateAction<{ category: string; amount: string }>>;
+  categories: string[];
+  budgets: MonthlyBudgets;
+  setBudget: () => void;
+  customBudgetFormRef: React.RefObject<HTMLDivElement>;
+  editingCustomBudget: CustomBudget | null;
+  customBudgetForm: CustomBudgetFormData;
+  setCustomBudgetForm: React.Dispatch<React.SetStateAction<CustomBudgetFormData>>;
+  handleSaveCustomBudget: () => void;
+  handleCancelEdit: () => void;
+  saveAsTemplate: () => void;
+  budgetTemplates: BudgetTemplate[];
+  selectedTemplate: string;
+  setSelectedTemplate: React.Dispatch<React.SetStateAction<string>>;
+  applyTemplate: (templateId: number) => void;
+  deleteTemplate: (templateId: number) => void;
+  relationshipForm: RelationshipFormData;
+  setRelationshipForm: React.Dispatch<React.SetStateAction<RelationshipFormData>>;
+  getRemainingBudget: (category: string, year: number, month: number) => number;
+  currentYear: number;
+  currentMonth: number;
+  customBudgets: CustomBudget[];
+  addRelationship: () => void;
+  budgetRelationships: BudgetRelationship[];
+  getCustomBudgetName: (id: number | null) => string;
+  deleteRelationship: (id: number) => void;
+  processEndOfMonthRollovers: () => void;
+  setShowTransferModal: React.Dispatch<React.SetStateAction<boolean>>;
+  handleLockBudget: (budgetId: number) => void;
+  pauseCustomBudget: (budgetId: number) => void;
+  handleEditCustomBudget: (budget: CustomBudget) => void;
+  deleteCustomBudget: (budgetId: number) => void;
+  resumeCustomBudget: (budgetId: number) => void;
+  getCustomBudgetCategoryBudget: (customBudgetId: number, category: string) => number;
+  customCategorySpending: { [budgetId: number]: { [category: string]: number } };
+  transactions: Transaction[];
+  newCustomCategory: string;
+  setNewCustomCategory: React.Dispatch<React.SetStateAction<string>>;
+  addCustomCategoryToForm: () => void;
+  getSpentAmount: (category: string, year: number, month: number) => number;
+  removeCategoryFromForm: (category: string) => void;
+  updateCategoryBudget: (category: string, amount: string) => void;
+}

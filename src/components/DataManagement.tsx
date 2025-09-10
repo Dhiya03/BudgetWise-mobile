@@ -12,6 +12,7 @@ import {
 import type { jsPDF as jsPDFType } from 'jspdf';
 import { FileJson, FileSpreadsheet, FileText, Star } from 'lucide-react';
 import { useAnalytics } from '../hooks/useAnalytics';
+import { useLocalization } from './LocalizationContext';
 import { Capacitor } from '@capacitor/core';
 import { hasAccessTo, Feature } from '../subscriptionManager';
 import FileService from '../utils/FileService';
@@ -52,6 +53,7 @@ interface DataManagementProps {
   spendingAlerts: SpendingAlert[];
   getSpentAmount: (category: string, year: number, month: number) => number;
   getRemainingBudget: (category: string, year: number, month: number) => number;
+  t: (key: string, fallback?: string) => string;
 }
 
 const DataManagement: React.FC<DataManagementProps> = (props) => {
@@ -67,6 +69,7 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
   } = props;
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { t } = useLocalization(); // Use useLocalization hook
   const {
     healthScore,
     cashFlow,
@@ -81,7 +84,7 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
       const restoredState = JSON.parse(jsonString);
 
       if (!restoredState.transactions || !restoredState.budgets) {
-          throw new Error("Invalid backup file format.");
+          throw new Error(t('toast.invalidBackupFormat'));
       }
 
       setTransactions(restoredState.transactions || []);
@@ -97,10 +100,10 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
       setSavingsGoal(restoredState.savingsGoal || 15000);
       setDailySpendingGoal(restoredState.dailySpendingGoal || 500);
       setAnalyticsTimeframe(restoredState.analyticsTimeframe || '30');
-      alert('Data restored successfully!');
+      alert(t('toast.restoreSuccess'));
     } catch (error) {
-      console.error("Failed to restore data:", error);
-      alert(`Error restoring data: ${(error as Error).message}. Please ensure you are using a valid backup file.`);
+      console.error(t('toast.restoreFailed', 'Failed to restore data:'), error);
+      alert(t('toast.restoreError', 'Error restoring data: {message}. Please ensure you are using a valid backup file.').replace('{message}', (error as Error).message));
     }
   };
 
@@ -115,7 +118,7 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
       if (typeof text === 'string') {
         processRestoredData(text);
       } else {
-        alert("Failed to read file content.");
+        alert(t('toast.fileReadError'));
       }
     };
     reader.readAsText(file);
@@ -126,7 +129,7 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
   };
 
   const backupData = () => {
-    showConfirmation('Backup Data', 'Do you want to create a backup file of all your data?', async () => {
+    showConfirmation(t('settings.backupJson'), t('confirmation.backup.message'), async () => {
       const stateToBackup = {
         transactions, budgets, customBudgets, categories, budgetTemplates,
         budgetRelationships, billReminders, transferLog, recurringProcessingMode,
@@ -134,7 +137,7 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
       };
       const filename = `budgetwise_backup_${new Date().toISOString().split('T')[0]}.json`;
       const { readablePath } = await FileService.saveJSON(filename, stateToBackup);
-      alert(`Backup saved to: ${readablePath}`);
+      alert(t('toast.backupSaved', 'Backup saved to: {path}').replace('{path}', readablePath));
     });
   };
 
@@ -149,7 +152,7 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
 
         const format = FileService.detectFormat(pickedFile.name || '');
         if (format !== 'json') {
-          alert('Invalid file type. Please select a .json backup file.');
+          alert(t('toast.invalidFileType', 'Invalid file type. Please select a .json backup file.'));
           return;
         }
 
@@ -159,7 +162,7 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
       } catch (e) {
         console.log('File picker was cancelled or failed.', e);
         if (e instanceof Error) {
-          alert(`Error picking file: ${e.message}`);
+          alert(t('toast.filePickerError').replace('{message}', e.message));
         }
       }
     } else {
@@ -170,8 +173,8 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
   const handleRestore = (event: React.MouseEvent<HTMLLabelElement>) => {
     event.preventDefault();
     showConfirmation(
-      'Confirm Restore',
-      'Are you sure you want to restore? This will overwrite all current data.',
+      t('confirmation.restore.title'),
+      t('confirmation.restore.message'),
       triggerRestore
     );
   };
@@ -232,10 +235,10 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
 
       const excelData = write(wb, { bookType: 'xlsx', type: 'base64' });
       const { readablePath } = await FileService.writeFile(filename, excelData, 'xlsx');
-      alert(`Excel report saved to: ${readablePath}`);
+      alert(t('toast.excelSaved', 'Excel report saved to: {path}').replace('{path}', readablePath));
     } catch (error) {
-      console.error("Failed to export to Excel", error);
-      alert(`An error occurred while exporting to Excel: ${(error as Error).message}`);
+      console.error(t('toast.excelExportFailed', 'Failed to export to Excel'), error);
+      alert(t('toast.excelExportError', 'An error occurred while exporting to Excel: {message}').replace('{message}', (error as Error).message));
     }
   };
 
@@ -248,9 +251,9 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
       const filename = `BudgetWise_Report_${new Date().toISOString().split('T')[0]}.pdf`;
 
       const getScoreDescription = (score: number) => {
-        if (score >= 75) return "Thriving";
-        if (score >= 50) return "Caution";
-        return "Action Needed";
+        if (score >= 75) return t('analytics.healthStatus.thriving');
+        if (score >= 50) return t('analytics.healthStatus.caution');
+        return t('analytics.healthStatus.actionNeeded');
       };
 
       const getHexColor = (tailwindColor: string) => {
@@ -260,37 +263,37 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
         return '#000000';
       };
 
-       const reportTitle = analyticsTimeframe === 'This Month' ? 'Report for This Month' : `Report for the last ${analyticsTimeframe} days`;
+       const reportTitle = analyticsTimeframe === 'This Month' ? t('analytics.reportForThisMonth', 'Report for This Month') : t('analytics.reportForLastDays', 'Report for the last {days} days').replace('{days}', analyticsTimeframe);
 
       // Title
       doc.setFontSize(18);
       doc.text('BudgetWise Financial Report', 14, 22);
       doc.setFontSize(11);
-      doc.setTextColor(100);  
-      doc.text(`${reportTitle}, generated on: ${new Date().toLocaleDateString()}`, 14, 29);
+      doc.setTextColor(100);
+      doc.text(`${reportTitle}, ${t('general.generatedOn', 'generated on')}: ${new Date().toLocaleDateString()}`, 14, 29);
 
       // Health Score
       doc.setFontSize(16);
-      doc.text('Financial Health Score', 14, 45);
+      doc.text(t('analytics.healthScoreTitle'), 14, 45);
       doc.setFontSize(22);
       doc.setTextColor(getHexColor(healthScore.color));
       doc.text(`${healthScore.score} / 100`, 14, 55);
       doc.setFontSize(12);
       doc.setTextColor(100);
-      doc.text(`Status: ${getScoreDescription(healthScore.score)}`, 14, 62);
+      doc.text(`${t('general.status')}: ${getScoreDescription(healthScore.score)}`, 14, 62);
       doc.setTextColor(0);
 
       // Cash Flow Summary Table
       autoTable(doc, {
         startY: 70,
-        head: [['Cash Flow & Preparedness', 'Amount']],
+        head: [[t('analytics.cashFlowTitle'), t('general.amount', 'Amount')]],
         body: [
-           ['Total Income', `₹${cashFlow.totalIncome.toFixed(2)}`],
-          ['Total Expenses', `₹${cashFlow.totalExpenses.toFixed(2)}`],
-          ['Net Savings (Period)', `₹${cashFlow.savings.toFixed(2)}`],
-          ['Projected Monthly Savings', `₹${cashFlow.projectedMonthlySavings.toFixed(2)}`],
-          ['Budget Burn Rate', isFinite(cashFlow.burnRateDays) ? `~${cashFlow.burnRateDays.toFixed(0)} days` : 'N/A'],
-          ['Financial Runway', isFinite(runway.runwayMonths) ? `${runway.runwayMonths} months` : '∞'],
+           [t('analytics.income'), `₹${cashFlow.totalIncome.toFixed(2)}`],
+          [t('analytics.expenses'), `₹${cashFlow.totalExpenses.toFixed(2)}`],
+          [t('analytics.savings'), `₹${cashFlow.savings.toFixed(2)}`],
+          [t('analytics.projectedSavings'), `₹${cashFlow.projectedMonthlySavings.toFixed(2)}`],
+          [t('analytics.burnRate'), isFinite(cashFlow.burnRateDays) ? `~${cashFlow.burnRateDays.toFixed(0)} ${t('general.days', 'days')}` : t('general.na', 'N/A')],
+          [t('analytics.runwayTitle'), isFinite(runway.runwayMonths) ? `${runway.runwayMonths} ${t('general.months', 'months')}` : '∞'],
        ],
         theme: 'striped',
         headStyles: { fillColor: [67, 72, 188] },
@@ -299,10 +302,10 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
       // Personal Habits Table
       autoTable(doc, {
         startY: (doc as any).lastAutoTable.finalY + 10,
-        head: [['Personal Habits', 'Insight']],
+        head: [[t('analytics.habitsTitle'), t('general.insight', 'Insight')]],
         body: [
-          ['Spending Personality', personality.personality],
-          ['Daily Goal Streak', `${streak.streak} days under ₹${dailySpendingGoal}`],
+          [t('analytics.personalityTitle'), personality.personality],
+          [t('analytics.dailyGoalTitle'), `${streak.streak} ${t('general.days', 'days')} ${t('general.under', 'under')} ₹${dailySpendingGoal}`],
         ],
         theme: 'striped',
         headStyles: { fillColor: [15, 118, 110] }, // Teal color
@@ -322,11 +325,11 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
 
       if (goalData.length > 0) {
         const goalTableStartY = (doc as any).lastAutoTable.finalY + 15;
-        doc.setFontSize(16);
-        doc.text('Goal Progress', 14, goalTableStartY);
+        doc.setFontSize(16); // Use t() here
+        doc.text(t('budget.goalProgress', 'Goal Progress'), 14, goalTableStartY);
         autoTable(doc, {
           startY: goalTableStartY + 2,
-          head: [['Active Goals', 'Progress', '% Funded']],
+          head: [[t('budget.activeGoals', 'Active Goals'), t('general.progress', 'Progress'), t('general.funded', '% Funded')]],
           body: goalData,
           headStyles: { fillColor: [190, 70, 120] }, // Pink/Purple color
         });
@@ -335,10 +338,10 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
         // Top Spending Categories
       const insightsStartY = (doc as any).lastAutoTable.finalY + 15;
       doc.setFontSize(16);
-      doc.text('Spending Insights', 14, insightsStartY);
+      doc.text(t('analytics.spendingInsights', 'Spending Insights'), 14, insightsStartY);
       autoTable(doc, {
         startY: insightsStartY + 2,
-        head: [['Top Spending Categories', 'Amount (₹)', 'Trend (%)']],
+        head: [[t('analytics.categoryBreakdownTitle', 'Top Spending Categories'), t('general.amount', 'Amount (₹)'), t('general.trend', 'Trend (%)')]],
         body: categoryInsights.slice(0, 5).map(insight => [
             insight.category,
             insight.spending.toFixed(2),
@@ -358,29 +361,29 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
 
       const transactionsStartY = (doc as any).lastAutoTable.finalY + 15;
       doc.setFontSize(16);
-      doc.text('Recent Transactions', 14, transactionsStartY);
+      doc.text(t('history.recentTransactions', 'Recent Transactions'), 14, transactionsStartY);
       autoTable(doc, {
         startY: transactionsStartY + 2,
-        head: [['Date', 'Description', 'Category', 'Amount (₹)']],
+        head: [[t('general.date', 'Date'), t('general.description', 'Description'), t('general.category', 'Category'), t('general.amount', 'Amount (₹)')]],
         body: transactionData,
         headStyles: { fillColor: [217, 119, 6] },
       });
       const pdfData = doc.output("datauristring").split(",")[1];
       const { readablePath } = await FileService.writeFile(filename, pdfData, 'pdf');
-      alert(`PDF report saved to: ${readablePath}`);
+      alert(t('toast.pdfSaved', 'PDF report saved to: {path}').replace('{path}', readablePath));
     } catch (error) {
-      console.error("Failed to generate PDF report", error);
-      alert(`An error occurred while generating the PDF report: ${(error as Error).message}`);
+      console.error(t('toast.pdfGenerationFailed', 'Failed to generate PDF report'), error);
+      alert(t('toast.pdfGenerationError', 'An error occurred while generating the PDF report: {message}').replace('{message}', (error as Error).message));
     }
   };
 
   const generateHTMLReport = async () => {
     const getScoreDescription = (score: number) => {
-      if (score >= 75) return { text: "Thriving", color: "#10B981" };
-      if (score >= 50) return { text: "Caution", color: "#F59E0B" };
-      return { text: "Action Needed", color: "#EF4444" };
+      if (score >= 75) return { text: t('analytics.healthStatus.thriving'), color: "#10B981" };
+      if (score >= 50) return { text: t('analytics.healthStatus.caution'), color: "#F59E0B" };
+      return { text: t('analytics.healthStatus.actionNeeded'), color: "#EF4444" };
     };
-    const reportTitle = analyticsTimeframe === 'This Month' ? 'For This Month' : `For the last ${analyticsTimeframe} days`;
+    const reportTitle = analyticsTimeframe === 'This Month' ? t('analytics.reportForThisMonth') : t('analytics.reportForLastDays').replace('{days}', analyticsTimeframe);
 
     const scoreDescription = getScoreDescription(healthScore.score);
 
@@ -416,7 +419,7 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
       <body>
         <div class="container">
           <div class="header">
-            <h1>BudgetWise Financial Report</h1>
+            <h1>{t('header.title')} {t('dataManagement.financialReport', 'Financial Report')}</h1>
             <p>${reportTitle}, generated on ${new Date().toLocaleDateString()}</p>
           </div>
 
@@ -429,24 +432,24 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
           </div>
 
           <div class="section">
-            <h2>Cash Flow & Preparedness</h2>
+            <h2>{t('analytics.cashFlowTitle')} & {t('general.preparedness')}</h2>
             <div class="grid">
               <div class="card">
-                <div class="card-title">Total Income</div>
+                <div class="card-title">{t('budget.totalIncome')}</div>
                 <div class="card-value positive">₹${cashFlow.totalIncome.toFixed(0)}</div>
               </div>
               <div class="card">
-                <div class="card-title">Total Expenses</div>
+                <div class="card-title">{t('budget.totalBudgeted')}</div>
                 <div class="card-value negative">₹${cashFlow.totalExpenses.toFixed(0)}</div>
               </div>
               <div class="card">
-                <div class="card-title">Net Savings</div>
+                <div class="card-title">{t('analytics.savings')}</div>
                 <div class="card-value ${cashFlow.savings >= 0 ? 'positive' : 'negative'}">₹${cashFlow.savings.toFixed(0)}</div>
               </div>
               
               <div class="card">
-                <div class="card-title">Financial Runway</div>
-                <div class="card-value">${isFinite(runway.runwayMonths) ? `${runway.runwayMonths} months` : '∞'}</div>
+                <div class="card-title">{t('analytics.runwayTitle')}</div>
+                <div class="card-value">${isFinite(runway.runwayMonths) ? `${runway.runwayMonths} ${t('general.months', 'months')}` : '∞'}</div>
               </div>
             </div>
             <div class="chart-container" style="display: flex; align-items: stretch; gap: 0.5rem; height: 10rem; padding-top: 1rem; border-top: 1px solid #e5e7eb; margin-top: 1rem;">
@@ -454,44 +457,44 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
                 <div class="bar-wrapper" style="flex: 1; display: flex; align-items: flex-end;">
                   <div class="bar" style="margin: 0 auto; width: 60%; border-radius: 4px 4px 0 0; background-color: #22c55e; height: ${Math.min(100, (cashFlow.totalIncome / (cashFlow.totalIncome || 1)) * 100)}%;"></div>
                 </div>
-                <p style="font-size: 0.75rem; margin-top: 0.25rem;">Income</p>
+                <p style="font-size: 0.75rem; margin-top: 0.25rem;">{t('analytics.income')}</p>
                 <p style="font-size: 0.8rem; font-weight: bold;">₹${cashFlow.totalIncome.toFixed(0)}</p>
               </div>
               <div class="chart-bar-container" style="flex: 1; display: flex; flex-direction: column; text-align: center;">
                 <div class="bar-wrapper" style="flex: 1; display: flex; align-items: flex-end;">
                   <div class="bar" style="margin: 0 auto; width: 60%; border-radius: 4px 4px 0 0; background-color: #ef4444; height: ${Math.min(100, (cashFlow.totalExpenses / (cashFlow.totalIncome || 1)) * 100)}%;"></div>
                 </div>
-                <p style="font-size: 0.75rem; margin-top: 0.25rem;">Expenses</p>
+                <p style="font-size: 0.75rem; margin-top: 0.25rem;">{t('analytics.expenses')}</p>
                 <p style="font-size: 0.8rem; font-weight: bold;">₹${cashFlow.totalExpenses.toFixed(0)}</p>
               </div>
               <div class="chart-bar-container" style="flex: 1; display: flex; flex-direction: column; text-align: center;">
                 <div class="bar-wrapper" style="flex: 1; display: flex; align-items: flex-end;">
                   <div class="bar" style="margin: 0 auto; width: 60%; border-radius: 4px 4px 0 0; background-color: #3b82f6; height: ${Math.min(100, (Math.max(0, cashFlow.savings) / (cashFlow.totalIncome || 1)) * 100)}%;"></div>
                 </div>
-                <p style="font-size: 0.75rem; margin-top: 0.25rem;">Savings</p>
+                <p style="font-size: 0.75rem; margin-top: 0.25rem;">{t('analytics.savings')}</p>
                 <p style="font-size: 0.8rem; font-weight: bold;">₹${cashFlow.savings.toFixed(0)}</p>
               </div>
             </div>
           </div>
 
           <div class="section">
-            <h2>Your Habits</h2>
+            <h2>{t('analytics.habitsTitle')}</h2>
             <div class="grid">
               <div class="card">
-                <div class="card-title">Spending Personality</div>
+                <div class="card-title">{t('analytics.personalityTitle')}</div>
                 <div class="card-value">${personality.personality}</div>
                 <p style="font-size: 0.8em; color: #6b7280;">${personality.insight}</p>
               </div>
               <div class="card">
-                <div class="card-title">Daily Goal Streak</div>
-                <div class="card-value">${streak.streak} Days</div>
-                <p style="font-size: 0.8em; color: #6b7280;">Under ₹${dailySpendingGoal} / day</p>
+                <div class="card-title">{t('analytics.dailyGoalTitle')}</div>
+                <div class="card-value">${streak.streak} {t('general.days', 'days')}</div>
+                <p style="font-size: 0.8em; color: #6b7280;">{t('analytics.underPerDay').replace('{amount}', dailySpendingGoal.toString())}</p>
               </div>
             </div>
           </div>
 
           <div class="section">
-            <h2>Goal Progress</h2>
+            <h2>{t('budget.goalProgress')}</h2>
             ${customBudgets.filter(b => b.status === 'active').map(budget => {
               const percentage = budget.totalAmount > 0 ? (budget.spentAmount / budget.totalAmount) * 100 : 0;
               return `
@@ -506,18 +509,18 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
                   </div>
                 </div>
               `;
-            }).join('') || '<p>No active goals to display.</p>'} 
+            }).join('') || `<p>${t('budget.noActiveGoals', 'No active goals to display.')}</p>`} 
           </div>
 
           <div class="section">
-            <h2>Smart Category Breakdown</h2>
+            <h2>{t('analytics.categoryBreakdownTitle')}</h2>
             <table class="table">
               <thead>
                 <tr>
-                  <th>Category</th>
-                  <th>Total Spending</th>
-                  <th>Trend (%)</th>
-                  <th>Largest Transaction</th>
+                  <th>{t('general.category', 'Category')}</th>
+                  <th>{t('general.totalSpending')}</th>
+                  <th>{t('general.trend')}</th>
+                  <th>{t('analytics.largestTx', 'Largest Tx:')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -529,7 +532,7 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
                       ${insight.trend > 0 ? '+' : ''}${insight.trend.toFixed(0)}%
                     </td>
                     <td>
-                      ${insight.largestTransaction ? `₹${Math.abs(insight.largestTransaction.amount).toFixed(0)}${insight.largestTransaction.description ? ` - ${insight.largestTransaction.description}` : ''}` : 'N/A'}
+                      ${insight.largestTransaction ? `₹${Math.abs(insight.largestTransaction.amount).toFixed(0)}${insight.largestTransaction.description ? ` - ${insight.largestTransaction.description}` : ''}` : t('general.na', 'N/A')}
                     </td>
                   </tr>
                 `).join('')}
@@ -543,19 +546,19 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
 
     const filename = `BudgetWise_Report_${new Date().toISOString().split('T')[0]}.html`;
     const { readablePath } = await FileService.writeFile(filename, reportHTML, 'html');
-    alert(`HTML report saved to: ${readablePath}`);
+    alert(t('toast.htmlReportSaved').replace('{path}', readablePath));
   };
 
   return (
     <div className="bg-white rounded-2xl p-6 shadow-lg">
-      <h2 className="text-xl font-bold text-gray-800 mb-4">Data Management</h2>
+      <h2 className="text-xl font-bold text-gray-800 mb-4">{t('settings.dataManagementTitle')}</h2>
       <div className="space-y-3">
         <button
           onClick={backupData}
           className="w-full p-3 bg-blue-100 text-blue-800 rounded-xl font-semibold hover:bg-blue-200 flex items-center justify-center"
         >
           <FileJson size={18} className="mr-2" />
-          Backup Data (JSON)
+          {t('settings.backupJson')}
         </button>
         <div>
           <label
@@ -563,7 +566,7 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
             className="w-full text-center p-3 bg-blue-100 text-blue-800 rounded-xl font-semibold hover:bg-blue-200 flex items-center justify-center cursor-pointer"
           >
             <FileJson size={18} className="mr-2" />
-            Restore from Backup
+            {t('settings.restoreJson')}
             <input type="file" accept=".json" ref={fileInputRef} onChange={handleFileSelectedFromWeb} className="hidden" />
           </label>
         </div>
@@ -573,7 +576,7 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
           className="w-full p-3 bg-green-100 text-green-800 rounded-xl font-semibold hover:bg-green-200 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed relative"
       >
           <FileSpreadsheet size={18} className="mr-2" />
-          Export to Excel
+          {t('settings.exportExcel')}
           {!hasAccessTo(Feature.AdvancedReporting) && (
             <span className="absolute top-1 right-2 text-xs font-bold bg-yellow-400 text-yellow-900 px-1.5 py-0.5 rounded-full flex items-center"><Star size={10} className="mr-1"/>Premium</span>
           )}
@@ -584,7 +587,7 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
           className="w-full p-3 bg-red-100 text-red-800 rounded-xl font-semibold hover:bg-red-200 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed relative"
         >
           <FileText size={18} className="mr-2" />
-          Generate PDF Report
+          {t('settings.generatePdf')}
           {!hasAccessTo(Feature.AdvancedReporting) && (
             <span className="absolute top-1 right-2 text-xs font-bold bg-yellow-400 text-yellow-900 px-1.5 py-0.5 rounded-full flex items-center"><Star size={10} className="mr-1"/>Premium</span>
           )}
@@ -595,7 +598,7 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
           className="w-full p-3 bg-teal-100 text-teal-800 rounded-xl font-semibold hover:bg-teal-200 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed relative"
          >
           <FileText size={18} className="mr-2" />
-          Generate HTML Report
+          {t('settings.generateHtml')}
            {!hasAccessTo(Feature.AdvancedReporting) && (
             <span className="absolute top-1 right-2 text-xs font-bold bg-yellow-400 text-yellow-900 px-1.5 py-0.5 rounded-full flex items-center"><Star size={10} className="mr-1"/>Premium</span>
           )}

@@ -15,6 +15,7 @@ interface HeaderProps {
   onSetActiveTab: (tab: string) => void;
   onSetCurrentMonth: (month: number) => void;
   onSetCurrentYear: (year: number) => void;
+  t: (key: string, fallback?: string) => string;
 }
 
 const Header: React.FC<HeaderProps> = ({
@@ -26,17 +27,18 @@ const Header: React.FC<HeaderProps> = ({
   onSetActiveTab,
   onSetCurrentMonth,
   onSetCurrentYear,
+  t,
 }) => {
   return (
     <div className="bg-gradient-to-r from-purple-600 to-blue-600 text-white p-4 pb-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">BudgetWise</h1>
+        <h1 className="text-2xl font-bold">{t('header.title', 'BudgetWise')}</h1>
         <div className="flex space-x-2">
           <button
             onClick={() => onSetShowExportModal(true)}
             disabled={!hasAccessTo(Feature.AdvancedReporting)}
             className="p-2 bg-white/20 rounded-lg hover:bg-white/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed relative group"
-            title="Advanced Export (Premium)"
+            title={t('header.tooltip.advancedExport')}
           >
             <Download size={20} />
             {!hasAccessTo(Feature.AdvancedReporting) && (
@@ -46,14 +48,14 @@ const Header: React.FC<HeaderProps> = ({
           <button
             onClick={onQuickCSVExport}
             className="p-2 bg-white/20 rounded-lg hover:bg-white/30 transition-colors"
-            title="Quick CSV Export (All Transactions)"
+            title={t('header.tooltip.quickExport')}
           >
             <FileSpreadsheet size={20} />
           </button>
           <button
             onClick={() => onSetActiveTab('settings')}
             className="p-2 bg-white/20 rounded-lg hover:bg-white/30 transition-colors"
-            title="Settings"
+            title={t('header.tooltip.settings')}
           >
             <Settings size={20} />
           </button>
@@ -62,18 +64,18 @@ const Header: React.FC<HeaderProps> = ({
       
       <div className="mt-4 grid grid-cols-2 gap-4">
         <div className="bg-white/20 rounded-xl p-3">
-          <p className="text-sm opacity-90">Monthly Balance</p>
+          <p className="text-sm opacity-90">{t('header.monthlyBalance', 'Monthly Balance')}</p>
           <p className="text-xl font-bold">₹{stats.balance.toFixed(0)}</p>
         </div>
         <div className="bg-white/20 rounded-xl p-3">
-          <p className="text-sm opacity-90">Monthly Spent</p>
+          <p className="text-sm opacity-90">{t('header.monthlySpent', 'Monthly Spent')}</p>
           <p className="text-xl font-bold">₹{stats.totalExpenses.toFixed(0)}</p>
         </div>
       </div>
 
       {stats.customBudgetSpent > 0 && (
         <div className="mt-3 bg-white/20 rounded-xl p-3">
-          <p className="text-sm opacity-90">Custom Budgets Spent</p>
+          <p className="text-sm opacity-90">{t('header.customBudgetsSpent', 'Custom Budgets Spent')}</p>
           <p className="text-xl font-bold">₹{stats.customBudgetSpent.toFixed(0)}</p>
         </div>
       )}

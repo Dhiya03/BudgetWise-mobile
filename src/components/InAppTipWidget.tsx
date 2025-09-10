@@ -1,5 +1,6 @@
 import { Lightbulb, X } from 'lucide-react';
 import { FinancialTip, SupportedLanguage } from '../types';
+import { useLocalization } from './LocalizationContext';
 
 interface InAppTipWidgetProps {
   tip: FinancialTip;
@@ -8,6 +9,7 @@ interface InAppTipWidgetProps {
 }
 
 const InAppTipWidget = ({ tip, language, onClose }: InAppTipWidgetProps) => {
+  const { t } = useLocalization();
   const localizedTip = tip.translations[language];
 
   return (
@@ -17,7 +19,7 @@ const InAppTipWidget = ({ tip, language, onClose }: InAppTipWidgetProps) => {
           <Lightbulb size={20} />
         </div>
         <div className="ml-3 flex-1">
-          <p className="text-sm font-semibold">Quick Tip!</p>
+          <p className="text-sm font-semibold">{t('widget.quickTip', 'Quick Tip!')}</p>
           <p className="text-sm mt-1">{localizedTip.tip}</p>
         </div>
         <button onClick={onClose} className="ml-2 p-1 rounded-full hover:bg-purple-500">
