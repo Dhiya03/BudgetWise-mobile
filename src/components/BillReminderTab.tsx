@@ -4,7 +4,7 @@ import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { BillReminder } from '../types';
 import { isLimitReached, Limit } from '../subscriptionManager';
-import { useLocalization } from './LocalizationContext';
+import { useLocalization } from '../LocalizationContext';
 
 interface BillReminderTabProps {
   billReminders: BillReminder[];

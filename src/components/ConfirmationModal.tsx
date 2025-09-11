@@ -1,5 +1,5 @@
 import React from 'react';
-import { useLocalization } from './LocalizationContext';
+import { useLocalization } from '../LocalizationContext';
 
 interface ConfirmationModalProps {
   isOpen: boolean;

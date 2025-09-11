@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Unlock, Lock } from 'lucide-react';
 import SHA256 from 'crypto-js/sha256';
 import AES from 'crypto-js/aes';
-import { useLocalization } from './LocalizationContext';
+import { useLocalization } from '../LocalizationContext';
 import {
   Transaction,
   MonthlyBudgets,

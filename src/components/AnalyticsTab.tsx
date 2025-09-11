@@ -4,7 +4,7 @@ import { Transaction, MonthlyBudgets, SpendingAlert } from '../types';
 import { hasAccessTo, Feature } from '../subscriptionManager';
 import { simulateBudgetScenario } from '../utils/analytics';
 import { useAnalytics } from '../hooks/useAnalytics';
-import { useLocalization } from './LocalizationContext';
+import { useLocalization } from '../LocalizationContext';
 
 interface AnalyticsTabProps {
   transactions: Transaction[];

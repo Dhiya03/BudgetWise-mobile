@@ -389,7 +389,7 @@
   "transfer.transferAmount": "బదిలీ మొత్తం:",
   "transfer.matchError": "మొత్తాలు సరిపోలాలి!",
   "transfer.button": "బదిలీ",
-  "reminders.neverMissPayment": "ఎప్పుడూ చెల్లింపును కోల్పోకండి"
+  "reminders.neverMissPayment": "ఎప్పుడూ చెల్లింపును కోల్పోకండి",
   "reminders.unlockDescription": "బిల్ రిమైండర్‌లను సెట్ చేయడానికి మరియు మీ గడువు తేదీలకు ముందు తెలియజేయడానికి ప్లస్ లేదా ప్రీమియంకు అప్‌గ్రేడ్ చేయండి.",
   "addTab.customBudgetNameWithRemaining": "{name} (₹{amount} మిగిలి ఉంది)",
   "toast.restoreFailed": "డేటాను పునరుద్ధరించడంలో విఫలమైంది:",

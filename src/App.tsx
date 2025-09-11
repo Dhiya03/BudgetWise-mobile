@@ -43,47 +43,9 @@ import { hasAccessTo, Feature } from './subscriptionManager';
 import InAppTipWidget from './components/InAppTipWidget';
 import BillingManager from './billing/BillingManager';
 import UpgradeBanner from './components/UpgradeBanner';
-import { LocalizationProvider, useLocalization } from './components/LocalizationContext';
+import { useLocalization } from './LocalizationContext';
+import ConfirmationModal from './components/ConfirmationModal';
 import SubscriptionScreen from './billing/SubscriptionScreen';
-
-  const { t } = useLocalization();
-
-const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }: {
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm: (() => void | Promise<void>) | null;
-  title: string;
-  message: string;
-  t: (key: string) => string;
-}) => {
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">{title}</h2>
-        <p className="text-gray-600 mb-6">{message}</p>
-        <div className="flex justify-end space-x-3">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
-          >
-            {t('general.no')}
-          </button>
-          <button
-            onClick={() => {
-              onClose();
-              if (onConfirm) onConfirm();
-            }}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors"
-          >
-            {t('general.yes')}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 const Toast = ({ message, isVisible }: { message: string; isVisible: boolean; }) => {
   if (!isVisible) return null;
@@ -102,6 +64,8 @@ const Toast = ({ message, isVisible }: { message: string; isVisible: boolean; })
 };
 
 const App = () => {
+  const { t, isLoaded, language, setLanguage: setGlobalLanguage } = useLocalization();
+
   const [activeTab, setActiveTab] = useState('add');
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [budgets, setBudgets] = useState<MonthlyBudgets>({});
@@ -1842,35 +1806,6 @@ const App = () => {
     return budget - spent;
   };
 
-  const getMonthlyStats = (year: number, month: number) => {
-    const monthlyTransactions = transactions.filter(t => {
-      const transactionDate = new Date(t.date);
-      return (t.budgetType === 'monthly' || !t.budgetType) &&
-             transactionDate.getFullYear() === year &&
-             transactionDate.getMonth() === month;
-    });
-    const customTransactions = transactions.filter(t => {
-      const transactionDate = new Date(t.date);
-      return t.budgetType === 'custom' &&
-             transactionDate.getFullYear() === year &&
-             transactionDate.getMonth() === month;
-    });
-    
-    const totalIncome = monthlyTransactions.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0);
-    const totalExpenses = monthlyTransactions.filter(t => t.amount < 0).reduce((sum, t) => sum + Math.abs(t.amount), 0);
-    const totalBudget = Object.values(budgets).reduce((sum, budget) => sum + budget, 0);
-    
-    const customBudgetSpent = customTransactions.filter(t => t.amount < 0).reduce((sum, t) => sum + Math.abs(t.amount), 0);
-    
-    return { 
-      totalIncome, 
-      totalExpenses, 
-      totalBudget, 
-      balance: totalIncome - totalExpenses,
-      customBudgetSpent
-    };
-  };
-
   // --- Memoized calculations ---
   const allTags = useMemo(() => {
     const staticTags = ['Monthly', 'Custom', 'Transfer', 'Recurring'];
@@ -1921,26 +1856,6 @@ const App = () => {
     setCustomBudgetForm({ name: '', amount: '', description: '', deadline: '', priority: 'medium', categories: [], categoryBudgets: {} });
   };
 
-
-    // --- Financial Tip Notification Hook ---
-  const AppContent = () => {
-    const { t, isLoaded } = useLocalization();
-    const [language, setLanguage] = useState<SupportedLanguage>('en');
-
-    // --- Financial Tip Notification Hook ---
-    useEffect(() => {
-      // Schedule notifications on initial app load or when settings change
-      scheduleTipNotifications(language, tipSettings);
-    }, [scheduleTipNotifications, language, tipSettings]);
-
-    if (!isLoaded) {
-      return (
-        <div className="fixed inset-0 flex items-center justify-center bg-purple-50">
-          <p className="text-purple-700 font-semibold animate-pulse">{t('general.loading')}</p>
-        </div>
-      );
-    }
-
   const monthlyIncome = useMemo(() => {
     return transactions.filter(t => {
         const transactionDate = new Date(t.date);
@@ -1954,14 +1869,41 @@ const App = () => {
     return Object.values(budgets).reduce((sum, b) => sum + b, 0);
   }, [budgets]);
 
-  const stats = getMonthlyStats(currentYear, currentMonth);
+  const stats = useMemo(() => {
+    const monthlyTransactions = transactions.filter(t => {
+      const transactionDate = new Date(t.date);
+      return (t.budgetType === 'monthly' || !t.budgetType) &&
+             transactionDate.getFullYear() === currentYear &&
+             transactionDate.getMonth() === currentMonth;
+    });
+    const customTransactions = transactions.filter(t => {
+      const transactionDate = new Date(t.date);
+      return t.budgetType === 'custom' &&
+             transactionDate.getFullYear() === currentYear &&
+             transactionDate.getMonth() === currentMonth;
+    });
+    
+    const totalIncome = monthlyTransactions.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0);
+    const totalExpenses = monthlyTransactions.filter(t => t.amount < 0).reduce((sum, t) => sum + Math.abs(t.amount), 0);
+    
+    const customBudgetSpent = customTransactions.filter(t => t.amount < 0).reduce((sum, t) => sum + Math.abs(t.amount), 0);
+    
+    return { 
+      balance: totalIncome - totalExpenses,
+      totalExpenses, 
+      customBudgetSpent
+    };
+  }, [transactions, currentYear, currentMonth]);
 
       const handleLanguageChange = (newLang: SupportedLanguage) => {
-      setLanguage(newLang);
+      setGlobalLanguage(newLang);
       // When language changes, we must reschedule notifications to use the new language.
       scheduleTipNotifications(newLang, tipSettings);
       showToast(`${t('languageChangedTo')} ${newLang.toUpperCase()}`); // Use t() here
     };
+
+    // --- Financial Tip Notification Hook ---
+    useEffect(() => { scheduleTipNotifications(language, tipSettings); }, [scheduleTipNotifications, language, tipSettings]);
 
         const handleTipSettingsChange = (newSettings: Partial<typeof tipSettings>) => {
       const updatedSettings = { ...tipSettings, ...newSettings };
@@ -1978,7 +1920,15 @@ const App = () => {
       }
     };
 
+  if (!isLoaded) {
     return (
+      <div className="fixed inset-0 flex items-center justify-center bg-purple-50">
+        <p className="text-purple-700 font-semibold animate-pulse">{t('general.loading')}</p>
+      </div>
+    );
+  }
+
+  const AppContent = (
     <div className="max-w-md mx-auto bg-gradient-to-br from-purple-50 to-blue-50 min-h-screen">
       <Header
         stats={stats}
@@ -2610,7 +2560,6 @@ const App = () => {
         onConfirm={confirmationState.onConfirm}
         title={confirmationState.title}
         message={confirmationState.message}
-        t={t}
       />
 
       <Toast
@@ -2633,11 +2582,9 @@ const App = () => {
       />
     </div>
     );
-  };
 
   return (
-    <LocalizationProvider>
-      {isLocked ? (
+      isLocked ? (
         <div className="max-w-md mx-auto bg-gradient-to-br from-purple-50 to-blue-50 min-h-screen flex items-center justify-center p-4">
           <div className="w-full bg-white rounded-2xl p-8 shadow-lg text-center"> 
             <h1 className="text-2xl font-bold text-gray-800 mb-2">{t('lockScreen.title')}</h1>
@@ -2669,8 +2616,7 @@ const App = () => {
             </div>
           </div>
         </div>
-      ) : <AppContent />}
-    </LocalizationProvider>
+      ) : AppContent
   );
 };
 

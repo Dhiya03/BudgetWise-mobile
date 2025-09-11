@@ -389,7 +389,7 @@
   "transfer.transferAmount": "பரிமாற்றத் தொகை:",
   "transfer.matchError": "தொகைகள் பொருந்த வேண்டும்!",
   "transfer.button": "மாற்று",
-  "reminders.neverMissPayment": "ஒருபோதும் பணம் செலுத்தத் தவறாதீர்கள்"
+  "reminders.neverMissPayment": "ஒருபோதும் பணம் செலுத்தத் தவறாதீர்கள்",
   "reminders.unlockDescription": "பில் நினைவூட்டல்களை அமைக்கவும் உங்கள் செலுத்த வேண்டிய தேதிகளுக்கு முன் அறிவிப்பைப் பெறவும் பிளஸ் அல்லது பிரீமியத்திற்கு மேம்படுத்தவும்.",
   "addTab.customBudgetNameWithRemaining": "{name} (₹{amount} மீதமுள்ளது)",
   "toast.restoreFailed": "தரவை மீட்டெடுப்பதில் தோல்வி:",

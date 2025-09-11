@@ -1,6 +1,6 @@
 import { Lightbulb, X } from 'lucide-react';
 import { FinancialTip, SupportedLanguage } from '../types';
-import { useLocalization } from './LocalizationContext';
+import { useLocalization } from '../LocalizationContext';
 
 interface InAppTipWidgetProps {
   tip: FinancialTip;

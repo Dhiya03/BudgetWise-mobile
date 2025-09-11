@@ -395,7 +395,7 @@
   "transfer.transferAmount": "Transfer Amount:",
   "transfer.matchError": "Amounts must match!",
   "transfer.button": "Transfer",
-  "reminders.neverMissPayment": "Never Miss a Payment"
+  "reminders.neverMissPayment": "Never Miss a Payment",
   "reminders.unlockDescription": "Upgrade to Plus or Premium to set bill reminders and get notified before your due dates.",
   "addTab.customBudgetNameWithRemaining": "{name} (₹{amount} remaining)",
   "toast.restoreFailed": "Failed to restore data:",

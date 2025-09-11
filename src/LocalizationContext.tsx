@@ -1,6 +1,6 @@
 import { createContext, useState, useEffect, useContext, useCallback, ReactNode } from 'react';
-import { SupportedLanguage } from '../types';
-import FinancialTipsService from './FinancialTipsService';
+import { SupportedLanguage } from './types';
+import FinancialTipsService from './components/FinancialTipsService';
 
 // Define the shape of the context
 interface LocalizationContextType {
@@ -53,6 +53,7 @@ export const LocalizationProvider = ({ children }: { children: ReactNode }) => {
   }, [translations]);
 
   const value = { language, setLanguage, t, isLoaded };
+  console.log("LocalizationProvider mounted with language:", language);
 
   return (
     <LocalizationContext.Provider value={value}>

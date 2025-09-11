@@ -12,7 +12,7 @@ import {
 import type { jsPDF as jsPDFType } from 'jspdf';
 import { FileJson, FileSpreadsheet, FileText, Star } from 'lucide-react';
 import { useAnalytics } from '../hooks/useAnalytics';
-import { useLocalization } from './LocalizationContext';
+import { useLocalization } from '../LocalizationContext';
 import { Capacitor } from '@capacitor/core';
 import { hasAccessTo, Feature } from '../subscriptionManager';
 import FileService from '../utils/FileService';

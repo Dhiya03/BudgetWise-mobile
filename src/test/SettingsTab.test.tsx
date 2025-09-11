@@ -1,10 +1,10 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import App from '../App';
 import { hasAccessTo, Feature } from '../subscriptionManager';
 import { trackEvent } from '../utils/analytics';
-import { LocalizationProvider } from '../components/LocalizationContext';
 import type { Mock } from 'vitest';
+import { renderWithProvider } from '../setupTests';
 
 // Mock dependencies
 vi.mock('../subscriptionManager');
@@ -30,10 +30,6 @@ describe('SettingsTab Language Selection', () => {
     // Default to premium user
     (hasAccessTo as Mock).mockReturnValue(true);
   });
-
-  const renderWithProvider = (ui: React.ReactElement) => {
-    return render(<LocalizationProvider>{ui}</LocalizationProvider>);
-  }
 
   it('should show language selection dropdown for premium users', async () => {
     // Arrange: User has access to the feature

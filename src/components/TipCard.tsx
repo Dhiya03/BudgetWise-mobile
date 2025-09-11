@@ -1,6 +1,6 @@
 import { Share } from '@capacitor/share';
 import { FinancialTip, SupportedLanguage } from '../types';
-import { useLocalization } from '../components/LocalizationContext';
+import { useLocalization } from '../LocalizationContext';
 
 interface TipCardProps {
   tip: FinancialTip;

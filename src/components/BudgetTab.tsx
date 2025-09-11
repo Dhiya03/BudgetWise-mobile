@@ -13,7 +13,7 @@ import {
   Feature,
   Limit,
 } from '../subscriptionManager';
-import { useLocalization } from './LocalizationContext';
+import { useLocalization } from '../LocalizationContext';
 
 const BudgetTab: React.FC<BudgetTabProps> = (props) => {
   const {

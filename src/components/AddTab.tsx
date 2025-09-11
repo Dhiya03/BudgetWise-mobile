@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Transaction, TransactionFormData, CustomBudget, MonthlyBudgets } from '../types';
 import { hasAccessTo, Feature } from '../subscriptionManager';
 
-import { useLocalization } from '../components/LocalizationContext';
+import { useLocalization } from '../LocalizationContext';
 interface AddTabProps {
   editingTransaction: Transaction | null;
   formData: TransactionFormData;

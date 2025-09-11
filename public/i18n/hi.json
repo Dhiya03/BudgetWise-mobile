@@ -387,7 +387,7 @@
   "transfer.transferAmount": "ट्रांसफर राशि:",
   "transfer.matchError": "राशियाँ मेल खानी चाहिए!",
   "transfer.button": "ट्रांसfer",
-  "reminders.neverMissPayment": "कभी कोई भुगतान न चूकें"
+  "reminders.neverMissPayment": "कभी कोई भुगतान न चूकें",
   "reminders.unlockDescription": "बिल अनुस्मारक सेट करने और अपनी देय तिथियों से पहले सूचित होने के लिए प्लस या प्रीमियम में अपग्रेड करें।",
   "addTab.customBudgetNameWithRemaining": "{name} (₹{amount} शेष)",
   "toast.restoreFailed": "डेटा पुनर्स्थापित करने में विफल:",

@@ -3,7 +3,7 @@ import { XCircle, Edit3, Trash2, ArrowRight } from 'lucide-react';
 import { Transaction, CustomBudget, TransferEvent } from '../types';
 import { hasAccessTo, Feature } from '../subscriptionManager';
 import { formatCurrency } from '../utils/formatting';
-import { useLocalization } from '../components/LocalizationContext';
+import { useLocalization } from '../LocalizationContext';
 
 type HistoryItem = (Transaction & { itemType: 'transaction', sortDate: Date }) | (TransferEvent & { itemType: 'transfer', sortDate: Date });
 
