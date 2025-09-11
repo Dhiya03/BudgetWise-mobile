@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import AddTab from '../components/AddTab';
 import { hasAccessTo, Feature } from '../subscriptionManager';
 import type { Mock } from 'vitest';
@@ -30,9 +30,6 @@ const createDefaultProps = () => ({
     { id: 1, name: 'Vacation', description: 'Trip to Goa', categories: ['Flights', 'Hotels'], totalAmount: 1000, spentAmount: 0, remainingAmount: 1000, deadline: null, priority: 'medium', status: 'active', categoryBudgets: {}, createdAt: '', updatedAt: '' },
   ] as CustomBudget[],
   budgets: {},
-  setCategories: vi.fn(),
-  setBudgets: vi.fn(),
-  setCustomBudgets: vi.fn(),
   onTransactionAdd: vi.fn(),
   onTransactionUpdate: vi.fn(),
   onCancelEdit: vi.fn(),
@@ -44,7 +41,10 @@ const createDefaultProps = () => ({
 
 describe('AddTab', () => {
   beforeEach(() => {
-    // Reset mocks before each test
+    (hasAccessTo as Mock).mockReturnValue(true);
+  });
+
+  afterEach(() => {
     vi.clearAllMocks();
   });
 
@@ -68,7 +68,6 @@ describe('AddTab', () => {
   });
 
   it('shows custom budget fields when toggled', async () => {
-    (hasAccessTo as Mock).mockReturnValue(true); // Assume user has access
     const props = createDefaultProps();
     render(<AddTab {...props} />);
 
@@ -79,7 +78,6 @@ describe('AddTab', () => {
   });
 
   it('calls onTransactionAdd with correct data on valid submission', async () => {
-    (hasAccessTo as Mock).mockReturnValue(true);
     const props = createDefaultProps();
     render(<AddTab {...props} />);
 
@@ -89,44 +87,110 @@ describe('AddTab', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /add transaction/i }));
 
-    expect(props.onTransactionAdd).toHaveBeenCalled();
+    expect(props.onTransactionAdd).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transactionData: expect.objectContaining({
+          amount: '100',
+          category: 'Food',
+          description: 'Test lunch',
+        }),
+      })
+    );
   });
 
-  it('does not call onTransactionAdd if amount is missing', async () => {
-    const props = createDefaultProps();
-    render(<AddTab {...props} />);
+  describe('Validation', () => {
+    it('does not call onTransactionAdd if amount is missing', async () => {
+      const props = createDefaultProps();
+      render(<AddTab {...props} />);
+      await userEvent.selectOptions(screen.getByLabelText(/category/i), 'Food');
+      await userEvent.click(screen.getByRole('button', { name: /add transaction/i }));
+      expect(props.onTransactionAdd).not.toHaveBeenCalled();
+    });
 
-    await userEvent.selectOptions(screen.getByLabelText(/category/i), 'Food');
-    await userEvent.click(screen.getByRole('button', { name: /add transaction/i }));
+    it('does not call onTransactionAdd if category is missing for monthly budget', async () => {
+      const props = createDefaultProps();
+      render(<AddTab {...props} />);
+      await userEvent.type(screen.getByLabelText(/amount/i), '50');
+      // No category selected
+      await userEvent.click(screen.getByRole('button', { name: /add transaction/i }));
 
-    expect(props.onTransactionAdd).not.toHaveBeenCalled();
+      expect(props.onTransactionAdd).not.toHaveBeenCalled();
+    });
   });
 
-  it('does not call onTransactionAdd if category is missing for monthly budget', async () => {
+  it('sends a complete payload when adding a transaction with a new category', async () => {
     const props = createDefaultProps();
     render(<AddTab {...props} />);
-
-    await userEvent.type(screen.getByLabelText(/amount/i), '50');
-    // No category selected
-    await userEvent.click(screen.getByRole('button', { name: /add transaction/i }));
-
-    expect(props.onTransactionAdd).not.toHaveBeenCalled();
-  });
-
-  it('allows adding a new monthly category', async () => {
-    const props = createDefaultProps();
-    render(<AddTab {...props} />);
-
-    const categoryLabel = screen.getByText('Category');
-    const categorySelect = categoryLabel.parentElement?.querySelector('select');
-    await userEvent.selectOptions(categorySelect!, 'add_new');
-    expect(screen.getByPlaceholderText(/new category name/i)).toBeInTheDocument();
-
+    
+    // Show the new category inputs
+    await userEvent.selectOptions(screen.getByLabelText(/category/i), 'add_new');
+    
+    // Fill out the new category and the transaction details
     await userEvent.type(screen.getByPlaceholderText(/new category name/i), 'Utilities');
     await userEvent.type(screen.getByPlaceholderText('Budget'), '2500');
+    await userEvent.type(screen.getByLabelText(/amount/i), '150');
+    await userEvent.type(screen.getByLabelText(/description/i), 'Electric Bill');
+    
+    // Submit the form
+    await userEvent.click(screen.getByRole('button', { name: /add transaction/i }));
 
-    expect(props.setCategories).toHaveBeenCalledWith(['Food', 'Transport', 'Utilities']);
-    expect(props.setBudgets).toHaveBeenCalledWith({ 'Utilities': 2500 });
+    // Assert that the correct payload was sent
+    expect(props.onTransactionAdd).toHaveBeenCalledTimes(1);
+    expect(props.onTransactionAdd).toHaveBeenCalledWith({
+      transactionData: expect.objectContaining({
+        amount: '150',
+        description: 'Electric Bill',
+        category: 'Utilities', // Should be set to the new category
+      }),
+      newMonthlyCategory: {
+        name: 'Utilities',
+        budget: 2500,
+      },
+    });
+  });
+
+  it('sends a correct payload when adding a transaction to an existing custom budget', async () => {
+    const props = createDefaultProps();
+    render(<AddTab {...props} />);
+
+    await userEvent.click(screen.getByRole('button', { name: /custom budget/i }));
+    await userEvent.selectOptions(screen.getByLabelText(/custom budget/i), '1'); // Vacation
+    await userEvent.selectOptions(screen.getByLabelText(/category within budget/i), 'Flights');
+    await userEvent.type(screen.getByLabelText(/amount/i), '12000');
+    await userEvent.type(screen.getByLabelText(/description/i), 'Round trip tickets');
+
+    await userEvent.click(screen.getByRole('button', { name: /add transaction/i }));
+
+    expect(props.onTransactionAdd).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transactionData: expect.objectContaining({
+          budgetType: 'custom',
+          customBudgetId: 1,
+          customCategory: 'Flights',
+          amount: '12000',
+        }),
+      })
+    );
+  });
+
+  it('sends a complete payload when adding a transaction with a new custom category', async () => {
+    const props = createDefaultProps();
+    render(<AddTab {...props} />);
+
+    await userEvent.click(screen.getByRole('button', { name: /custom budget/i }));
+    await userEvent.selectOptions(screen.getByLabelText(/custom budget/i), '1');
+    await userEvent.selectOptions(screen.getByLabelText(/category within budget/i), 'add_new_custom');
+
+    await userEvent.type(screen.getByPlaceholderText(/new category name/i), 'Souvenirs');
+    await userEvent.type(screen.getByPlaceholderText('Budget'), '5000');
+    await userEvent.type(screen.getByLabelText(/amount/i), '800');
+
+    await userEvent.click(screen.getByRole('button', { name: /add transaction/i }));
+
+    expect(props.onTransactionAdd).toHaveBeenCalledWith({
+      transactionData: expect.objectContaining({ customCategory: 'Souvenirs', amount: '800' }),
+      newCustomCategory: { budgetId: 1, name: 'Souvenirs', budget: 5000 },
+    });
   });
 
   describe('Feature Gating', () => {
@@ -185,7 +249,13 @@ describe('AddTab', () => {
 
       await userEvent.click(screen.getByRole('button', { name: /update transaction/i }));
 
-      expect(props.onTransactionUpdate).toHaveBeenCalled();
+      expect(props.onTransactionUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          transactionData: expect.objectContaining({
+            amount: '50',
+          }),
+        })
+      );
     });
   });
 });

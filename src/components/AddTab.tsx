@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Transaction, TransactionFormData, CustomBudget, MonthlyBudgets } from '../types';
+import { Transaction, TransactionFormData, CustomBudget, MonthlyBudgets, AddTransactionPayload } from '../types';
 import { hasAccessTo, Feature } from '../subscriptionManager';
 
 import { useLocalization } from '../LocalizationContext';
@@ -10,11 +10,8 @@ interface AddTabProps {
   categories: string[];
   customBudgets: CustomBudget[];
   budgets: MonthlyBudgets;
-  setCategories: React.Dispatch<React.SetStateAction<string[]>>;
-  setBudgets: React.Dispatch<React.SetStateAction<MonthlyBudgets>>;
-  setCustomBudgets: React.Dispatch<React.SetStateAction<CustomBudget[]>>;
-  onTransactionUpdate: (updateFn: (prev: Transaction[]) => Transaction[], changedTransaction: Transaction) => void;
-  onTransactionAdd: (newTransaction: Transaction) => void;
+  onTransactionUpdate: (payload: AddTransactionPayload) => void;
+  onTransactionAdd: (payload: AddTransactionPayload) => void;
   onCancelEdit: () => void;
   getCustomBudgetCategories: (id: number | null) => string[];
   categorySuggestion: string | null;
@@ -29,10 +26,6 @@ const AddTab: React.FC<AddTabProps> = (props) => {
     setFormData,
     categories,
     customBudgets,
-    budgets,
-    setCategories,
-    setBudgets,
-    setCustomBudgets,
     onTransactionAdd,
     onTransactionUpdate,
     onCancelEdit,
@@ -53,104 +46,79 @@ const AddTab: React.FC<AddTabProps> = (props) => {
 
   const { t } = useLocalization();
 
-  const handleAddNewMonthlyCategory = () => {
-    if (newCategory && !categories.includes(newCategory) && newCategoryBudget) {
-      const newCategories = [...categories, newCategory];
-      setCategories(newCategories);
-      const newBudgets = { ...budgets, [newCategory]: parseFloat(newCategoryBudget) };
-      setBudgets(newBudgets);
-      setFormData({ ...formData, category: newCategory }); // Select the new category
-      setNewCategory('');
-      setNewCategoryBudget('');
-      setShowCategoryInput(false);
-    } else {
-      alert(t('addTab.validation.newCategory'));
-    }
-  };
-
-  const handleAddNewCustomCategory = () => {
-    if (newCustomCategory && selectedCustomBudgetForCategory && newCustomCategoryBudget) {
-      const newCategoryBudgetAmount = parseFloat(newCustomCategoryBudget);
-      const updatedCustomBudgets = customBudgets.map(budget =>
-        budget.id === selectedCustomBudgetForCategory
-          ? {
-              ...budget,
-              categories: [...budget.categories, newCustomCategory],
-              categoryBudgets: { ...budget.categoryBudgets, [newCustomCategory]: newCategoryBudgetAmount },
-              // Also update the parent budget's total amount
-              totalAmount: budget.totalAmount + newCategoryBudgetAmount,
-              remainingAmount: budget.remainingAmount + newCategoryBudgetAmount,
-              updatedAt: new Date().toISOString(),
-            }
-          : budget
-      );
-      setCustomBudgets(updatedCustomBudgets);
-      setFormData({ ...formData, customCategory: newCustomCategory }); // Select the new category
-      setNewCustomCategory('');
-      setNewCustomCategoryBudget('');
-      setShowCustomCategoryInput(false);
-      setSelectedCustomBudgetForCategory(null);
-    } else {
-      alert(t('addTab.validation.newCustomCategory'));
-    }
-  };
-
   const handleAddOrUpdateTransaction = () => {
-    let currentFormData = { ...formData };
     const isUpdate = !!editingTransaction;
 
-    // --- Finish the transaction ---
-    if (!currentFormData.amount) return;
+    // --- Validations ---
+    if (!formData.amount) return;
 
-    if (currentFormData.budgetType === 'monthly' && !currentFormData.category) {
+    // For new transactions, check if a category is selected or being created.
+    if (!isUpdate && formData.budgetType === 'monthly' && !formData.category && !showCategoryInput) {
       alert(t('addTab.validation.selectCategory'));
       return;
     }
-    if (currentFormData.budgetType === 'custom' && (!currentFormData.customBudgetId || !currentFormData.customCategory)) {
+    if (!isUpdate && formData.budgetType === 'custom' && (!formData.customBudgetId || (!formData.customCategory && !showCustomCategoryInput))) {
       alert(t('addTab.validation.selectCustomBudget'));
       return;
     }
 
-    if (currentFormData.budgetType === 'custom' && currentFormData.customBudgetId) {
-      const budget = customBudgets.find(b => b.id === currentFormData.customBudgetId);
+    const payload: AddTransactionPayload = {
+      transactionData: { ...formData },
+    };
+
+    // Handle adding a new monthly category if the inputs are visible
+    if (showCategoryInput) {
+      if (newCategory && !categories.includes(newCategory) && newCategoryBudget) {
+        payload.newMonthlyCategory = { name: newCategory, budget: parseFloat(newCategoryBudget) };
+        payload.transactionData.category = newCategory; // Use the new category for this transaction
+      } else {
+        alert(t('addTab.validation.newCategory'));
+        return;
+      }
+    }
+
+    // Handle adding a new custom category if the inputs are visible
+    if (showCustomCategoryInput) {
+      if (newCustomCategory && selectedCustomBudgetForCategory && newCustomCategoryBudget) {
+        payload.newCustomCategory = { budgetId: selectedCustomBudgetForCategory, name: newCustomCategory, budget: parseFloat(newCustomCategoryBudget) };
+        payload.transactionData.customCategory = newCustomCategory; // Use the new category
+      } else {
+        alert(t('addTab.validation.newCustomCategory'));
+        return;
+      }
+    }
+
+    if (formData.budgetType === 'custom' && formData.customBudgetId) {
+      const budget = customBudgets.find(b => b.id === formData.customBudgetId);
       if (budget && (budget.status === 'locked' || budget.status === 'paused')) {
         alert(t('addTab.validation.budgetStatus').replace('{status}', budget.status));
         return;
       }
       if (budget && budget.deadline) {
-        const transactionDate = new Date(currentFormData.date + 'T00:00:00');
+        const transactionDate = new Date(formData.date + 'T00:00:00');
         const deadlineDate = new Date(budget.deadline + 'T00:00:00');
         if (transactionDate > deadlineDate) {
-          alert(t('addTab.validation.deadline').replace('{transactionDate}', currentFormData.date).replace('{deadlineDate}', budget.deadline));
+          alert(t('addTab.validation.deadline').replace('{transactionDate}', formData.date).replace('{deadlineDate}', budget.deadline));
           return;
         }
       }
     }
 
     if (isUpdate && editingTransaction) {
-      const newAmount = parseFloat(currentFormData.amount) * (currentFormData.type === 'expense' ? -1 : 1);
-      const updatedTransaction = {
-        ...editingTransaction,
-        ...currentFormData,
-        category: currentFormData.budgetType === 'custom' ? '' : currentFormData.category,
-        amount: newAmount,
-        tags: currentFormData.tags ? currentFormData.tags.split(',').map(tag => tag.trim()) : [],
-      };
-      onTransactionUpdate(
-        (prev: Transaction[]) => prev.map((t: Transaction) => (t.id === editingTransaction.id ? updatedTransaction : t)),
-        updatedTransaction
-      );
+      // The update logic is now refactored to use the payload system.
+      onTransactionUpdate(payload);
     } else {
-      const newTransaction: Transaction = {
-        id: Date.now(),
-        ...currentFormData,
-        category: currentFormData.budgetType === 'custom' ? '' : currentFormData.category,
-        amount: parseFloat(currentFormData.amount) * (currentFormData.type === 'expense' ? -1 : 1),
-        tags: currentFormData.tags ? currentFormData.tags.split(',').map(tag => tag.trim()) : [],
-        timestamp: new Date().toISOString()
-      };
-      onTransactionAdd(newTransaction);
+      onTransactionAdd(payload);
     }
+
+    // Reset local form state after submission
+    setShowCategoryInput(false);
+    setNewCategory('');
+    setNewCategoryBudget('');
+    setShowCustomCategoryInput(false);
+    setNewCustomCategory('');
+    setNewCustomCategoryBudget('');
+    setSelectedCustomBudgetForCategory(null);
   };
 
   return (
@@ -246,25 +214,22 @@ const AddTab: React.FC<AddTabProps> = (props) => {
                 </select>
 
                 {showCategoryInput && (
-                  <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                    <div className="space-y-2">
-                      <div className="flex space-x-2">
-                        <input
-                          type="text"
-                          value={newCategory}
-                          onChange={(e) => setNewCategory(e.target.value)}
-                          placeholder={t('addTab.newCategoryPlaceholder')}
-                          className="flex-1 min-w-0 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
-                        />
-                        <input
-                          type="number"
-                          value={newCategoryBudget}
-                          onChange={(e) => setNewCategoryBudget(e.target.value)}
-                          placeholder={t('addTab.budgetPlaceholder')}
-                          className="w-28 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
-                        />
-                      </div>
-                      <button onClick={handleAddNewMonthlyCategory} className="w-full p-2 text-sm bg-purple-600 text-white rounded-lg">{t('general.add')}</button>
+                  <div className="space-y-2">
+                    <div className="flex space-x-2">
+                      <input
+                        type="text"
+                        value={newCategory}
+                        onChange={(e) => setNewCategory(e.target.value)}
+                        placeholder={t('addTab.newCategoryPlaceholder')}
+                        className="flex-1 min-w-0 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
+                      />
+                      <input
+                        type="number"
+                        value={newCategoryBudget}
+                        onChange={(e) => setNewCategoryBudget(e.target.value)}
+                        placeholder={t('addTab.budgetPlaceholder')}
+                        className="w-28 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
+                      />
                     </div>
                   </div>
                 )}
@@ -328,25 +293,22 @@ const AddTab: React.FC<AddTabProps> = (props) => {
                     </select>
 
                     {showCustomCategoryInput && selectedCustomBudgetForCategory === formData.customBudgetId && (
-                      <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                        <div className="space-y-2">
-                          <div className="flex space-x-2">
-                            <input
-                              type="text"
-                              value={newCustomCategory}
-                              onChange={(e) => setNewCustomCategory(e.target.value)}
-                              placeholder={t('addTab.newCategoryPlaceholder')}
-                              className="flex-1 min-w-0 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
-                            />
-                            <input
-                              type="number"
-                              value={newCustomCategoryBudget}
-                              onChange={(e) => setNewCustomCategoryBudget(e.target.value)}
-                              placeholder={t('addTab.budgetPlaceholder')}
-                              className="w-28 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
-                            />
-                          </div>
-                          <button onClick={handleAddNewCustomCategory} className="w-full p-2 text-sm bg-purple-600 text-white rounded-lg">{t('general.add')}</button>
+                      <div className="space-y-2">
+                        <div className="flex space-x-2">
+                          <input
+                            type="text"
+                            value={newCustomCategory}
+                            onChange={(e) => setNewCustomCategory(e.target.value)}
+                            placeholder={t('addTab.newCategoryPlaceholder')}
+                            className="flex-1 min-w-0 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
+                          />
+                          <input
+                            type="number"
+                            value={newCustomCategoryBudget}
+                            onChange={(e) => setNewCustomCategoryBudget(e.target.value)}
+                            placeholder={t('addTab.budgetPlaceholder')}
+                            className="w-28 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
+                          />
                         </div>
                       </div>
                     )}

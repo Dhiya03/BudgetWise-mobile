@@ -15,6 +15,7 @@ import {
   BillReminder,
   TransactionFormData,
   SpendingAlert,
+  AddTransactionPayload,
   CustomBudgetFormData,
   RelationshipFormData,
   SupportedLanguage,
@@ -22,6 +23,7 @@ import {
   TransferEvent,
 } from './types';
 import AnalyticsTab from './components/AnalyticsTab';
+import AddTab from './components/AddTab';
 import DataManagement from './components/DataManagement';
 import SecuritySettings from './components/SecuritySettings';
 import AlertManagement from './components/AlertManagement';
@@ -31,7 +33,6 @@ import TipCard from './components/TipCard';
 import LocalizationSettings from './components/LocalizationSettings';
 import TipSettings from './components/TipSettings';
 import BudgetTab from './components/BudgetTab';
-import AddTab from './components/AddTab';
 import Header from './components/Header';
 import BottomNavigation from './components/BottomNavigation';
 import { LocalNotifications } from '@capacitor/local-notifications';
@@ -89,6 +90,7 @@ const App = () => {
     time: '10:00',
   });
   const [inAppTip, setInAppTip] = useState<FinancialTip | null>(null);
+  const [categorySuggestion, setCategorySuggestion] = useState<string | null>(null);
 
   const [todaysTip, setTodaysTip] = useState<FinancialTip | null>(null);
 
@@ -127,18 +129,6 @@ const App = () => {
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [lockoutUntil, setLockoutUntil] = useState<number | null>(null);
 
-  // Smart Categorization
-  const [categorySuggestion, setCategorySuggestion] = useState<string | null>(null);
-
-  // --- Keyword mapping for smart categorization ---
-  const CATEGORY_KEYWORDS: { [key: string]: string[] } = {
-    'Food': ['restaurant', 'food', 'swiggy', 'zomato', 'groceries', 'supermarket'],
-    'Transport': ['uber', 'ola', 'taxi', 'bus', 'metro', 'fuel', 'petrol'],
-    'Entertainment': ['movie', 'concert', 'netflix', 'spotify', 'tickets'],
-    'Shopping': ['amazon', 'flipkart', 'myntra', 'mall', 'clothes', 'electronics'],
-    'Bills': ['electricity', 'water', 'internet', 'phone', 'rent', 'maintenance'],
-    'Health': ['doctor', 'pharmacy', 'hospital', 'medicine', 'clinic'],
-  };
 
   // Bill Reminders - State is kept here for persistence
   const [billReminders, setBillReminders] = useState<BillReminder[]>([]);
@@ -544,6 +534,150 @@ const App = () => {
       setPasswordInput('');
     }
   };
+
+  const handleTransactionAdd = (payload: AddTransactionPayload) => {
+    const { transactionData, newMonthlyCategory, newCustomCategory } = payload;
+
+    let nextCustomBudgets = customBudgets;
+
+    // Step 1: Update budgets and categories if new ones were created.
+    if (newMonthlyCategory) {
+      setCategories(prev => [...prev, newMonthlyCategory.name]);
+      setBudgets(prev => ({ ...prev, [newMonthlyCategory.name]: newMonthlyCategory.budget }));
+    }
+
+    if (newCustomCategory) {
+      nextCustomBudgets = customBudgets.map(budget =>
+        budget.id === newCustomCategory.budgetId
+          ? {
+              ...budget,
+              categories: [...budget.categories, newCustomCategory.name],
+              categoryBudgets: { ...budget.categoryBudgets, [newCustomCategory.name]: newCustomCategory.budget },
+              totalAmount: budget.totalAmount + newCustomCategory.budget,
+              remainingAmount: budget.remainingAmount + newCustomCategory.budget,
+              updatedAt: new Date().toISOString(),
+            }
+          : budget
+      );
+    }
+
+    // Step 2: Create the final transaction object.
+    const newTransaction: Transaction = {
+      id: Date.now(),
+      ...transactionData,
+      category: transactionData.budgetType === 'custom' ? '' : transactionData.category,
+      amount: parseFloat(transactionData.amount) * (transactionData.type === 'expense' ? -1 : 1),
+      tags: transactionData.tags ? transactionData.tags.split(',').map((tag: string) => tag.trim()) : [],
+      timestamp: new Date().toISOString()
+    };
+
+    // Step 3: Update transactions and recalculate spending with the fresh budget data.
+    const newTransactions = [...transactions, newTransaction];
+    setTransactions(newTransactions);
+    recalculateCustomBudgetSpending(newTransactions, nextCustomBudgets);
+    checkSpendingAlerts(newTransactions, spendingAlerts, [newTransaction]);
+
+    // In-App Tip Widget Logic
+    if (newTransaction.type === 'expense' && Math.abs(newTransaction.amount) > 1000) {
+      const tip = FinancialTipsService.getTodaysTip();
+      if (tip) {
+        setInAppTip(tip);
+        setTimeout(() => setInAppTip(null), 8000); // Hide after 8 seconds
+      }
+    }
+
+    // Step 4: Reset form in the parent component.
+    setFormData({
+      category: '', amount: '', description: '', date: new Date().toISOString().split('T')[0],
+      type: 'expense', budgetType: 'monthly', customBudgetId: null, customCategory: '',
+      tags: '', isRecurring: false, recurringFrequency: null,
+    });
+  };
+
+  const handleTransactionUpdate = (payload: AddTransactionPayload) => {
+    const { transactionData, newMonthlyCategory, newCustomCategory } = payload;
+
+    if (!editingTransaction) return;
+
+    let nextCustomBudgets = customBudgets;
+
+    // Step 1: Update budgets if new ones were created.
+    if (newMonthlyCategory) {
+      setCategories(prev => [...prev, newMonthlyCategory.name]);
+      setBudgets(prev => ({ ...prev, [newMonthlyCategory.name]: newMonthlyCategory.budget }));
+    }
+
+    if (newCustomCategory) {
+      nextCustomBudgets = customBudgets.map(budget =>
+        budget.id === newCustomCategory.budgetId
+          ? {
+              ...budget,
+              categories: [...budget.categories, newCustomCategory.name],
+              categoryBudgets: { ...budget.categoryBudgets, [newCustomCategory.name]: newCustomCategory.budget },
+              totalAmount: budget.totalAmount + newCustomCategory.budget,
+              remainingAmount: budget.remainingAmount + newCustomCategory.budget,
+              updatedAt: new Date().toISOString(),
+            }
+          : budget
+      );
+    }
+
+    // Step 2: Create the updated transaction object.
+    const updatedTransaction: Transaction = {
+      ...editingTransaction,
+      ...transactionData,
+      category: transactionData.budgetType === 'custom' ? '' : transactionData.category,
+      amount: parseFloat(transactionData.amount) * (transactionData.type === 'expense' ? -1 : 1),
+      tags: transactionData.tags ? transactionData.tags.split(',').map((tag: string) => tag.trim()) : [],
+    };
+
+    // Step 3: Update transactions array and recalculate spending.
+    const newTransactions = transactions.map(t => t.id === editingTransaction.id ? updatedTransaction : t);
+    setTransactions(newTransactions);
+    recalculateCustomBudgetSpending(newTransactions, nextCustomBudgets); // Pass the updated budgets
+    checkSpendingAlerts(newTransactions, spendingAlerts, [updatedTransaction]); // Pass the single updated transaction
+
+    // Step 4: Reset editing state and form.
+    setEditingTransaction(null); // Exit editing mode
+    setFormData({
+      category: '', amount: '', description: '', date: new Date().toISOString().split('T')[0],
+      type: 'expense', budgetType: 'monthly', customBudgetId: null, customCategory: '',
+      tags: '', isRecurring: false, recurringFrequency: null,
+    });
+  };
+
+  const categoryKeywords: { [key: string]: string[] } = {
+    Food: ['restaurant', 'food', 'swiggy', 'zomato', 'groceries', 'supermarket'],
+    Transport: ['uber', 'ola', 'taxi', 'bus', 'metro', 'fuel', 'petrol'],
+    Entertainment: ['movie', 'concert', 'netflix', 'spotify', 'tickets'],
+    Shopping: ['amazon', 'flipkart', 'myntra', 'mall', 'clothes', 'electronics'],
+    Bills: ['electricity', 'water', 'internet', 'phone', 'rent', 'maintenance'],
+    Health: ['doctor', 'pharmacy', 'hospital', 'medicine', 'clinic'],
+  };
+
+  const getCustomBudgetCategories = (customBudgetId: number | null) => {
+    const budget = customBudgets.find(b => b.id === customBudgetId);
+    return budget ? budget.categories : [];
+  };
+
+  const handleDescriptionChange = (description: string) => {
+    setFormData(prev => ({ ...prev, description }));
+    if (description.length < 3) {
+      setCategorySuggestion(null);
+      return;
+    }
+    const lowerCaseDesc = description.toLowerCase();
+    for (const category in categoryKeywords) {
+      for (const keyword of categoryKeywords[category]) {
+        if (lowerCaseDesc.includes(keyword)) {
+          setCategorySuggestion(category);
+          return;
+        }
+      }
+    }
+    setCategorySuggestion(null);
+  };
+
   const handleEditCustomBudget = (budget: CustomBudget) => {
     setEditingCustomBudget(budget);
     setCustomBudgetForm({
@@ -1017,41 +1151,6 @@ const App = () => {
     }
   };
 
-
-
- const handleTransactionAdd = (newTransaction: Transaction) => {
-    const newTransactions = [...transactions, newTransaction];
-    setTransactions(newTransactions);
-    recalculateCustomBudgetSpending(newTransactions, customBudgets);
-    checkSpendingAlerts(newTransactions, spendingAlerts, [newTransaction]);
-
-    // In-App Tip Widget Logic
-    if (newTransaction.type === 'expense' && Math.abs(newTransaction.amount) > 1000) {
-      const tip = FinancialTipsService.getTodaysTip();
-      if (tip) {
-        setInAppTip(tip);
-        setTimeout(() => setInAppTip(null), 8000); // Hide after 8 seconds
-      }
-    }
-
-    // Reset form
-    setFormData({
-      category: '', amount: '', description: '', date: new Date().toISOString().split('T')[0],
-      type: 'expense', budgetType: 'monthly', customBudgetId: null, customCategory: '',
-      tags: '', isRecurring: false, recurringFrequency: null,
-    });
-  };
-
-  const handleTransactionUpdate = (
-    updateFn: (prev: Transaction[]) => Transaction[],
-    changedTransaction: Transaction
-  ) => {
-    const updatedTransactions = updateFn(transactions);
-    setTransactions(updatedTransactions);
-    recalculateCustomBudgetSpending(updatedTransactions, customBudgets);
-    checkSpendingAlerts(updatedTransactions, spendingAlerts, [changedTransaction]);
-    handleCancelTransactionEdit();
-  };
   
   const addCustomCategoryToForm = () => {
     if (newCustomCategory && !customBudgetForm.categories.includes(newCustomCategory)) {
@@ -1540,36 +1639,6 @@ const App = () => {
     setExportType('all');
   };
 
-  const handleDescriptionChange = (description: string) => {
-    setFormData(prevFormData => {
-      const updatedFormData = { ...prevFormData, description };
-
- // Suggestion logic now uses the most up-to-date state
-      if (updatedFormData.budgetType !== 'monthly' || updatedFormData.category) {
-        setCategorySuggestion(null);
-      } else if (description.length < 3) { // Use t() here
-        setCategorySuggestion(null);
-      } else {
-        const lowerDesc = description.toLowerCase();
-        let suggestionFound = false;
-        for (const category in CATEGORY_KEYWORDS) {
-          for (const keyword of CATEGORY_KEYWORDS[category]) {
-            if (lowerDesc.includes(keyword)) {
-              setCategorySuggestion(category);
-              suggestionFound = true;
-              break;
-            }
-          }
-          if (suggestionFound) break;
-        }
-        if (!suggestionFound) {
-          setCategorySuggestion(null);
-        }
-      }
-
-    return updatedFormData;
-    });  
-  };
 
   const handleTransferFunds = () => {
     const { fromBudgetId, toBudgetId, transferAmount, fromCategory, toCategoryAllocations } = transferForm;
@@ -1691,11 +1760,6 @@ const App = () => {
                transactionDate.getFullYear() === year && transactionDate.getMonth() === month;
       })
       .reduce((sum, t) => sum + Math.abs(t.amount), 0);
-  };
-
-   const getCustomBudgetCategories = (customBudgetId: number | null) => {
-    const budget = customBudgets.find(b => b.id === customBudgetId);
-    return budget ? budget.categories : [];
   };
 
   const processRecurringTransactions = (isSilent = false) => {
@@ -1957,17 +2021,14 @@ const App = () => {
             categories={categories}
             customBudgets={customBudgets}
             budgets={budgets}
-            setCategories={setCategories}
-            setBudgets={setBudgets}
-            setCustomBudgets={setCustomBudgets}
             onTransactionAdd={handleTransactionAdd}
             onTransactionUpdate={handleTransactionUpdate}
             onCancelEdit={handleCancelTransactionEdit}
             getCustomBudgetCategories={getCustomBudgetCategories}
             categorySuggestion={categorySuggestion}
             onDescriptionChange={handleDescriptionChange}
-            onSetCategoryFromSuggestion={(category) => {
-              setFormData({ ...formData, category });
+            onSetCategoryFromSuggestion={(category: string) => {
+              setFormData(prev => ({ ...prev, category }));
               setCategorySuggestion(null);
             }}
           />

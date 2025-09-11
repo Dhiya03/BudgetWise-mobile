@@ -14,7 +14,7 @@ export interface Transaction {
   tags: string[];
   isRecurring: boolean;
   recurringFrequency: 'daily' | 'weekly' | 'monthly' | null;
-  lastProcessedDate?: string; // New field to track the last time a recurring transaction was generated
+  lastProcessedDate?: string;
   timestamp: string; // ISO string
 }
 
@@ -126,6 +126,20 @@ export type NewMonthlyCategory = {
   name: string;
   budget: number;
 };
+
+// Describes the data for a new custom category being created
+export type NewCustomCategory = {
+  budgetId: number;
+  name: string;
+  budget: number;
+};
+
+// Payload for adding a new transaction, which might also include creating new categories
+export interface AddTransactionPayload {
+  transactionData: TransactionFormData;
+  newMonthlyCategory?: NewMonthlyCategory;
+  newCustomCategory?: NewCustomCategory;
+}
 
 // Describes the languages supported for financial tips
 export type SupportedLanguage = 'en' | 'hi' | 'ta' | 'te' | 'kn' | 'ml';
