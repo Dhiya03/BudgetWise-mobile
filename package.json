@@ -27,6 +27,7 @@
     "@revenuecat/purchases-capacitor": "7.7.1",
     "@types/crypto-js": "^4.2.2",
     "crypto-js": "^4.2.0",
+    "framer-motion": "^12.23.12",
     "jspdf": "^2.5.1",
     "jspdf-autotable": "^3.8.2",
     "lucide-react": "^0.395.0",
