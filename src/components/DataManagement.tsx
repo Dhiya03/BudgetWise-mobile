@@ -16,7 +16,7 @@ import { useAnalytics } from '../hooks/useAnalytics';
 import { useLocalization } from '../LocalizationContext';
 import { Capacitor } from '@capacitor/core';
 import { hasAccessTo, Feature } from '../subscriptionManager';
-import { formatCurrency } from '../utils/formatting';
+import { formatCurrency, formatDate } from '../utils/formatting';
 import FileService from '../utils/FileService';
 
 interface DataManagementProps {
@@ -273,7 +273,7 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
       doc.text('BudgetWise Financial Report', 14, 22);
       doc.setFontSize(11);
       doc.setTextColor(100);
-      doc.text(`${reportTitle}, ${t('general.generatedOn', 'generated on')}: ${new Date().toLocaleDateString()}`, 14, 29);
+      doc.text(`${reportTitle}, ${t('general.generatedOn', 'generated on')}: ${new Intl.DateTimeFormat(language).format(new Date())}`, 14, 29);
 
       // Health Score
       doc.setFontSize(16);
@@ -358,7 +358,7 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
         .slice(0, 20)
         .map((t) => {
           return [
-            t.date, t.description, t.budgetType === 'custom' && t.customBudgetId ? `${getCustomBudgetName(t.customBudgetId)} - ${t.customCategory}` : t.category, formatCurrency(t.amount, language)
+            formatDate(t.date, language), t.description, t.budgetType === 'custom' && t.customBudgetId ? `${getCustomBudgetName(t.customBudgetId)} - ${t.customCategory}` : t.category, formatCurrency(t.amount, language)
           ];
         });
 
@@ -423,7 +423,7 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
         <div class="container">
           <div class="header">
             <h1>{t('header.title')} {t('dataManagement.financialReport', 'Financial Report')}</h1>
-            <p>${reportTitle}, generated on ${new Date().toLocaleDateString()}</p>
+            <p>${reportTitle}, generated on ${new Intl.DateTimeFormat(language).format(new Date())}</p>
           </div>
 
           <div class="section">

@@ -5,7 +5,7 @@ import { LocalNotifications } from '@capacitor/local-notifications';
 import { BillReminder, SupportedLanguage } from '../types';
 import { isLimitReached, Limit } from '../subscriptionManager';
 import { useLocalization } from '../LocalizationContext';
-import { formatCurrency } from '../utils/formatting';
+import { formatCurrency, formatDate } from '../utils/formatting';
 
 interface BillReminderTabProps {
   billReminders: BillReminder[];
@@ -256,7 +256,7 @@ const BillReminderTab = ({ billReminders, setBillReminders, showConfirmation, la
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-gray-800 truncate">{reminder.name}</p>
                 <p className="text-sm text-gray-500">
-                  {formatCurrency(reminder.amount, language)} ({t('reminders.due')} {reminder.dueDate})
+                  {formatCurrency(reminder.amount, language)} ({t('reminders.due')} {formatDate(reminder.dueDate, language)})
                 </p>
               </div>
               <div className="flex-shrink-0 flex space-x-1">

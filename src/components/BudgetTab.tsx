@@ -14,7 +14,7 @@ import {
   Limit,
 } from '../subscriptionManager';
 import { useLocalization } from '../LocalizationContext';
-import { formatCurrency } from '../utils/formatting';
+import { formatCurrency, formatDate } from '../utils/formatting';
 
 const BudgetTab: React.FC<BudgetTabProps> = (props) => {
   const {
@@ -431,7 +431,7 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
                       )}
                       {budget.deadline && (
                         <p className="text-xs text-gray-500 mt-1"> 
-                          {t('budget.deadline').replace('{date}', new Date(budget.deadline).toLocaleDateString())}
+                          {t('budget.deadline').replace('{date}', formatDate(budget.deadline, language))}
                         </p>
                       )}
                     </div>

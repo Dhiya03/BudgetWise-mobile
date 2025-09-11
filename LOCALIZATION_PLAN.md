@@ -55,6 +55,8 @@
 - [ ] Map Hindi banking terms (बजट for planning, आवंटन for allocation)
 - [ ] Create Tamil banking vocabulary mapping
 - [ ] Create Telugu banking vocabulary mapping
+- [ ] Create Kannada banking vocabulary mapping
+- [ ] Create Malayalam banking vocabulary mapping
 - [ ] Implement contextual translation helper function
 - [ ] Add transaction type specific translations
 - [ ] Create investment terms translation mapping

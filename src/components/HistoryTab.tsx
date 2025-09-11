@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { XCircle, Edit3, Trash2, ArrowRight } from 'lucide-react';
 import { Transaction, CustomBudget, TransferEvent, SupportedLanguage } from '../types';
 import { hasAccessTo, Feature } from '../subscriptionManager';
-import { formatCurrency } from '../utils/formatting';
+import { formatCurrency, formatDate } from '../utils/formatting';
 import { useLocalization } from '../LocalizationContext';
 
 type HistoryItem = (Transaction & { itemType: 'transaction', sortDate: Date }) | (TransferEvent & { itemType: 'transfer', sortDate: Date });
@@ -238,7 +238,7 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
                       </div>
                       {transaction.description && <p className="text-sm text-gray-600 truncate">{transaction.description}</p>}
                       <div className="flex justify-between items-center mt-2">
-                        <p className="text-xs text-gray-500">{transaction.date}</p>
+                        <p className="text-xs text-gray-500">{formatDate(transaction.date, language)}</p>
                         <p className={`font-bold text-sm ${transaction.amount < 0 ? 'text-red-600' : 'text-green-600'}`}>
                           {transaction.amount < 0 ? '-' : '+'}{formatCurrency(Math.abs(transaction.amount), language)}
                         </p>
@@ -277,7 +277,7 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
                         <p className="truncate" title={`${t('history.to')} ${getCustomBudgetName(transfer.toBudgetId)}`}><span className="font-medium">{t('history.to')}</span> {getCustomBudgetName(transfer.toBudgetId)}</p>
                       </div>
                       <div className="flex justify-between items-center mt-2">
-                        <p className="text-xs text-gray-500">{new Date(transfer.date).toLocaleString()}</p>
+                        <p className="text-xs text-gray-500">{formatDate(transfer.date, language)}</p>
                         <p className="font-bold text-sm text-indigo-600">{formatCurrency(transfer.amount, language)}</p>
                       </div>
                     </div>
