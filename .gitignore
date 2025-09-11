@@ -55,3 +55,7 @@ coverage/
 
 # Android Keystore (optional, only if you generate debug keystore)
 *.keystore
+
+
+playwright-report/
+test-results/

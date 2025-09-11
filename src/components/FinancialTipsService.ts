@@ -1,5 +1,5 @@
 import { FinancialTip, SupportedLanguage, SUPPORTED_LANGUAGES } from '../types';
-import tipsData from '../data/financial-tips.json';
+import tipsData from '../data/financial-tips.json' with { type: 'json' };
 import { getTier } from '../subscriptionManager';
 
 const SHOWN_TIPS_STORAGE_KEY = 'budgetwise_shown_tip_ids';

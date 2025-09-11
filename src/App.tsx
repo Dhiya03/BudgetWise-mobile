@@ -2,9 +2,9 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Repeat, X, Star } from 'lucide-react';
 
 import { App as CapacitorApp } from '@capacitor/app';
-import AES from 'crypto-js/aes';
-import SHA256 from 'crypto-js/sha256';
-import Utf8 from 'crypto-js/enc-utf8';
+import AES from 'crypto-js/aes.js';
+import SHA256 from 'crypto-js/sha256.js';
+import Utf8 from 'crypto-js/enc-utf8.js';
 import { Capacitor } from '@capacitor/core';
 import {
   Transaction,

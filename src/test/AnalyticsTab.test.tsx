@@ -105,7 +105,7 @@ describe('AnalyticsTab', () => {
     const props = createDefaultProps();
     render(<AnalyticsTab {...props} />);
 
-    const savingsInput = screen.getByLabelText(/monthly savings goal/i);
+    const savingsInput = screen.getByLabelText(/potential savings/i);
     await userEvent.clear(savingsInput);
     await userEvent.type(savingsInput, '12000');
 

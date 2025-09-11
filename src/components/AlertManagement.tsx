@@ -21,7 +21,7 @@ const AlertManagement: React.FC<AlertManagementProps> = ({ spendingAlerts, onDel
               <div className="flex items-center">
                 <BellRing size={18} className={`mr-3 transition-colors ${alert.isSilenced ? 'text-gray-400' : 'text-purple-600'}`} />
                 <div>
-                  <p className="font-medium text-gray-800">{alert.category}</p>
+                  <p className="font-medium text-gray-800 truncate" title={alert.category}>{alert.category}</p>
                   <p className="text-xs text-gray-600">
                     Alert when spending is above ₹{alert.threshold}
                   </p>

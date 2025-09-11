@@ -465,8 +465,8 @@ const AnalyticsTab: FC<AnalyticsTabProps> = (props) => {
             const isAlertSet = spendingAlerts.some(alert => alert.category === insight.category);
             return (
               <div key={insight.category} className="border border-gray-200 rounded-xl p-4">
-                <div className="flex justify-between items-center">
-                  <span className="font-semibold text-gray-800">{insight.category}</span>
+                <div className="flex justify-between items-center gap-2">
+                  <span className="font-semibold text-gray-800 truncate" title={insight.category}>{insight.category}</span>
                   <span className="text-lg font-bold">{formatCurrency(insight.spending, language)}</span>
                 </div>
                 <div className="flex justify-between items-center text-sm mt-1">
