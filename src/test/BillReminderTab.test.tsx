@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import BillReminderTab from '../components/BillReminderTab';
 import { isLimitReached, Limit } from '../subscriptionManager';
 import type { Mock } from 'vitest';
-import { BillReminder } from '../types';
+import { BillReminder, SupportedLanguage } from '../types';
 
 vi.mock('../subscriptionManager');
 
@@ -17,6 +17,7 @@ const createDefaultProps = () => ({
   billReminders: sampleReminders,
   setBillReminders: vi.fn(),
   showConfirmation: vi.fn((_title, _message, onConfirm) => onConfirm()), // Auto-confirm for tests
+  language: 'en' as SupportedLanguage,
 });
 
 describe('BillReminderTab', () => {

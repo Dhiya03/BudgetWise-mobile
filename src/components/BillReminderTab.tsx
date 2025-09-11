@@ -2,17 +2,19 @@ import { useState, useMemo } from 'react';
 import { Bell, Edit3, Trash2 } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
-import { BillReminder } from '../types';
+import { BillReminder, SupportedLanguage } from '../types';
 import { isLimitReached, Limit } from '../subscriptionManager';
 import { useLocalization } from '../LocalizationContext';
+import { formatCurrency } from '../utils/formatting';
 
 interface BillReminderTabProps {
   billReminders: BillReminder[];
   setBillReminders: React.Dispatch<React.SetStateAction<BillReminder[]>>;
   showConfirmation: (title: string, message: string, onConfirm: () => void | Promise<void>) => void;
+  language: SupportedLanguage;
 }
 
-const BillReminderTab = ({ billReminders, setBillReminders, showConfirmation }: BillReminderTabProps) => {
+const BillReminderTab = ({ billReminders, setBillReminders, showConfirmation, language }: BillReminderTabProps) => {
   const [editingBillReminder, setEditingBillReminder] = useState<BillReminder | null>(null);
   const [billForm, setBillForm] = useState({ name: '', amount: '', dueDate: '' });
   const { t } = useLocalization();
@@ -254,7 +256,7 @@ const BillReminderTab = ({ billReminders, setBillReminders, showConfirmation }: 
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-gray-800 truncate">{reminder.name}</p>
                 <p className="text-sm text-gray-500">
-                  ₹{reminder.amount.toFixed(2)} ({t('reminders.due')} {reminder.dueDate})
+                  {formatCurrency(reminder.amount, language)} ({t('reminders.due')} {reminder.dueDate})
                 </p>
               </div>
               <div className="flex-shrink-0 flex space-x-1">

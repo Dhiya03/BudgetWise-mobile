@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import {
+  SupportedLanguage,
   Transaction,
   MonthlyBudgets,
   CustomBudget,
@@ -15,6 +16,7 @@ import { useAnalytics } from '../hooks/useAnalytics';
 import { useLocalization } from '../LocalizationContext';
 import { Capacitor } from '@capacitor/core';
 import { hasAccessTo, Feature } from '../subscriptionManager';
+import { formatCurrency } from '../utils/formatting';
 import FileService from '../utils/FileService';
 
 interface DataManagementProps {
@@ -54,6 +56,7 @@ interface DataManagementProps {
   getSpentAmount: (category: string, year: number, month: number) => number;
   getRemainingBudget: (category: string, year: number, month: number) => number;
   t: (key: string, fallback?: string) => string;
+  language: SupportedLanguage;
 }
 
 const DataManagement: React.FC<DataManagementProps> = (props) => {
@@ -65,7 +68,7 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
     setBudgetTemplates, setBudgetRelationships, setBillReminders,
     setSavingsGoal, setDailySpendingGoal, setAnalyticsTimeframe, getSpentAmount, getRemainingBudget,
     setTransferLog, setRecurringProcessingMode, showConfirmation, getCustomBudgetName,
-    savingsGoal, dailySpendingGoal, analyticsTimeframe
+    savingsGoal, dailySpendingGoal, analyticsTimeframe, language
   } = props;
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -288,10 +291,10 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
         startY: 70,
         head: [[t('analytics.cashFlowTitle'), t('general.amount', 'Amount')]],
         body: [
-           [t('analytics.income'), `₹${cashFlow.totalIncome.toFixed(2)}`],
-          [t('analytics.expenses'), `₹${cashFlow.totalExpenses.toFixed(2)}`],
-          [t('analytics.savings'), `₹${cashFlow.savings.toFixed(2)}`],
-          [t('analytics.projectedSavings'), `₹${cashFlow.projectedMonthlySavings.toFixed(2)}`],
+           [t('analytics.income'), formatCurrency(cashFlow.totalIncome, language)],
+          [t('analytics.expenses'), formatCurrency(cashFlow.totalExpenses, language)],
+          [t('analytics.savings'), formatCurrency(cashFlow.savings, language)],
+          [t('analytics.projectedSavings'), formatCurrency(cashFlow.projectedMonthlySavings, language)],
           [t('analytics.burnRate'), isFinite(cashFlow.burnRateDays) ? `~${cashFlow.burnRateDays.toFixed(0)} ${t('general.days', 'days')}` : t('general.na', 'N/A')],
           [t('analytics.runwayTitle'), isFinite(runway.runwayMonths) ? `${runway.runwayMonths} ${t('general.months', 'months')}` : '∞'],
        ],
@@ -305,7 +308,7 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
         head: [[t('analytics.habitsTitle'), t('general.insight', 'Insight')]],
         body: [
           [t('analytics.personalityTitle'), t(personality.personalityKey)],
-          [t('analytics.dailyGoalTitle'), `${streak.streak} ${t('general.days', 'days')} ${t('general.under', 'under')} ₹${dailySpendingGoal}`],
+          [t('analytics.dailyGoalTitle'), `${streak.streak} ${t('general.days', 'days')} ${t('general.under', 'under')} ${formatCurrency(dailySpendingGoal, language)}`],
         ],
         theme: 'striped',
         headStyles: { fillColor: [15, 118, 110] }, // Teal color
@@ -318,7 +321,7 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
           const percentage = b.totalAmount > 0 ? (b.spentAmount / b.totalAmount) * 100 : 0;
           return [
             b.name,
-            `₹${b.spentAmount.toFixed(0)} / ₹${b.totalAmount.toFixed(0)}`,
+            `${formatCurrency(b.spentAmount, language)} / ${formatCurrency(b.totalAmount, language)}`,
             `${percentage.toFixed(0)}%`,
           ];
         });
@@ -344,8 +347,8 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
         head: [[t('analytics.categoryBreakdownTitle', 'Top Spending Categories'), t('general.amount', 'Amount (₹)'), t('general.trend', 'Trend (%)')]],
         body: categoryInsights.slice(0, 5).map(insight => [
             insight.category,
-            insight.spending.toFixed(2),
-            `${insight.trend > 0 ? '+' : ''}${insight.trend.toFixed(0)}%`
+            formatCurrency(insight.spending, language),
+            `${insight.trend > 0 ? '+' : ''}${insight.trend.toFixed(0)}%`,
         ]),
         headStyles: { fillColor: [22, 163, 74] },
       });
@@ -355,7 +358,7 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
         .slice(0, 20)
         .map((t) => {
           return [
-            t.date, t.description, t.budgetType === 'custom' && t.customBudgetId ? `${getCustomBudgetName(t.customBudgetId)} - ${t.customCategory}` : t.category, t.amount.toFixed(2)
+            t.date, t.description, t.budgetType === 'custom' && t.customBudgetId ? `${getCustomBudgetName(t.customBudgetId)} - ${t.customCategory}` : t.category, formatCurrency(t.amount, language)
           ];
         });
 
@@ -436,15 +439,15 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
             <div class="grid">
               <div class="card">
                 <div class="card-title">{t('budget.totalIncome')}</div>
-                <div class="card-value positive">₹${cashFlow.totalIncome.toFixed(0)}</div>
+                <div class="card-value positive">${formatCurrency(cashFlow.totalIncome, language)}</div>
               </div>
               <div class="card">
                 <div class="card-title">{t('budget.totalBudgeted')}</div>
-                <div class="card-value negative">₹${cashFlow.totalExpenses.toFixed(0)}</div>
+                <div class="card-value negative">${formatCurrency(cashFlow.totalExpenses, language)}</div>
               </div>
               <div class="card">
                 <div class="card-title">{t('analytics.savings')}</div>
-                <div class="card-value ${cashFlow.savings >= 0 ? 'positive' : 'negative'}">₹${cashFlow.savings.toFixed(0)}</div>
+                <div class="card-value ${cashFlow.savings >= 0 ? 'positive' : 'negative'}">${formatCurrency(cashFlow.savings, language)}</div>
               </div>
               
               <div class="card">
@@ -458,21 +461,21 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
                   <div class="bar" style="margin: 0 auto; width: 60%; border-radius: 4px 4px 0 0; background-color: #22c55e; height: ${Math.min(100, (cashFlow.totalIncome / (cashFlow.totalIncome || 1)) * 100)}%;"></div>
                 </div>
                 <p style="font-size: 0.75rem; margin-top: 0.25rem;">{t('analytics.income')}</p>
-                <p style="font-size: 0.8rem; font-weight: bold;">₹${cashFlow.totalIncome.toFixed(0)}</p>
+                <p style="font-size: 0.8rem; font-weight: bold;">${formatCurrency(cashFlow.totalIncome, language)}</p>
               </div>
               <div class="chart-bar-container" style="flex: 1; display: flex; flex-direction: column; text-align: center;">
                 <div class="bar-wrapper" style="flex: 1; display: flex; align-items: flex-end;">
                   <div class="bar" style="margin: 0 auto; width: 60%; border-radius: 4px 4px 0 0; background-color: #ef4444; height: ${Math.min(100, (cashFlow.totalExpenses / (cashFlow.totalIncome || 1)) * 100)}%;"></div>
                 </div>
                 <p style="font-size: 0.75rem; margin-top: 0.25rem;">{t('analytics.expenses')}</p>
-                <p style="font-size: 0.8rem; font-weight: bold;">₹${cashFlow.totalExpenses.toFixed(0)}</p>
+                <p style="font-size: 0.8rem; font-weight: bold;">${formatCurrency(cashFlow.totalExpenses, language)}</p>
               </div>
               <div class="chart-bar-container" style="flex: 1; display: flex; flex-direction: column; text-align: center;">
                 <div class="bar-wrapper" style="flex: 1; display: flex; align-items: flex-end;">
                   <div class="bar" style="margin: 0 auto; width: 60%; border-radius: 4px 4px 0 0; background-color: #3b82f6; height: ${Math.min(100, (Math.max(0, cashFlow.savings) / (cashFlow.totalIncome || 1)) * 100)}%;"></div>
                 </div>
                 <p style="font-size: 0.75rem; margin-top: 0.25rem;">{t('analytics.savings')}</p>
-                <p style="font-size: 0.8rem; font-weight: bold;">₹${cashFlow.savings.toFixed(0)}</p>
+                <p style="font-size: 0.8rem; font-weight: bold;">${formatCurrency(cashFlow.savings, language)}</p>
               </div>
             </div>
           </div>
@@ -488,7 +491,7 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
               <div class="card">
                 <div class="card-title">{t('analytics.dailyGoalTitle')}</div>
                 <div class="card-value">${streak.streak} {t('general.days', 'days')}</div>
-                <p style="font-size: 0.8em; color: #6b7280;">{t('analytics.underPerDay').replace('{amount}', dailySpendingGoal.toString())}</p>
+                <p style="font-size: 0.8em; color: #6b7280;">${t('analytics.underPerDay').replace('{amount}', formatCurrency(dailySpendingGoal, language))}</p>
               </div>
             </div>
           </div>
@@ -500,7 +503,7 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
               return `
                 <div class="card" style="margin-bottom: 15px;">
                   <div class="card-title" style="font-weight: bold;">${budget.name}</div>
-                  <p style="font-size: 0.9em; color: #4b5563;">₹${budget.spentAmount.toFixed(0)} / ₹${budget.totalAmount.toFixed(0)}</p>
+                  <p style="font-size: 0.9em; color: #4b5563;">${formatCurrency(budget.spentAmount, language)} / ${formatCurrency(budget.totalAmount, language)}</p>
                   <div style="background: #e5e7eb; border-radius: 8px; height: 20px; margin-top: 5px; position: relative; overflow: hidden;">
                     <div style="width: ${Math.min(percentage, 100)}%; height: 100%; background: linear-gradient(to right, #4ade80, #3b82f6);"></div>
                     <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 0.8em;">
@@ -527,12 +530,12 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
                 ${categoryInsights.map(insight => `
                   <tr>
                     <td>${insight.category}</td>
-                    <td>₹${insight.spending.toFixed(0)}</td>
+                    <td>${formatCurrency(insight.spending, language)}</td>
                     <td class="${insight.trend > 10 ? 'trend-up' : insight.trend < -10 ? 'trend-down' : ''}">
                       ${insight.trend > 0 ? '+' : ''}${insight.trend.toFixed(0)}%
                     </td>
                     <td>
-                      ${insight.largestTransaction ? `₹${Math.abs(insight.largestTransaction.amount).toFixed(0)}${insight.largestTransaction.description ? ` - ${insight.largestTransaction.description}` : ''}` : t('general.na', 'N/A')}
+                      ${insight.largestTransaction ? `${formatCurrency(Math.abs(insight.largestTransaction.amount), language)}${insight.largestTransaction.description ? ` - ${insight.largestTransaction.description}` : ''}` : t('general.na', 'N/A')}
                     </td>
                   </tr>
                 `).join('')}

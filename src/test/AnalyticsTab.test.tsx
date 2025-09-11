@@ -5,6 +5,7 @@ import AnalyticsTab from '../components/AnalyticsTab';
 import { hasAccessTo, Feature } from '../subscriptionManager';
 import { useAnalytics } from '../hooks/useAnalytics';
 import type { Mock } from 'vitest';
+import { SupportedLanguage } from '../types';
 
 // Mock the subscriptionManager and the useAnalytics hook
 vi.mock('../subscriptionManager');
@@ -23,6 +24,7 @@ const createDefaultProps = () => ({
   handleNavigationRequest: vi.fn(),
   onSetAlert: vi.fn(),
   spendingAlerts: [],
+  language: 'en' as SupportedLanguage,
 });
 
 const mockAnalyticsData = {

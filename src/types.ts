@@ -197,4 +197,5 @@ export interface BudgetTabProps {
   getSpentAmount: (category: string, year: number, month: number) => number;
   removeCategoryFromForm: (category: string) => void;
   updateCategoryBudget: (category: string, amount: string) => void;
+  language: SupportedLanguage;
 }

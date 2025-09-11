@@ -2,6 +2,7 @@ import React from 'react';
 import { Download, FileSpreadsheet, Settings, Star } from 'lucide-react';
 import { SupportedLanguage } from '../types';
 import { hasAccessTo, Feature } from '../subscriptionManager';
+import { formatCurrency } from '../utils/formatting';
 
 interface HeaderProps {
   stats: {
@@ -68,18 +69,18 @@ const Header: React.FC<HeaderProps> = ({
       <div className="mt-4 grid grid-cols-2 gap-4">
         <div className="bg-white/20 rounded-xl p-3">
           <p className="text-sm opacity-90">{t('header.monthlyBalance', 'Monthly Balance')}</p>
-          <p className="text-xl font-bold">₹{stats.balance.toFixed(0)}</p>
+          <p className="text-xl font-bold">{formatCurrency(stats.balance, language)}</p>
         </div>
         <div className="bg-white/20 rounded-xl p-3">
           <p className="text-sm opacity-90">{t('header.monthlySpent', 'Monthly Spent')}</p>
-          <p className="text-xl font-bold">₹{stats.totalExpenses.toFixed(0)}</p>
+          <p className="text-xl font-bold">{formatCurrency(stats.totalExpenses, language)}</p>
         </div>
       </div>
 
       {stats.customBudgetSpent > 0 && (
         <div className="mt-3 bg-white/20 rounded-xl p-3">
           <p className="text-sm opacity-90">{t('header.customBudgetsSpent', 'Custom Budgets Spent')}</p>
-          <p className="text-xl font-bold">₹{stats.customBudgetSpent.toFixed(0)}</p>
+          <p className="text-xl font-bold">{formatCurrency(stats.customBudgetSpent, language)}</p>
         </div>
       )}
 

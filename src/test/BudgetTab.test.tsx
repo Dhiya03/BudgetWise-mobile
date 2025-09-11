@@ -4,8 +4,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import BudgetTab from "../components/BudgetTab";
 import { hasAccessTo, isLimitReached, Feature, Limit } from '../subscriptionManager';
 import type { Mock } from 'vitest';
-import { CustomBudget, BudgetTemplate, BudgetRelationship } from '../types';
-
+import { CustomBudget, BudgetTemplate, BudgetRelationship, SupportedLanguage } from '../types';
 vi.mock('../subscriptionManager');
 
 const sampleCustomBudgets: CustomBudget[] = [
@@ -71,6 +70,7 @@ const createDefaultProps = () => ({
   getSpentAmount: vi.fn(() => 0),
   removeCategoryFromForm: vi.fn(),
   updateCategoryBudget: vi.fn(),
+  language: 'USD' as SupportedLanguage,
 });
 
 describe('BudgetTab', () => {
@@ -87,7 +87,7 @@ describe('BudgetTab', () => {
       render(<BudgetTab {...props} />);
       expect(screen.getByText(/Food/i)).toBeInTheDocument();
       // The component renders spent / budget, e.g., "₹0 / ₹5000"
-      expect(screen.getByText(/₹0 \/ ₹5000/i)).toBeInTheDocument();
+      expect(screen.getByText(/₹0 \/ ₹5,000/i)).toBeInTheDocument();
     });
 
     it('allows setting a new monthly budget', async () => {

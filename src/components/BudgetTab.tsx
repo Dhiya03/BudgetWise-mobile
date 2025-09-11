@@ -14,6 +14,7 @@ import {
   Limit,
 } from '../subscriptionManager';
 import { useLocalization } from '../LocalizationContext';
+import { formatCurrency } from '../utils/formatting';
 
 const BudgetTab: React.FC<BudgetTabProps> = (props) => {
   const {
@@ -26,7 +27,7 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
     getCustomBudgetName, deleteRelationship, processEndOfMonthRollovers,
     setShowTransferModal, handleLockBudget, pauseCustomBudget, handleEditCustomBudget,
     deleteCustomBudget, resumeCustomBudget, getCustomBudgetCategoryBudget,
-    customCategorySpending, transactions, newCustomCategory, setNewCustomCategory, getSpentAmount,
+    customCategorySpending, transactions, newCustomCategory, setNewCustomCategory, getSpentAmount, language,
     addCustomCategoryToForm, removeCategoryFromForm, updateCategoryBudget,
   } = props;
   const { t } = useLocalization();
@@ -51,17 +52,17 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
         <div className="space-y-3">
           <div className="flex justify-between items-center">
             <span className="font-medium text-green-700">{t('budget.totalIncome')}</span>
-            <span className="font-bold text-lg text-green-700">₹{monthlyIncome.toFixed(0)}</span>
+            <span className="font-bold text-lg text-green-700">{formatCurrency(monthlyIncome, language)}</span>
           </div>
           <div className="flex justify-between items-center">
             <span className="font-medium text-red-700">{t('budget.totalBudgeted')}</span>
-            <span className="font-bold text-lg text-red-700">₹{totalMonthlyBudget.toFixed(0)}</span>
+            <span className="font-bold text-lg text-red-700">{formatCurrency(totalMonthlyBudget, language)}</span>
           </div>
           <hr className="my-2"/>
           <div className="flex justify-between items-center">
             <span className="font-semibold text-blue-800">{t('budget.potentialSavings')}</span>
             <span className={`font-bold text-xl ${monthlyIncome - totalMonthlyBudget >= 0 ? 'text-blue-800' : 'text-red-600'}`}>
-              ₹{(monthlyIncome - totalMonthlyBudget).toFixed(0)}
+              {formatCurrency(monthlyIncome - totalMonthlyBudget, language)}
             </span>
           </div>
           {totalMonthlyBudget > monthlyIncome && (
@@ -216,13 +217,13 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
                     <div className="flex justify-between text-sm"> 
                       <span className="text-gray-600">{t('budget.totalCategoryBudgets')}</span>
                       <span className="font-medium">
-                        ₹{Object.values(customBudgetForm.categoryBudgets || {}).reduce((sum, amount) => sum + (parseFloat(amount) || 0), 0).toFixed(0)}
+                        {formatCurrency(Object.values(customBudgetForm.categoryBudgets || {}).reduce((sum, amount) => sum + (parseFloat(amount) || 0), 0), language)}
                       </span>
                     </div>
                     <div className="flex justify-between text-sm"> 
                       <span className="text-gray-600">{t('budget.overallBudget')}</span>
                       <span className="font-medium">
-                        ₹{(parseFloat(customBudgetForm.amount) || 0).toFixed(0)}
+                        {formatCurrency(parseFloat(customBudgetForm.amount) || 0, language)}
                       </span>
                     </div>
                     {customBudgetForm.amount && Object.values(customBudgetForm.categoryBudgets || {}).reduce((sum, amount) => sum + (parseFloat(amount) || 0), 0) > parseFloat(customBudgetForm.amount) && (
@@ -354,7 +355,7 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
             className="w-full p-3 border border-gray-300 rounded-xl"
           > 
             <option value="">{t('budget.selectSourceCategory')}</option>
-            {categories.map(cat => <option key={cat} value={cat}>{cat} ({t('budget.surplus').replace('{amount}', getRemainingBudget(cat, currentYear, currentMonth).toFixed(0))})</option>)}
+            {categories.map(cat => <option key={cat} value={cat}>{cat} ({t('budget.surplus').replace('{amount}', formatCurrency(getRemainingBudget(cat, currentYear, currentMonth), language))})</option>)}
           </select>
           <select
             value={relationshipForm.destinationBudgetId}
@@ -463,10 +464,10 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
                   
                   <div className="flex justify-between items-center mb-2">
                     <span className="text-sm text-gray-600">
-                      ₹{budget.spentAmount.toFixed(0)} / ₹{budget.totalAmount.toFixed(0)}
+                      {formatCurrency(budget.spentAmount, language)} / {formatCurrency(budget.totalAmount, language)}
                     </span>
                     <span className={`text-sm ${isOverBudget ? 'text-red-600' : 'text-green-600'}`}> 
-                      {t('budget.remainingAmount').replace('{amount}', budget.remainingAmount.toFixed(0))}
+                      {t('budget.remainingAmount').replace('{amount}', formatCurrency(budget.remainingAmount, language))}
                     </span>
                   </div>
                   
@@ -523,7 +524,7 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
                                 </div>
                                 <div className="text-right">
                                   <span className="text-sm font-medium text-gray-800">
-                                    ₹{categorySpent.toFixed(0)} / ₹{categoryBudget.toFixed(0)}
+                                    {formatCurrency(categorySpent, language)} / {formatCurrency(categoryBudget, language)}
                                   </span>
                                 </div>
                               </div>
@@ -542,7 +543,7 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
                                   
                                   <div className="flex justify-between text-xs">
                                     <span className={`${categoryRemaining >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                      {t('budget.categoryRemaining').replace('{amount}', categoryRemaining.toFixed(0))}
+                                      {t('budget.categoryRemaining').replace('{amount}', formatCurrency(categoryRemaining, language))}
                                     </span>
                                     <span className="text-gray-600">
                                       {t('budget.categoryUsed').replace('{percent}', categoryPercentage.toFixed(0))}
@@ -607,7 +608,7 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
                 <div className="flex justify-between items-center mb-2">
                   <span className="font-semibold text-gray-800">{category}</span>
                   <span className="text-sm text-gray-600">
-                    ₹{spent.toFixed(0)} / ₹{budget.toFixed(0)}
+                    {formatCurrency(spent, language)} / {formatCurrency(budget, language)}
                   </span>
                 </div>
                 
@@ -622,7 +623,7 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
                 
                 <div className="flex justify-between text-sm">
                   <span className={remaining >= 0 ? 'text-green-600' : 'text-red-600'}>
-                    {t('budget.remaining')}: ₹{remaining.toFixed(0)}
+                    {t('budget.remaining')}: {formatCurrency(remaining, language)}
                   </span>
                   <span className="text-gray-600">
                     {t('budget.used').replace('{percent}', percentage.toFixed(0))}

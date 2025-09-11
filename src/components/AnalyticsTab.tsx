@@ -1,10 +1,11 @@
 import { useState, useMemo, FC } from 'react';
 import { TrendingUp, TrendingDown, DollarSign, Target, Activity, HelpCircle, ShieldCheck, ShieldAlert, Shield, CalendarDays, Flame, SlidersHorizontal, AlertTriangle, X, Lightbulb, BellRing, Star } from 'lucide-react';
-import { Transaction, MonthlyBudgets, SpendingAlert } from '../types';
+import { Transaction, MonthlyBudgets, SpendingAlert, SupportedLanguage } from '../types';
 import { hasAccessTo, Feature } from '../subscriptionManager';
 import { simulateBudgetScenario } from '../utils/analytics';
 import { useAnalytics } from '../hooks/useAnalytics';
 import { useLocalization } from '../LocalizationContext';
+import { formatCurrency } from '../utils/formatting';
 
 interface AnalyticsTabProps {
   transactions: Transaction[];
@@ -19,6 +20,7 @@ interface AnalyticsTabProps {
   handleNavigationRequest: (request: any) => void;
   onSetAlert: (alert: Omit<SpendingAlert, 'id' | 'isSilenced'>) => void;
   spendingAlerts: SpendingAlert[];
+  language: SupportedLanguage;
 }
 
 interface ActionableTip {
@@ -158,7 +160,7 @@ const SetAlertModal: FC<{
 };
 
 const AnalyticsTab: FC<AnalyticsTabProps> = (props) => {
-  const { transactions, budgets, getCustomBudgetName, savingsGoal, setSavingsGoal, dailySpendingGoal, setDailySpendingGoal, analyticsTimeframe, setAnalyticsTimeframe, handleNavigationRequest, onSetAlert, spendingAlerts } = props;
+  const { transactions, budgets, getCustomBudgetName, savingsGoal, setSavingsGoal, dailySpendingGoal, setDailySpendingGoal, analyticsTimeframe, setAnalyticsTimeframe, handleNavigationRequest, onSetAlert, spendingAlerts, language } = props;
   const { t } = useLocalization();
 
   if (!hasAccessTo(Feature.LimitedAnalytics)) {
@@ -297,21 +299,21 @@ const AnalyticsTab: FC<AnalyticsTabProps> = (props) => {
                 <div className="mx-auto w-4/5 rounded-t-lg bg-green-500" style={{ height: `${Math.min(100, (cashFlow.totalIncome / (cashFlow.totalIncome || 1)) * 100)}%` }}></div>
               </div>
               <p className="text-xs mt-1">{t('analytics.income')}</p>
-              <p className="text-xs font-bold">₹{cashFlow.totalIncome.toFixed(0)}</p>
+              <p className="text-xs font-bold">{formatCurrency(cashFlow.totalIncome, language)}</p>
             </div>
             <div className="flex flex-1 flex-col text-center">
               <div className="flex flex-1 items-end">
                 <div className="mx-auto w-4/5 rounded-t-lg bg-red-500" style={{ height: `${Math.min(100, (cashFlow.totalExpenses / (cashFlow.totalIncome || 1)) * 100)}%` }}></div>
               </div>
               <p className="text-xs mt-1">{t('analytics.expenses')}</p>
-              <p className="text-xs font-bold">₹{cashFlow.totalExpenses.toFixed(0)}</p>
+              <p className="text-xs font-bold">{formatCurrency(cashFlow.totalExpenses, language)}</p>
             </div>
             <div className="flex flex-1 flex-col text-center">
               <div className="flex flex-1 items-end">
                 <div className="mx-auto w-4/5 rounded-t-lg bg-blue-500" style={{ height: `${Math.min(100, (Math.max(0, cashFlow.savings) / (cashFlow.totalIncome || 1)) * 100)}%` }}></div>
               </div>
               <p className="text-xs mt-1">{t('analytics.savings')}</p>
-              <p className="text-xs font-bold">₹{cashFlow.savings.toFixed(0)}</p>
+              <p className="text-xs font-bold">{formatCurrency(cashFlow.savings, language)}</p>
             </div>
           </div>
         </div>
@@ -320,7 +322,7 @@ const AnalyticsTab: FC<AnalyticsTabProps> = (props) => {
             <Target size={18} className="mr-3 text-blue-600" />
             <div>
               <p className="text-sm font-medium">{t('analytics.projectedSavings')}</p>
-              <p className="text-lg font-bold">₹{cashFlow.projectedMonthlySavings.toFixed(0)}</p>
+              <p className="text-lg font-bold">{formatCurrency(cashFlow.projectedMonthlySavings, language)}</p>
             </div>
           </div>
           <div className={`p-3 rounded-lg flex items-center ${cashFlow.burnRateDays < 30 ? 'bg-red-50' : 'bg-green-50'}`}>
@@ -335,7 +337,7 @@ const AnalyticsTab: FC<AnalyticsTabProps> = (props) => {
               <DollarSign size={18} className="mr-3 text-yellow-600" />
               <div>
                 <p className="text-sm font-medium">{t('analytics.incomeOptimization.title')}</p>
-                <p className="text-sm">{t('analytics.incomeOptimization.description').replace('{needed}', cashFlow.incomeNeeded.toFixed(0)).replace('{goal}', cashFlow.savingsGoal.toString())}</p>
+                <p className="text-sm">{t('analytics.incomeOptimization.description').replace('{needed}', formatCurrency(cashFlow.incomeNeeded, language)).replace('{goal}', formatCurrency(cashFlow.savingsGoal, language))}</p>
               </div>
             </div>
           )}
@@ -408,7 +410,7 @@ const AnalyticsTab: FC<AnalyticsTabProps> = (props) => {
             </div>
           </div>
           <p className="text-4xl font-bold my-2">{isFinite(runway.runwayMonths) ? t('analytics.runwayMonths').replace('{months}', runway.runwayMonths.toString()) : '∞'}</p>
-          <p className="text-xs text-gray-500">{t('analytics.runwayBasedOn')} <span className={runway.monthlyNet < 0 ? 'text-red-600' : 'text-green-600'}>₹{runway.monthlyNet.toFixed(0)}</span>.</p>
+          <p className="text-xs text-gray-500">{t('analytics.runwayBasedOn')} <span className={runway.monthlyNet < 0 ? 'text-red-600' : 'text-green-600'}>{formatCurrency(runway.monthlyNet, language)}</span>.</p>
         </div>
       </div>
 
@@ -449,9 +451,9 @@ const AnalyticsTab: FC<AnalyticsTabProps> = (props) => {
             </div>
           </div>
           <div className={`mt-2 text-2xl font-bold ${simulatedSavingsColor}`}>
-            ₹{simulatedSavingsResult.simulatedSavings.toFixed(0)}
+            {formatCurrency(simulatedSavingsResult.simulatedSavings, language)}
           </div>
-          <p className="text-xs text-gray-500">{t('analytics.simulatedSavingsBasedOn').replace('{income}', simulatedSavingsResult.monthlyIncome.toFixed(0)).replace('{budget}', simulatedSavingsResult.simulatedTotalBudget.toFixed(0))}</p>
+          <p className="text-xs text-gray-500">{t('analytics.simulatedSavingsBasedOn').replace('{income}', formatCurrency(simulatedSavingsResult.monthlyIncome, language)).replace('{budget}', formatCurrency(simulatedSavingsResult.simulatedTotalBudget, language))}</p>
         </div>
       </div>}
 
@@ -465,7 +467,7 @@ const AnalyticsTab: FC<AnalyticsTabProps> = (props) => {
               <div key={insight.category} className="border border-gray-200 rounded-xl p-4">
                 <div className="flex justify-between items-center">
                   <span className="font-semibold text-gray-800">{insight.category}</span>
-                  <span className="text-lg font-bold">₹{insight.spending.toFixed(0)}</span>
+                  <span className="text-lg font-bold">{formatCurrency(insight.spending, language)}</span>
                 </div>
                 <div className="flex justify-between items-center text-sm mt-1">
                   <div className={`flex items-center ${insight.trend > 10 ? 'text-red-600' : insight.trend < -10 ? 'text-green-600' : 'text-gray-500'}`}>
@@ -494,7 +496,7 @@ const AnalyticsTab: FC<AnalyticsTabProps> = (props) => {
                 )}
                 {insight.largestTransaction && (
                   <div className="text-xs text-gray-500 mt-2 pt-2 border-t border-gray-100">
-                    <strong>{t('analytics.largestTx')}</strong> ₹{Math.abs(insight.largestTransaction.amount).toFixed(0)}{insight.largestTransaction.description ? ` - ${insight.largestTransaction.description}` : ''}
+                    <strong>{t('analytics.largestTx')}</strong> {formatCurrency(Math.abs(insight.largestTransaction.amount), language)}{insight.largestTransaction.description ? ` - ${insight.largestTransaction.description}` : ''}
                   </div>
                 )}
               </div>

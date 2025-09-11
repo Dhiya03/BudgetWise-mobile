@@ -2041,6 +2041,7 @@ const App = () => {
             addCustomCategoryToForm={addCustomCategoryToForm}
             removeCategoryFromForm={removeCategoryFromForm}
             updateCategoryBudget={updateCategoryBudget}
+            language={language}
             getSpentAmount={getSpentAmount}
           />
         )}
@@ -2407,10 +2408,11 @@ const App = () => {
                   onSetAlert={handleSetSpendingAlert}
                   spendingAlerts={spendingAlerts}
                   handleNavigationRequest={handleNavigationRequest}
+                  language={language}
                 />
               )}
         {activeTab === 'reminders' && hasAccessTo(Feature.BillReminders) ? (
-          <BillReminderTab billReminders={billReminders} setBillReminders={setBillReminders} showConfirmation={showConfirmation} />
+          <BillReminderTab billReminders={billReminders} setBillReminders={setBillReminders} showConfirmation={showConfirmation} language={language} />
         ) : activeTab === 'reminders' && (
           <div className="p-6 text-center bg-white rounded-2xl m-4 shadow-lg">
             <h2 className="text-xl font-bold text-gray-800 mb-4">{t('reminders.neverMissPayment')}</h2>
@@ -2508,6 +2510,7 @@ const App = () => {
               getSpentAmount={getSpentAmount}
               getRemainingBudget={getRemainingBudget}
               t={t}
+              language={language}
             />
 
             {hasAccessTo(Feature.SpendingAlerts) && (
