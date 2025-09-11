@@ -53,57 +53,51 @@ const AddTab: React.FC<AddTabProps> = (props) => {
 
   const { t } = useLocalization();
 
+  const handleAddNewMonthlyCategory = () => {
+    if (newCategory && !categories.includes(newCategory) && newCategoryBudget) {
+      const newCategories = [...categories, newCategory];
+      setCategories(newCategories);
+      const newBudgets = { ...budgets, [newCategory]: parseFloat(newCategoryBudget) };
+      setBudgets(newBudgets);
+      setFormData({ ...formData, category: newCategory }); // Select the new category
+      setNewCategory('');
+      setNewCategoryBudget('');
+      setShowCategoryInput(false);
+    } else {
+      alert(t('addTab.validation.newCategory'));
+    }
+  };
+
+  const handleAddNewCustomCategory = () => {
+    if (newCustomCategory && selectedCustomBudgetForCategory && newCustomCategoryBudget) {
+      const newCategoryBudgetAmount = parseFloat(newCustomCategoryBudget);
+      const updatedCustomBudgets = customBudgets.map(budget =>
+        budget.id === selectedCustomBudgetForCategory
+          ? {
+              ...budget,
+              categories: [...budget.categories, newCustomCategory],
+              categoryBudgets: { ...budget.categoryBudgets, [newCustomCategory]: newCategoryBudgetAmount },
+              // Also update the parent budget's total amount
+              totalAmount: budget.totalAmount + newCategoryBudgetAmount,
+              remainingAmount: budget.remainingAmount + newCategoryBudgetAmount,
+              updatedAt: new Date().toISOString(),
+            }
+          : budget
+      );
+      setCustomBudgets(updatedCustomBudgets);
+      setFormData({ ...formData, customCategory: newCustomCategory }); // Select the new category
+      setNewCustomCategory('');
+      setNewCustomCategoryBudget('');
+      setShowCustomCategoryInput(false);
+      setSelectedCustomBudgetForCategory(null);
+    } else {
+      alert(t('addTab.validation.newCustomCategory'));
+    }
+  };
+
   const handleAddOrUpdateTransaction = () => {
     let currentFormData = { ...formData };
     const isUpdate = !!editingTransaction;
-
-    // Handle adding a new monthly category if the inputs are visible
-    if (showCategoryInput) {
-      if (newCategory && !categories.includes(newCategory) && newCategoryBudget) {
-        const newCategories = [...categories, newCategory];
-        setCategories(newCategories);
-        const newBudgets = { ...budgets, [newCategory]: parseFloat(newCategoryBudget) };
-        setBudgets(newBudgets);
-        currentFormData.category = newCategory; // Use the new category for this transaction
-        setNewCategory('');
-        setNewCategoryBudget('');
-        setShowCategoryInput(false);
-      } else {
-        alert(t('addTab.validation.newCategory'));
-        return;
-      }
-    }
-
-    // Handle adding a new custom category if the inputs are visible
-    if (showCustomCategoryInput) {
-      if (newCustomCategory && selectedCustomBudgetForCategory && newCustomCategoryBudget) {
-        const newCategoryBudgetAmount = parseFloat(newCustomCategoryBudget);
-        const updatedCustomBudgets = customBudgets.map(budget =>
-          budget.id === selectedCustomBudgetForCategory
-            ? {
-                ...budget,
-                categories: [...budget.categories, newCustomCategory],
-                categoryBudgets: { ...budget.categoryBudgets, [newCustomCategory]: newCategoryBudgetAmount },
-                totalAmount: budget.totalAmount + newCategoryBudgetAmount,
-                remainingAmount: budget.remainingAmount + newCategoryBudgetAmount,
-                updatedAt: new Date().toISOString(),
-              }
-            : budget
-        );
-        if (!categories.includes(newCustomCategory)) {
-          setCategories([...categories, newCustomCategory]);
-        }
-        setCustomBudgets(updatedCustomBudgets);
-        currentFormData.customCategory = newCustomCategory; // Use the new category
-        setNewCustomCategory('');
-        setNewCustomCategoryBudget('');
-        setShowCustomCategoryInput(false);
-        setSelectedCustomBudgetForCategory(null);
-      } else {
-        alert(t('addTab.validation.newCustomCategory'));
-        return;
-      }
-    }
 
     // --- Finish the transaction ---
     if (!currentFormData.amount) return;
@@ -252,24 +246,26 @@ const AddTab: React.FC<AddTabProps> = (props) => {
                 </select>
 
                 {showCategoryInput && (
-                  <div className="space-y-2">
-                    <div className="flex space-x-2">
-                      <input
-                        type="text"
-                        value={newCategory}
-                        onChange={(e) => setNewCategory(e.target.value)}
-                        placeholder={t('addTab.newCategoryPlaceholder')}
-                        className="flex-1 min-w-0 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
-                      />
-                      <input
-                        type="number"
-                        value={newCategoryBudget}
-                        onChange={(e) => setNewCategoryBudget(e.target.value)}
-                        placeholder={t('addTab.budgetPlaceholder')}
-                        className="w-28 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
-                      />
+                  <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="space-y-2">
+                      <div className="flex space-x-2">
+                        <input
+                          type="text"
+                          value={newCategory}
+                          onChange={(e) => setNewCategory(e.target.value)}
+                          placeholder={t('addTab.newCategoryPlaceholder')}
+                          className="flex-1 min-w-0 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
+                        />
+                        <input
+                          type="number"
+                          value={newCategoryBudget}
+                          onChange={(e) => setNewCategoryBudget(e.target.value)}
+                          placeholder={t('addTab.budgetPlaceholder')}
+                          className="w-28 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
+                        />
+                      </div>
+                      <button onClick={handleAddNewMonthlyCategory} className="w-full p-2 text-sm bg-purple-600 text-white rounded-lg">{t('general.add')}</button>
                     </div>
-
                   </div>
                 )}
               </div>
@@ -332,22 +328,25 @@ const AddTab: React.FC<AddTabProps> = (props) => {
                     </select>
 
                     {showCustomCategoryInput && selectedCustomBudgetForCategory === formData.customBudgetId && (
-                      <div className="space-y-2">
-                        <div className="flex space-x-2">
-                          <input
-                            type="text"
-                            value={newCustomCategory}
-                            onChange={(e) => setNewCustomCategory(e.target.value)} 
-                            placeholder={t('addTab.newCategoryPlaceholder')}
-                            className="flex-1 min-w-0 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
-                          />
-                          <input
-                            type="number"
-                            value={newCustomCategoryBudget}
-                            onChange={(e) => setNewCustomCategoryBudget(e.target.value)} 
-                            placeholder={t('addTab.budgetPlaceholder')}
-                            className="w-28 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
-                          />
+                      <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                        <div className="space-y-2">
+                          <div className="flex space-x-2">
+                            <input
+                              type="text"
+                              value={newCustomCategory}
+                              onChange={(e) => setNewCustomCategory(e.target.value)}
+                              placeholder={t('addTab.newCategoryPlaceholder')}
+                              className="flex-1 min-w-0 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
+                            />
+                            <input
+                              type="number"
+                              value={newCustomCategoryBudget}
+                              onChange={(e) => setNewCustomCategoryBudget(e.target.value)}
+                              placeholder={t('addTab.budgetPlaceholder')}
+                              className="w-28 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
+                            />
+                          </div>
+                          <button onClick={handleAddNewCustomCategory} className="w-full p-2 text-sm bg-purple-600 text-white rounded-lg">{t('general.add')}</button>
                         </div>
                       </div>
                     )}
