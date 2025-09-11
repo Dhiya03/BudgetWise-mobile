@@ -15,7 +15,7 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({ activeTab, onTabCha
           onClick={() => onTabChange('add')}
           className="w-1/5 flex justify-center items-center py-2 group"
         >
-          <div className={`flex flex-col items-center justify-center w-16 py-2 rounded-xl transition-colors ${
+          <div className={`flex flex-col items-center justify-center px-2 py-2 rounded-xl transition-colors ${
             activeTab === 'add' ? 'bg-purple-100 text-purple-600' : 'text-gray-600 group-hover:bg-gray-100'
           }`}>
             <Plus size={24} />
@@ -27,7 +27,7 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({ activeTab, onTabCha
           onClick={() => onTabChange('history')}
           className="w-1/5 flex justify-center items-center py-2 group"
         >
-          <div className={`flex flex-col items-center justify-center w-16 py-2 rounded-xl transition-colors ${
+          <div className={`flex flex-col items-center justify-center px-2 py-2 rounded-xl transition-colors ${
             activeTab === 'history' ? 'bg-purple-100 text-purple-600' : 'text-gray-600 group-hover:bg-gray-100'
           }`}>
             <List size={24} />
@@ -39,7 +39,7 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({ activeTab, onTabCha
           onClick={() => onTabChange('analytics')}
           className="w-1/5 flex justify-center items-center py-2 group"
         >
-          <div className={`flex flex-col items-center justify-center w-16 py-2 rounded-xl transition-colors ${
+          <div className={`flex flex-col items-center justify-center px-2 py-2 rounded-xl transition-colors ${
             activeTab === 'analytics' ? 'bg-purple-100 text-purple-600' : 'text-gray-600 group-hover:bg-gray-100'
           }`}>
             <BarChart3 size={24} />
@@ -51,7 +51,7 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({ activeTab, onTabCha
           onClick={() => onTabChange('budget')}
           className="w-1/5 flex justify-center items-center py-2 group"
         >
-          <div className={`flex flex-col items-center justify-center w-16 py-2 rounded-xl transition-colors ${
+          <div className={`flex flex-col items-center justify-center px-2 py-2 rounded-xl transition-colors ${
             activeTab === 'budget' ? 'bg-purple-100 text-purple-600' : 'text-gray-600 group-hover:bg-gray-100'
           }`}>
             <PieChart size={24} />
@@ -63,7 +63,7 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({ activeTab, onTabCha
           onClick={() => onTabChange('reminders')}
           className="w-1/5 flex justify-center items-center py-2 group"
         >
-          <div className={`flex flex-col items-center justify-center w-16 py-2 rounded-xl transition-colors ${
+          <div className={`flex flex-col items-center justify-center px-2 py-2 rounded-xl transition-colors ${
             activeTab === 'reminders' ? 'bg-purple-100 text-purple-600' : 'text-gray-600 group-hover:bg-gray-100'
           }`}>
             <Bell size={24} />

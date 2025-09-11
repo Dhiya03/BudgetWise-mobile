@@ -264,7 +264,7 @@
 ## PLURALIZATION AND GRAMMAR
 
 ### US-013: Grammatically Correct Plurals (Phase 2)
-**As a** Hindi/Tamil/Telugu user  
+**As a** Hindi/Tamil/Telugu/Kannada/Malayalam user  
 **I want** the app to use correct plural forms  
 **So that** the language feels natural and professional  
 

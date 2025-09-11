@@ -305,13 +305,13 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
       <div className="bg-white rounded-2xl p-6 shadow-lg">
         <h2 className="text-xl font-bold text-gray-800 mb-4">{t('budget.templatesTitle')}</h2>
         <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">{t('budget.createFromTemplate')}</label>
-            <div className="flex space-x-2">
+          <div className="space-y-2 sm:space-y-0">
+            <label className="block text-sm font-medium text-gray-700">{t('budget.createFromTemplate')}</label>
+            <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 items-center">
               <select
                 value={selectedTemplate}
                 onChange={(e) => setSelectedTemplate(e.target.value)}
-                className="flex-1 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
+                className="w-full py-3 px-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
               > 
                 <option value="">{t('budget.selectTemplate')}</option>
                 {budgetTemplates.map(template => (
@@ -374,8 +374,8 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
             <h4 className="text-sm font-medium text-gray-700">{t('budget.activeRules')}</h4>
             {budgetRelationships.length === 0 && <p className="text-sm text-gray-500">{t('budget.noRules')}</p>}
             {budgetRelationships.map((rel: BudgetRelationship) => (
-              <div key={rel.id} className="flex justify-between items-center bg-gray-50 p-2 rounded-lg">
-                <span className="text-sm">{t('budget.rolloverRule').replace('{source}', rel.sourceCategory).replace('{destination}', getCustomBudgetName(rel.destinationBudgetId))}</span>
+              <div key={rel.id} className="flex justify-between items-center gap-2 bg-gray-50 p-2 rounded-lg">
+                <span className="text-sm truncate" title={t('budget.rolloverRule').replace('{source}', rel.sourceCategory).replace('{destination}', getCustomBudgetName(rel.destinationBudgetId))}>{t('budget.rolloverRule').replace('{source}', rel.sourceCategory).replace('{destination}', getCustomBudgetName(rel.destinationBudgetId))}</span>
                 <button onClick={() => deleteRelationship(rel.id)} className="p-1 text-red-500 hover:bg-red-100 rounded-full">
                   <Trash2 size={16} />
                 </button>
@@ -421,13 +421,13 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
               return (
                 <div key={budget.id} className={`border rounded-xl p-4 transition-colors ${isDeadlinePassed ? 'bg-violet-50 border-violet-300' : isLocked ? 'bg-gray-100 opacity-80 border-gray-200' : 'border-gray-200'}`}>
                   <div className="flex justify-between items-start mb-3">
-                    <div>
-                      <h3 className="font-semibold text-gray-800 flex items-center">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-gray-800 flex items-center truncate" title={budget.name}>
                         {isLocked && <Lock size={16} className="mr-2 text-gray-500" />}
                         {budget.name}
                       </h3>
                       {budget.description && (
-                        <p className="text-sm text-gray-600 mt-1">{budget.description}</p>
+                        <p className="text-sm text-gray-600 mt-1 truncate" title={budget.description}>{budget.description}</p>
                       )}
                       {budget.deadline && (
                         <p className="text-xs text-gray-500 mt-1"> 
@@ -435,13 +435,13 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
                         </p>
                       )}
                     </div>
-                    <div className="flex items-center space-x-2">
+                    <div className="flex flex-wrap justify-end items-center gap-x-2 gap-y-1 ml-2">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                         budget.priority === 'high' ? 'bg-red-100 text-red-800' :
                         budget.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
                         'bg-green-100 text-green-800'
-                      }`}>
-                        {budget.priority}
+                      }`} title={t(`budget.priority.${budget.priority}`)}>
+                        {t(`budget.priority.${budget.priority}`)}
                       </span>
                       <button
                         onClick={() => handleLockBudget(budget.id)}
@@ -517,12 +517,12 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
                           
                           return (
                             <div key={category} className="bg-white p-3 rounded-lg border border-gray-100">
-                              <div className="flex justify-between items-center mb-2">
-                                <div className="flex items-center space-x-2">
-                                  <span className="font-medium text-gray-700">{category}</span>
+                              <div className="flex justify-between items-center gap-2 mb-2">
+                                <div className="flex-1 min-w-0 flex items-center space-x-2">
+                                  <span className="font-medium text-gray-700 truncate" title={category}>{category}</span>
                                   <span className="text-xs text-gray-400">{t('budget.transactionCount').replace('{count}', categoryTransactions.toString())}</span>
                                 </div>
-                                <div className="text-right">
+                                <div className="text-right flex-shrink-0">
                                   <span className="text-sm font-medium text-gray-800">
                                     {formatCurrency(categorySpent, language)} / {formatCurrency(categoryBudget, language)}
                                   </span>
@@ -605,9 +605,11 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
 
             return (
               <div key={category} className="border border-gray-200 rounded-xl p-4">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="font-semibold text-gray-800">{category}</span>
-                  <span className="text-sm text-gray-600">
+                <div className="flex justify-between items-center gap-2 mb-2">
+                  <div className="flex-1 min-w-0">
+                    <span className="font-semibold text-gray-800 truncate block" title={category}>{category}</span>
+                  </div>
+                  <span className="text-sm text-gray-600 flex-shrink-0">
                     {formatCurrency(spent, language)} / {formatCurrency(budget, language)}
                   </span>
                 </div>

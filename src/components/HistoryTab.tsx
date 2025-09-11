@@ -134,9 +134,9 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
   return (
     <div className="p-4 space-y-4">
       <div className="bg-white rounded-2xl p-4 shadow-lg">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold text-gray-800">{t('history.title', 'Transactions')}</h2>
-          <div className="flex space-x-2">
+        <div className="flex flex-wrap justify-between items-center gap-4 mb-4">
+          <h2 className="text-xl font-bold text-gray-800 flex-shrink">{t('history.title', 'Transactions')}</h2>
+          <div className="flex space-x-2 flex-shrink-0">
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
@@ -236,7 +236,7 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
                           </span>
                         )}
                       </div>
-                      {transaction.description && <p className="text-sm text-gray-600 truncate">{transaction.description}</p>}
+                      {transaction.description && <p className="text-sm text-gray-600 truncate" title={transaction.description}>{transaction.description}</p>}
                       <div className="flex justify-between items-center mt-2">
                         <p className="text-xs text-gray-500">{formatDate(transaction.date, language)}</p>
                         <p className={`font-bold text-sm ${transaction.amount < 0 ? 'text-red-600' : 'text-green-600'}`}>
