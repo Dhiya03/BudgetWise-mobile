@@ -205,20 +205,36 @@ export const getSpendingPersonality = (transactions: Transaction[]) => {
     }
   });
 
-  if (totalSpending === 0) return { personality: "Not Enough Data", insight: "Start logging expenses to see your spending habits." };
+  if (totalSpending === 0) return {
+    personalityKey: "analytics.personality.notEnoughData",
+    insightKey: "analytics.personality.notEnoughData.insight",
+    values: {}
+  };
 
-  const weekendSpending = dayOfWeekSpending[0] + dayOfWeekSpending[5] + dayOfWeekSpending[6];
-  const weekdaySpending = totalSpending - weekendSpending;
+  const weekendSpending = dayOfWeekSpending[0] + dayOfWeekSpending[6];
 
   const weekendPercentage = (weekendSpending / totalSpending) * 100;
+  const weekdayPercentage = 100 - weekendPercentage;
 
   if (weekendPercentage > 60) {
-    return { personality: "Weekend Spender", insight: `You spend ${weekendPercentage.toFixed(0)}% of your money on weekends.` };
+    return {
+      personalityKey: "analytics.personality.weekendSpender",
+      insightKey: "analytics.personality.weekendSpender.insight",
+      values: { percent: weekendPercentage.toFixed(0) }
+    };
   }
   if (weekendPercentage < 40) {
-    return { personality: "Weekday Warrior", insight: `You handle most of your spending (${(weekdaySpending / totalSpending * 100).toFixed(0)}%) during the week.` };
+    return {
+      personalityKey: "analytics.personality.weekdayWarrior",
+      insightKey: "analytics.personality.weekdayWarrior.insight",
+      values: { percent: weekdayPercentage.toFixed(0) }
+    };
   }
-  return { personality: "Balanced Spender", insight: "Your spending is evenly distributed throughout the week." };
+  return {
+    personalityKey: "analytics.personality.balancedSpender",
+    insightKey: "analytics.personality.balancedSpender.insight",
+    values: {}
+  };
 };
 
 export const getDailySpendingStreak = (transactions: Transaction[], threshold: number, analyticsTimeframe: string) => {

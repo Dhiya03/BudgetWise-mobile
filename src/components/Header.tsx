@@ -1,5 +1,6 @@
 import React from 'react';
 import { Download, FileSpreadsheet, Settings, Star } from 'lucide-react';
+import { SupportedLanguage } from '../types';
 import { hasAccessTo, Feature } from '../subscriptionManager';
 
 interface HeaderProps {
@@ -16,6 +17,7 @@ interface HeaderProps {
   onSetCurrentMonth: (month: number) => void;
   onSetCurrentYear: (year: number) => void;
   t: (key: string, fallback?: string) => string;
+  language: SupportedLanguage;
 }
 
 const Header: React.FC<HeaderProps> = ({
@@ -28,6 +30,7 @@ const Header: React.FC<HeaderProps> = ({
   onSetCurrentMonth,
   onSetCurrentYear,
   t,
+  language,
 }) => {
   return (
     <div className="bg-gradient-to-r from-purple-600 to-blue-600 text-white p-4 pb-6">
@@ -93,7 +96,7 @@ const Header: React.FC<HeaderProps> = ({
           ←
         </button>
         <span className="font-semibold">
-          {new Date(currentYear, currentMonth).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+          {new Date(currentYear, currentMonth).toLocaleDateString(language, { month: 'long', year: 'numeric' })}
         </span>
         <button
           onClick={() => {

@@ -45,6 +45,7 @@ import BillingManager from './billing/BillingManager';
 import UpgradeBanner from './components/UpgradeBanner';
 import { useLocalization } from './LocalizationContext';
 import ConfirmationModal from './components/ConfirmationModal';
+import { languageOptions } from './components/LocalizationSettings'; // Import languageOptions
 import SubscriptionScreen from './billing/SubscriptionScreen';
 
 const Toast = ({ message, isVisible }: { message: string; isVisible: boolean; }) => {
@@ -1899,7 +1900,8 @@ const App = () => {
       setGlobalLanguage(newLang);
       // When language changes, we must reschedule notifications to use the new language.
       scheduleTipNotifications(newLang, tipSettings);
-      showToast(`${t('languageChangedTo')} ${newLang.toUpperCase()}`); // Use t() here
+      const languageName = languageOptions.find((opt: {code: SupportedLanguage; name: string }) => opt.code === newLang)?.name || newLang;
+      showToast(`${t('languageChangedTo')} ${languageName}`);
     };
 
     // --- Financial Tip Notification Hook ---
@@ -1940,6 +1942,7 @@ const App = () => {
         onSetCurrentMonth={setCurrentMonth}
         onSetCurrentYear={setCurrentYear}
         t={t}
+        language={language}
       />
 
       {/* Main Content */}
@@ -1987,6 +1990,7 @@ const App = () => {
             editTransaction={editTransaction}
             deleteTransaction={deleteTransaction}
             getCustomBudgetName={getCustomBudgetName}
+            language={language}
           />
         )}
 

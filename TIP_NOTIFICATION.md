@@ -7,7 +7,7 @@ So that I can improve my financial literacy while being entertained and motivate
 User Story Details
 Primary User Story
 As a budget-conscious individual using BudgetWise
-I want to receive daily financial tips in my preferred language (English, Hindi, Telugu, Tamil) with humor and practical insights
+I want to receive daily financial tips in my preferred language (English, Hindi, Telugu, Tamil, Kannada, Malayalam) with humor and practical insights
 So that I can learn financial concepts in an engaging way and develop better money habits
 User Personas
 
@@ -21,7 +21,7 @@ Acceptance Criteria
 Must Have (MVP)
 
  User receives daily financial tip notifications at 10 AM
- Tips are available in 4 languages: English, Hindi, Telugu, Tamil
+ Tips are available in 6 languages: English, Hindi, Telugu, Tamil, Kannada, Malayalam
  Tips include humor/casual tone to increase engagement
  User can change language preference in app settings
  Tips are categorized: Funny, Facts, Advice, Myth-busters
@@ -81,6 +81,8 @@ typescriptinterface FinancialTip {
     hi: { tip: string; shareText: string; };
     te: { tip: string; shareText: string; };
     ta: { tip: string; shareText: string; };
+    kn: { tip: string; shareText: string; };
+    ml: { tip: string; shareText: string; };
   };
   contextualTriggers?: string[]; // When to show this tip
 }
@@ -156,7 +158,7 @@ Create tip categories filter
 
 Settings Options:
 
-Language preference (4 options)
+Language preference (6 options)
 Notification time (default 10:00 AM)
 Notification frequency (daily/weekly/off)
 Tip categories to include/exclude

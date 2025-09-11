@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import HistoryTab from '../components/HistoryTab';
 import { hasAccessTo, Feature } from '../subscriptionManager';
 import type { Mock } from 'vitest';
-import { Transaction } from '../types';
+import { SupportedLanguage, Transaction } from '../types';
 
 vi.mock('../subscriptionManager');
 
@@ -29,6 +29,7 @@ const createDefaultProps = () => ({
   editTransaction: vi.fn(),
   deleteTransaction: vi.fn(),
   getCustomBudgetName: vi.fn(),
+  language: 'en' as SupportedLanguage,
 });
 
 describe('HistoryTab', () => {

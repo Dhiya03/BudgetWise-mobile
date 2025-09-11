@@ -363,8 +363,8 @@ const AnalyticsTab: FC<AnalyticsTabProps> = (props) => {
             <CalendarDays size={24} className="mr-4 text-blue-600" />
             <div>
               <p className="text-sm font-medium">{t('analytics.personalityTitle')}</p>
-              <p className="text-lg font-bold">{personality.personality}</p>
-              <p className="text-xs text-gray-600">{personality.insight}</p>
+              <p className="text-lg font-bold">{t(personality.personalityKey)}</p>
+              <p className="text-xs text-gray-600">{t(personality.insightKey).replace('{percent}', personality.values.percent || '0')}</p>
             </div>
           </div>
           <div className={`p-4 rounded-lg flex items-center ${streak.isTodayUnder ? 'bg-green-50' : 'bg-yellow-50'}`}>

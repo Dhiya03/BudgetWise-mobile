@@ -304,7 +304,7 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
         startY: (doc as any).lastAutoTable.finalY + 10,
         head: [[t('analytics.habitsTitle'), t('general.insight', 'Insight')]],
         body: [
-          [t('analytics.personalityTitle'), personality.personality],
+          [t('analytics.personalityTitle'), t(personality.personalityKey)],
           [t('analytics.dailyGoalTitle'), `${streak.streak} ${t('general.days', 'days')} ${t('general.under', 'under')} ₹${dailySpendingGoal}`],
         ],
         theme: 'striped',
@@ -482,8 +482,8 @@ const DataManagement: React.FC<DataManagementProps> = (props) => {
             <div class="grid">
               <div class="card">
                 <div class="card-title">{t('analytics.personalityTitle')}</div>
-                <div class="card-value">${personality.personality}</div>
-                <p style="font-size: 0.8em; color: #6b7280;">${personality.insight}</p>
+                <div class="card-value">${t(personality.personalityKey)}</div>
+                <p style="font-size: 0.8em; color: #6b7280;">${t(personality.insightKey).replace('{percent}', personality.values.percent || '0')}</p>
               </div>
               <div class="card">
                 <div class="card-title">{t('analytics.dailyGoalTitle')}</div>

@@ -6,11 +6,13 @@ interface LocalizationSettingsProps {
   t: (key: string, fallback?: string) => string;
 }
 
-const languageOptions: { code: SupportedLanguage; name: string }[] = [
+export const languageOptions: { code: SupportedLanguage; name: string }[] = [
   { code: 'en', name: 'English' },
   { code: 'hi', name: 'हिंदी (Hindi)' },
   { code: 'ta', name: 'தமிழ் (Tamil)' },
   { code: 'te', name: 'తెలుగు (Telugu)' },
+  { code: 'kn', name: 'ಕನ್ನಡ (Kannada)' },
+  { code: 'ml', name: 'മലയാളം (Malayalam)' },
 ];
 
 const LocalizationSettings = ({ currentLanguage, onLanguageChange, t }: LocalizationSettingsProps) => {

@@ -22,11 +22,11 @@
 
 ### US-002: Premium Language Selection (Phase 1)
 **As a** Plus/Premium subscriber  
-**I want** to switch the app language to Hindi, Tamil, or Telugu  
+**I want** to switch the app language to Hindi, Tamil, Telugu, Kannada, or Malayalam  
 **So that** I can use the app in my preferred language  
 
 **Tasks:**
-- [ ] Create language dropdown component with 4 options (English, हिंदी, தமிழ், తెలుగు)
+- [ ] Create language dropdown component with 6 options (English, हिंदी, தமிழ், తెలుగు, ಕನ್ನಡ, മലയാളം)
 - [ ] Add language selection to Settings component
 - [ ] Create language context provider (LocalizationContext)
 - [ ] Implement localStorage to persist language choice
@@ -183,6 +183,8 @@
 - [ ] Add support for Hindi banking SMS formats
 - [ ] Add support for Tamil banking SMS formats
 - [ ] Add support for Telugu banking SMS formats
+- [ ] Add support for Kannada banking SMS formats
+- [ ] Add support for Malayalam banking SMS formats
 - [ ] Create regional CSV import templates
 - [ ] Add Indian account type classifications
 - [ ] Implement UPI app name recognition in local languages

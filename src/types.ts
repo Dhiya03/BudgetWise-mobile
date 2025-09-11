@@ -121,11 +121,17 @@ export interface TransferEvent {
   toCategoryAllocations: { [key: string]: number };
 }
 
+// Describes the data for a new monthly category being created
+export type NewMonthlyCategory = {
+  name: string;
+  budget: number;
+};
+
 // Describes the languages supported for financial tips
-export type SupportedLanguage = 'en' | 'hi' | 'ta' | 'te';
+export type SupportedLanguage = 'en' | 'hi' | 'ta' | 'te' | 'kn' | 'ml';
 
 // Defines an array of supported languages for easier validation.
-export const SUPPORTED_LANGUAGES: SupportedLanguage[] = ['en', 'hi', 'ta', 'te'];
+export const SUPPORTED_LANGUAGES: SupportedLanguage[] = ['en', 'hi', 'ta', 'te', 'kn', 'ml'];
 
 // Describes a financial tip for the notification system
 export interface FinancialTip {
@@ -139,6 +145,8 @@ export interface FinancialTip {
     hi: { tip: string; shareText: string };
     te: { tip: string; shareText: string };
     ta: { tip: string; shareText: string };
+    kn: { tip: string; shareText: string };
+    ml: { tip: string; shareText: string };
   };
   contextualTriggers?: string[];
 }

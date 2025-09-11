@@ -29,7 +29,11 @@ const mockAnalyticsData = {
   healthScore: { score: 85, color: 'text-green-600', breakdown: {} },
   cashFlow: { totalIncome: 50000, totalExpenses: 30000, savings: 20000, projectedMonthlySavings: 20000, burnRateDays: Infinity, incomeNeeded: 0, savingsGoal: 10000 },
   categoryInsights: [{ category: 'Food', spending: 12000, trend: 15, smartText: 'High spending on weekends.', largestTransaction: { amount: -1500, description: 'Big dinner' } }],
-  personality: { personality: 'Weekend Spender', insight: 'You tend to spend more on Saturdays and Sundays.' },
+  personality: {
+    personalityKey: 'analytics.personality.weekendSpender',
+    insightKey: 'analytics.personality.weekendSpender.insight',
+    values: { percent: '65' }
+  },
   streak: { streak: 5, isTodayUnder: true },
   runway: { runwayMonths: Infinity, monthlyNet: 20000 },
 };

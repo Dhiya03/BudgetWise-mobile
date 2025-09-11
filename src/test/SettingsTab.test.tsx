@@ -89,7 +89,7 @@ describe('SettingsTab Language Selection', () => {
     await fireEvent.change(languageSelect, { target: { value: 'hi' } });
 
     // Assert
-    expect(screen.getByText('Language changed to HI')).toBeInTheDocument();
+    expect(screen.getByText('Language changed to हिंदी (Hindi)')).toBeInTheDocument();
     expect(localStorage.setItem).toHaveBeenCalledWith('budgetwise_user_language', 'hi');
   });
 });
