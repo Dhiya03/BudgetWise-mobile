@@ -229,7 +229,7 @@ npx cap init
 
 You will be prompted for the following:
 -   **App Name**: `BudgetWise`
--   **App ID**: `com.budgetwise.app` (a unique identifier for your app)
+-   **App ID**: `com.budgetwise.financetracker` (a unique identifier for your app)
 
 This creates a `capacitor.config.ts` file. Ensure the `webDir` is set to `'dist'`, which is Vite's default output directory.
 
@@ -237,7 +237,7 @@ This creates a `capacitor.config.ts` file. Ensure the `webDir` is set to `'dist'
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.budgetwise.app',
+  appId: 'com.budgetwise.financetracker',
   appName: 'BudgetWise',
   webDir: 'dist',
   server: {

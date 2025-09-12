@@ -19,6 +19,7 @@ interface AddTabProps {
   onSetCategoryFromSuggestion: (category: string) => void;
 }
 
+
 const AddTab: React.FC<AddTabProps> = (props) => {
   const {
     editingTransaction,

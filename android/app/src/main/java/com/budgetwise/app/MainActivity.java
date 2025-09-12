@@ -1,4 +1,4 @@
-package com.budgetwise.app;
+package com.budgetwise.financetracker;
 
 import android.os.Bundle;
 import com.getcapacitor.BridgeActivity;

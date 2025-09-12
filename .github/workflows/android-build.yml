@@ -62,13 +62,71 @@ jobs:
         working-directory: ./android
         run: chmod +x ./gradlew
 
-      - name: Build Debug APK
-        working-directory: ./android
-        run: ./gradlew build --stacktrace --info
+      # - name: Build Debug APK
+      #   working-directory: ./android
+      #   run: ./gradlew build --stacktrace --info
 
-      - name: Upload APK as Artifact
+      # - name: Upload APK as Artifact
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: budget-wise-debug-apk
+      #     path: android/app/build/outputs/apk/debug/app-debug.apk
+      #     retention-days: 3
+
+
+            # 🔹 Generate Keystore
+      # - name: Generate Keystore
+      #   working-directory: ./android/app
+      #   run: |
+      #     keytool -genkeypair \
+      #       -v \
+      #       -keystore budgetwise-key.jks \
+      #       -storepass ${{ secrets.ANDROID_KEYSTORE_PASSWORD }} \
+      #       -keypass ${{ secrets.ANDROID_KEY_PASSWORD }} \
+      #       -keyalg RSA \
+      #       -keysize 2048 \
+      #       -validity 10000 \
+      #       -alias ${{ secrets.ANDROID_KEY_ALIAS }} \
+      #       -dname "CN=Budgetwise, OU=Dev, O=Budgetwise, L=City, S=State, C=IN"
+
+      - name: Decode Keystore
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android/app/budgetwise-key.jks
+
+      # 🔹 Debug keystore info before build
+      - name: Debug Keystore
+        working-directory: ./android/app
+        run: |
+          ls -lh budgetwise-key.jks
+          file budgetwise-key.jks
+          keytool -list -v -keystore budgetwise-key.jks -storepass ${{ secrets.ANDROID_KEYSTORE_PASSWORD }} || true
+
+      # 🔹 Zip keystore and upload as artifact
+      - name: Archive Keystore
+        working-directory: ./android/app
+        run: zip budgetwise-key.zip budgetwise-key.jks
+
+      - name: Upload Keystore Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: budget-wise-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
-          retention-days: 3
+          name: budgetwise-keystore
+          path: android/app/budgetwise-key.zip
+          retention-days: 7
+
+
+      # 🔹 Build signed Release AAB
+      - name: Build Release AAB
+        working-directory: ./android
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_STORE_FILE: budgetwise-key.jks
+        run: ./gradlew bundleRelease --stacktrace --info
+
+      - name: Upload AAB as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: budget-wise-release-aab
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          retention-days: 7
+

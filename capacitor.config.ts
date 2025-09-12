@@ -1,6 +1,6 @@
 
 const config: CapacitorConfig = {
-  appId: 'com.budgetwise.app',
+  appId: 'com.budgetwise.financetracker',
   appName: 'BudgetWise',
   webDir: 'dist',
   server: {
