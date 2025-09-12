@@ -1,13 +1,13 @@
 import { createContext, useState, useEffect, useContext, useCallback, ReactNode } from 'react';
 import { SupportedLanguage } from './types';
 import FinancialTipsService from './components/FinancialTipsService';
+import en from '../public/i18n/en.json' with { type: 'json' };
 
 // Define the shape of the context
 interface LocalizationContextType {
   language: SupportedLanguage;
   setLanguage: (lang: SupportedLanguage) => void;
   t: (key: string, fallback?: string) => string;
-  isLoaded: boolean;
 }
 
 // Create the context with a default value
@@ -16,11 +16,14 @@ const LocalizationContext = createContext<LocalizationContextType | undefined>(u
 // Define the provider component
 export const LocalizationProvider = ({ children }: { children: ReactNode }) => {
   const [language, setLanguageState] = useState<SupportedLanguage>(FinancialTipsService.getUserLanguage());
-  const [translations, setTranslations] = useState<Record<string, string>>({});
-  const [isLoaded, setIsLoaded] = useState(false);
+  const [translations, setTranslations] = useState<Record<string, string>>(en);
 
   const fetchTranslations = useCallback(async (lang: SupportedLanguage) => {
-    setIsLoaded(false);
+    // English is pre-loaded, no need to fetch it.
+    if (lang === 'en') {
+      setTranslations(en);
+      return;
+    }
     try {
       const response = await fetch(`/i18n/${lang}.json`);
       if (!response.ok) throw new Error('Failed to load translations');
@@ -28,14 +31,8 @@ export const LocalizationProvider = ({ children }: { children: ReactNode }) => {
       setTranslations(data);
     } catch (error) {
       console.error(`Could not load translations for ${lang}, falling back to English.`, error);
-      // Fallback to English if the selected language fails
-      if (lang !== 'en') {
-        const response = await fetch(`/i18n/en.json`);
-        const data = await response.json();
-        setTranslations(data);
-      }
-    } finally {
-      setIsLoaded(true);
+      // Fallback to the pre-loaded English translations
+      setTranslations(en);
     }
   }, []);
 
@@ -52,7 +49,7 @@ export const LocalizationProvider = ({ children }: { children: ReactNode }) => {
     return translations[key] || fallback || key;
   }, [translations]);
 
-  const value = { language, setLanguage, t, isLoaded };
+  const value = { language, setLanguage, t };
   console.log("LocalizationProvider mounted with language:", language);
 
   return (

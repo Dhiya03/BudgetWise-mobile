@@ -66,7 +66,7 @@ const Toast = ({ message, isVisible }: { message: string; isVisible: boolean; })
 };
 
 const App = () => {
-  const { t, isLoaded, language, setLanguage: setGlobalLanguage } = useLocalization();
+  const { t, language, setLanguage: setGlobalLanguage } = useLocalization();
 
   const [activeTab, setActiveTab] = useState('add');
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -1985,14 +1985,6 @@ const App = () => {
         showToast(t('toast.notificationTimeSet').replace('{time}', updatedSettings.time));
       }
     };
-
-  if (!isLoaded) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center bg-purple-50">
-        <p className="text-purple-700 font-semibold animate-pulse">{t('general.loading')}</p>
-      </div>
-    );
-  }
 
   const AppContent = (
     <div className="max-w-md mx-auto bg-gradient-to-br from-purple-50 to-blue-50 min-h-screen">
