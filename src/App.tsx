@@ -1055,6 +1055,32 @@ const App = () => {
     setBudgets(newBudgets);
     setBudgetForm({ category: '', amount: '' });
   };
+  const handleUpdateAllMonthlyBudgets = (newBudgets: MonthlyBudgets) => {
+    setBudgets(newBudgets);
+  }
+
+  const handleDeleteMonthlyBudget = (categoryToDelete: string) => {
+    showConfirmation(
+      t('confirmation.deleteCategory.title', 'Delete Category'),
+      t('confirmation.deleteCategory.message', 'Are you sure you want to permanently delete the category "{category}"? All associated transactions will be moved to Uncategorized. This action cannot be undone.').replace('{category}', categoryToDelete),
+      () => {
+        // 1. Remove the budget entry for the category
+        const newBudgets = { ...budgets };
+        delete newBudgets[categoryToDelete];
+        setBudgets(newBudgets);
+
+        // 2. Filter out the category from the main list
+        setCategories(prev => prev.filter(c => c !== categoryToDelete));
+
+        // 3. Re-categorize all transactions that used this category
+        setTransactions(prev => prev.map(t => 
+          t.category === categoryToDelete ? { ...t, category: '' } : t
+        ));
+
+        showToast(t('toast.categoryDeleted', 'Category "{category}" has been deleted.').replace('{category}', categoryToDelete));
+      }
+    );
+  };
 
   const createCustomBudget = () => {
     if (!customBudgetForm.name || !customBudgetForm.amount) return;
@@ -2057,6 +2083,8 @@ const App = () => {
             categories={categories}
             budgets={budgets}
             setBudget={setBudget}
+            onUpdateAllMonthlyBudgets={handleUpdateAllMonthlyBudgets}
+            onDeleteMonthlyBudget={handleDeleteMonthlyBudget}
             customBudgetFormRef={customBudgetFormRef}
             editingCustomBudget={editingCustomBudget}
             customBudgetForm={customBudgetForm}

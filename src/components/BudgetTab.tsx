@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   BudgetTabProps,
   BudgetRelationship,
 } from '../types';
 import {
-  Pause, Play, Save, Link2, ArrowRight, Trash2, Edit3,
+  Pause, Play, Save, Link2, ArrowRight, Trash2, Edit3, X,
   ArrowUpDown, Lock, Unlock
 } from 'lucide-react';
 import {
@@ -19,7 +19,7 @@ import { formatCurrency, formatDate } from '../utils/formatting';
 const BudgetTab: React.FC<BudgetTabProps> = (props) => {
   const {
     monthlyIncome, totalMonthlyBudget, budgetForm, setBudgetForm, categories,
-    budgets, setBudget, customBudgetFormRef, editingCustomBudget, customBudgetForm,
+    budgets, setBudget, onUpdateAllMonthlyBudgets, onDeleteMonthlyBudget, customBudgetFormRef, editingCustomBudget, customBudgetForm,
     setCustomBudgetForm, handleSaveCustomBudget, handleCancelEdit, saveAsTemplate,
     budgetTemplates, selectedTemplate, setSelectedTemplate, applyTemplate,
     deleteTemplate, relationshipForm, setRelationshipForm, getRemainingBudget,
@@ -32,6 +32,9 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
   } = props;
   const { t } = useLocalization();
 
+  const [isEditingMonthly, setIsEditingMonthly] = useState(false);
+  const [editableBudgets, setEditableBudgets] = useState<Record<string, string>>({});
+
   const monthlyBudgetLimitReached = React.useMemo(() => {
     // Don't apply limit if editing an existing budget category
     if (budgets[budgetForm.category]) return false;
@@ -43,6 +46,12 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
     if (editingCustomBudget) return false;
     return isLimitReached(Limit.CustomBudgets, customBudgets.length);
   }, [customBudgets.length, editingCustomBudget]);
+
+  useEffect(() => {
+    if (isEditingMonthly) {
+      setEditableBudgets(Object.fromEntries(Object.entries(budgets).map(([key, value]) => [key, value.toString()])));
+    }
+  }, [isEditingMonthly, budgets]);
 
   return (
     <div className="p-4 space-y-6">
@@ -594,46 +603,95 @@ const BudgetTab: React.FC<BudgetTabProps> = (props) => {
 
       {/* Monthly Budget Overview */}
       <div className="bg-white rounded-2xl p-6 shadow-lg">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">{t('budget.monthlyOverview')}</h2>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-bold text-gray-800">{t('budget.monthlyOverview')}</h2>
+          {!isEditingMonthly ? (
+            <button onClick={() => setIsEditingMonthly(true)} className="flex items-center space-x-2 px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200" title={t('general.edit')}>
+              <Edit3 size={16} />
+            </button>
+          ) : (
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => {
+                  const newBudgets: Record<string, number> = {};
+                  for (const key in editableBudgets) {
+                    newBudgets[key] = parseFloat(editableBudgets[key]) || 0;
+                  }
+                  onUpdateAllMonthlyBudgets(newBudgets);
+                  setIsEditingMonthly(false);
+                }}
+                className="flex items-center space-x-2 px-3 py-2 text-sm bg-green-100 text-green-700 rounded-lg hover:bg-green-200"
+              >
+                <Save size={16} />
+                <span>{t('general.save')}</span>
+              </button>
+              <button onClick={() => setIsEditingMonthly(false)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg">
+                <X size={20} />
+              </button>
+            </div>
+          )}
+        </div>
         
         <div className="space-y-4">
-          {categories.map(category => {
-            const budget = budgets[category] || 0;
-            const spent = getSpentAmount(category, currentYear, currentMonth);
-            const remaining = budget - spent;
-            const percentage = budget > 0 ? (spent / budget) * 100 : 0;
-
-            return (
-              <div key={category} className="border border-gray-200 rounded-xl p-4">
-                <div className="flex justify-between items-center gap-2 mb-2">
-                  <div className="flex-1 min-w-0">
-                    <span className="font-semibold text-gray-800 truncate block" title={category}>{category}</span>
-                  </div>
-                  <span className="text-sm text-gray-600 flex-shrink-0">
-                    {formatCurrency(spent, language)} / {formatCurrency(budget, language)}
-                  </span>
-                </div>
-                
-                <div className="w-full bg-gray-200 rounded-full h-3 mb-2">
-                  <div
-                    className={`h-3 rounded-full transition-all ${
-                      percentage > 100 ? 'bg-red-500' : percentage > 80 ? 'bg-yellow-500' : 'bg-green-500'
-                    }`}
-                    style={{ width: `${Math.min(percentage, 100)}%` }}
+          {isEditingMonthly
+            ? categories.map(category => (
+                <div key={category} className="flex items-center space-x-3">
+                  <label className="w-2/5 text-gray-700 truncate" title={category}>{category}</label>
+                  <input
+                    type="number"
+                    value={editableBudgets[category] || ''}
+                    onChange={(e) => setEditableBudgets({ ...editableBudgets, [category]: e.target.value })}
+                    className="flex-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                    placeholder="0.00"
                   />
+                  <button
+                    onClick={() => onDeleteMonthlyBudget(category)}
+                    className="p-2 text-red-500 hover:bg-red-100 rounded-lg"
+                    title={t('budget.tooltip.delete')}
+                  >
+                    <Trash2 size={16} />
+                  </button>
                 </div>
-                
-                <div className="flex justify-between text-sm">
-                  <span className={remaining >= 0 ? 'text-green-600' : 'text-red-600'}>
-                    {t('budget.remaining')}: {formatCurrency(remaining, language)}
-                  </span>
-                  <span className="text-gray-600">
-                    {t('budget.used').replace('{percent}', percentage.toFixed(0))}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
+              ))
+            : categories.map(category => {
+                const budget = budgets[category] || 0;
+                const spent = getSpentAmount(category, currentYear, currentMonth);
+                const remaining = budget - spent;
+                const percentage = budget > 0 ? (spent / budget) * 100 : 0;
+
+                return (
+                  <div key={category} className="border border-gray-200 rounded-xl p-4">
+                    <div className="flex justify-between items-center gap-2 mb-2">
+                      <div className="flex-1 min-w-0">
+                        <span className="font-semibold text-gray-800 truncate block" title={category}>{category}</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-sm text-gray-600 flex-shrink-0">
+                          {formatCurrency(spent, language)} / {formatCurrency(budget, language)}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <div className="w-full bg-gray-200 rounded-full h-3 mb-2">
+                      <div
+                        className={`h-3 rounded-full transition-all ${
+                          percentage > 100 ? 'bg-red-500' : percentage > 80 ? 'bg-yellow-500' : 'bg-green-500'
+                        }`}
+                        style={{ width: `${Math.min(percentage, 100)}%` }}
+                      />
+                    </div>
+                    
+                    <div className="flex justify-between text-sm">
+                      <span className={remaining >= 0 ? 'text-green-600' : 'text-red-600'}>
+                        {t('budget.remaining')}: {formatCurrency(remaining, language)}
+                      </span>
+                      <span className="text-gray-600">
+                        {t('budget.used').replace('{percent}', percentage.toFixed(0))}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
         </div>
       </div>
     </div>

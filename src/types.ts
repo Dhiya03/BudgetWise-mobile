@@ -173,6 +173,8 @@ export interface BudgetTabProps {
   categories: string[];
   budgets: MonthlyBudgets;
   setBudget: () => void;
+  onUpdateAllMonthlyBudgets: (newBudgets: MonthlyBudgets) => void;
+  onDeleteMonthlyBudget: (category: string) => void;
   customBudgetFormRef: React.RefObject<HTMLDivElement>;
   editingCustomBudget: CustomBudget | null;
   customBudgetForm: CustomBudgetFormData;

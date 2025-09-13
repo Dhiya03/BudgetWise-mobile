@@ -1,58 +1,56 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import BudgetTab from "../components/BudgetTab";
-import { hasAccessTo, isLimitReached, Feature, Limit } from '../subscriptionManager';
-import type { Mock } from 'vitest';
-import { CustomBudget, BudgetTemplate, BudgetRelationship, SupportedLanguage } from '../types';
-vi.mock('../subscriptionManager');
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import BudgetTab from '../components/BudgetTab';
+import { BudgetTabProps } from '../types';
 
-const sampleCustomBudgets: CustomBudget[] = [
-  { id: 1, name: 'Vacation', description: 'Trip to Goa', categories: ['Flights', 'Hotels'], totalAmount: 1000, spentAmount: 200, remainingAmount: 800, deadline: '2024-12-31', priority: 'high', status: 'active', categoryBudgets: {}, createdAt: '', updatedAt: '' },
-  { id: 2, name: 'New Laptop', description: '', categories: ['Electronics'], totalAmount: 1500, spentAmount: 0, remainingAmount: 1500, deadline: null, priority: 'medium', status: 'paused', categoryBudgets: {}, createdAt: '', updatedAt: '' },
-];
+// Mock the localization hook
+vi.mock('../LocalizationContext', () => ({
+  useLocalization: () => ({
+    t: (key: string, fallback?: string) => fallback || key,
+  }),
+}));
 
-const createDefaultProps = () => ({
+// Mock the subscription manager
+vi.mock('../subscriptionManager', () => ({
+  hasAccessTo: vi.fn(() => true),
+  isLimitReached: vi.fn(() => false),
+}));
+
+const createDefaultProps = (): BudgetTabProps => ({
   monthlyIncome: 10000,
-  totalMonthlyBudget: 7000,
+  totalMonthlyBudget: 7500,
   budgetForm: { category: '', amount: '' },
   setBudgetForm: vi.fn(),
-  categories: ['Food', 'Transport', 'Shopping'],
-  budgets: { Food: 5000, Transport: 2000 },
+  categories: ['Food', 'Transport'],
+  budgets: {
+    'Food': 5000,
+    'Transport': 2500,
+  },
   setBudget: vi.fn(),
+  onUpdateAllMonthlyBudgets: vi.fn(),
+  onDeleteMonthlyBudget: vi.fn(),
   customBudgetFormRef: { current: null },
   editingCustomBudget: null,
-  customBudgetForm: {
-    name: '',
-    amount: '',
-    description: '',
-    deadline: '',
-    priority: 'medium' as 'medium',
-    categories: [],
-    categoryBudgets: {},
-  },
+  customBudgetForm: { name: '', amount: '', description: '', deadline: '', priority: 'medium', categories: [], categoryBudgets: {} },
   setCustomBudgetForm: vi.fn(),
   handleSaveCustomBudget: vi.fn(),
   handleCancelEdit: vi.fn(),
   saveAsTemplate: vi.fn(),
-  budgetTemplates: [] as BudgetTemplate[],
+  budgetTemplates: [],
   selectedTemplate: '',
   setSelectedTemplate: vi.fn(),
   applyTemplate: vi.fn(),
   deleteTemplate: vi.fn(),
-  relationshipForm: {
-    sourceCategory: '',
-    destinationBudgetId: '',
-    condition: 'end_of_month_surplus' as 'end_of_month_surplus',
-  },
+  relationshipForm: { sourceCategory: '', destinationBudgetId: '', condition: 'end_of_month_surplus' },
   setRelationshipForm: vi.fn(),
-  getRemainingBudget: vi.fn(() => 3000),
+  getRemainingBudget: vi.fn(() => 1000),
   currentYear: 2024,
-  currentMonth: 1,
-  customBudgets: sampleCustomBudgets,
+  currentMonth: 6,
+  customBudgets: [],
   addRelationship: vi.fn(),
-  budgetRelationships: [] as BudgetRelationship[],
-  getCustomBudgetName: vi.fn(id => (id === 1 ? 'Vacation' : 'New Laptop')),
+  budgetRelationships: [],
+  getCustomBudgetName: vi.fn(),
   deleteRelationship: vi.fn(),
   processEndOfMonthRollovers: vi.fn(),
   setShowTransferModal: vi.fn(),
@@ -61,7 +59,7 @@ const createDefaultProps = () => ({
   handleEditCustomBudget: vi.fn(),
   deleteCustomBudget: vi.fn(),
   resumeCustomBudget: vi.fn(),
-  getCustomBudgetCategoryBudget: vi.fn(() => 0),
+  getCustomBudgetCategoryBudget: vi.fn(),
   customCategorySpending: {},
   transactions: [],
   newCustomCategory: '',
@@ -70,115 +68,94 @@ const createDefaultProps = () => ({
   getSpentAmount: vi.fn(() => 0),
   removeCategoryFromForm: vi.fn(),
   updateCategoryBudget: vi.fn(),
-  language: 'USD' as SupportedLanguage,
+  language: 'en',
 });
 
-describe('BudgetTab', () => {
-  beforeEach(() => {
+describe('BudgetTab - Monthly Budget Overview', () => {
+  afterEach(() => {
     vi.clearAllMocks();
-    // Default to premium user with no limits
-    (hasAccessTo as Mock).mockReturnValue(true);
-    (isLimitReached as Mock).mockReturnValue(false);
   });
 
-  describe('Monthly Budgets', () => {
-    it('renders existing monthly budgets', () => {
-      const props = createDefaultProps();
-      render(<BudgetTab {...props} />);
-      expect(screen.getByText(/Food/i)).toBeInTheDocument();
-      // The component renders spent / budget, e.g., "₹0 / ₹5000"
-      expect(screen.getByText(/₹0 \/ ₹5,000/i)).toBeInTheDocument();
-    });
+  it('renders the monthly budget overview in read-only mode by default', () => {
+    const props = createDefaultProps();
+    render(<BudgetTab {...props} />);
 
-    it('allows setting a new monthly budget', async () => {
-      const props = createDefaultProps();
-      render(<BudgetTab {...props} />);
-
-      await userEvent.selectOptions(screen.getByLabelText('Category'), 'Shopping');
-      await userEvent.type(screen.getByLabelText(/budget amount/i), '3000');
-      await userEvent.click(screen.getByRole('button', { name: /set monthly budget/i }));
-
-      expect(props.setBudget).toHaveBeenCalled();
-    });
-
-    // This test is modified to reflect the current component implementation,
-    // which does not yet include feature-gating for this button.
-    it('does not disable setting budget if monthly budget limit is reached (feature not implemented)', () => {
-      (isLimitReached as Mock).mockImplementation((limit: Limit) => limit === Limit.MonthlyBudgets);
-      const props = createDefaultProps();
-      render(<BudgetTab {...props} />);
-
-      expect(screen.getByRole('button', { name: /set monthly budget/i })).not.toBeDisabled();
-    });
+    expect(screen.getByText('Monthly Budget Overview')).toBeInTheDocument();
+    expect(screen.getByText('Food')).toBeInTheDocument();
+    expect(screen.getByText('Transport')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /edit/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /save/i })).not.toBeInTheDocument();
   });
 
-  describe('Custom Budgets', () => {
-    it('renders the list of custom budgets', () => {
-      const props = createDefaultProps();
-      render(<BudgetTab {...props} />);
-      expect(screen.getByText('Vacation')).toBeInTheDocument();
-      expect(screen.getByText('New Laptop')).toBeInTheDocument();
-    });
+  it('switches to edit mode when the edit button is clicked', async () => {
+    const props = createDefaultProps();
+    render(<BudgetTab {...props} />);
 
-    it('allows creating a new custom budget', async () => {
-      const props = createDefaultProps();
-      render(<BudgetTab {...props} />);
+    await userEvent.click(screen.getByRole('button', { name: /edit/i }));
 
-      await userEvent.type(screen.getByLabelText(/budget name/i), 'New Car Fund');
-      await userEvent.type(screen.getByLabelText(/budget amount/i), '500000');
-      await userEvent.click(screen.getByRole('button', { name: /create custom budget/i }));
+    // Check that inputs are now visible with correct values
+    expect(screen.getByLabelText('Food')).toBeInTheDocument();
+    expect(screen.getByLabelText('Food')).toHaveValue(5000);
+    expect(screen.getByLabelText('Transport')).toHaveValue(2500);
 
-      expect(props.handleSaveCustomBudget).toHaveBeenCalled();
-    });
-
-    it('calls the delete handler when a custom budget is deleted', async () => {
-      const props = createDefaultProps();
-      render(<BudgetTab {...props} />);
-
-      // Find the delete button within the 'Vacation' budget card
-      const vacationCard = screen.getByText('Vacation').closest('.p-4');
-      expect(vacationCard).not.toBeNull();
-      const deleteButton = within(vacationCard as HTMLElement).getByRole('button', { name: /delete budget/i });
-      
-      await userEvent.click(deleteButton);
-
-      expect(props.deleteCustomBudget).toHaveBeenCalledWith(1);
-    });
+    // Check that Save and Cancel buttons are visible
+    expect(screen.getByRole('button', { name: /save/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /x/i })).toBeInTheDocument(); // Cancel button
   });
 
-  describe('Feature Gating', () => {
-    // This test is modified to reflect the current component implementation,
-    // which does not yet include feature-gating for this section.
-    it('shows custom budget creation for free users (feature not implemented)', () => {
-      (hasAccessTo as Mock).mockImplementation((feature: Feature) => feature !== Feature.CustomBudgets);
-      const props = createDefaultProps();
-      render(<BudgetTab {...props} />);
+  it('updates budget values in edit mode and saves them on click', async () => {
+    const props = createDefaultProps();
+    render(<BudgetTab {...props} />);
 
-      expect(screen.getByText(/custom purpose budget/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /edit/i }));
+
+    const foodInput = screen.getByLabelText('Food');
+    await userEvent.clear(foodInput);
+    await userEvent.type(foodInput, '5500');
+
+    await userEvent.click(screen.getByRole('button', { name: /save/i }));
+
+    expect(props.onUpdateAllMonthlyBudgets).toHaveBeenCalledTimes(1);
+    expect(props.onUpdateAllMonthlyBudgets).toHaveBeenCalledWith({
+      'Food': 5500,
+      'Transport': 2500,
     });
 
-    // This test is modified to reflect the current component implementation,
-    // which does not yet include feature-gating for this button.
-    it('does not disable creating custom budget if limit is reached (feature not implemented)', () => {
-      (hasAccessTo as Mock).mockImplementation((feature: Feature) => feature === Feature.CustomBudgets);
-      (isLimitReached as Mock).mockImplementation((limit: Limit) => limit === Limit.CustomBudgets);
-      const props = createDefaultProps();
-      render(<BudgetTab {...props} />);
+    // Should exit edit mode
+    expect(screen.queryByRole('button', { name: /save/i })).not.toBeInTheDocument();
+  });
 
-      expect(screen.getByRole('button', { name: /create custom budget/i })).not.toBeDisabled();
-    });
+  it('cancels edit mode and discards changes when cancel is clicked', async () => {
+    const props = createDefaultProps();
+    render(<BudgetTab {...props} />);
 
-    // This test is modified to reflect the current component implementation,
-    // which does not yet include feature-gating for these sections.
-    it('shows automation and fund transfer sections for non-premium users (feature not implemented)', () => {
-      (hasAccessTo as Mock).mockImplementation((feature: Feature) => 
-        feature !== Feature.BudgetAutomation && feature !== Feature.FundTransfers
-      );
-      const props = createDefaultProps();
-      render(<BudgetTab {...props} />);
+    await userEvent.click(screen.getByRole('button', { name: /edit/i }));
 
-      expect(screen.getByText(/budget automation/i)).toBeInTheDocument();
-      expect(screen.getByText(/manage funds/i)).toBeInTheDocument();
-    });
+    const foodInput = screen.getByLabelText('Food');
+    await userEvent.clear(foodInput);
+    await userEvent.type(foodInput, '9999');
+
+    await userEvent.click(screen.getByRole('button', { name: /x/i })); // Cancel button
+
+    expect(props.onUpdateAllMonthlyBudgets).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: /save/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /edit/i })).toBeInTheDocument();
+  });
+
+  it('calls onDeleteMonthlyBudget when delete button is clicked in edit mode', async () => {
+    const props = createDefaultProps();
+    render(<BudgetTab {...props} />);
+
+    // Enter edit mode
+    await userEvent.click(screen.getByRole('button', { name: /edit/i }));
+
+    // Find the delete button for the 'Food' category by its title
+    const deleteButtons = screen.getAllByTitle('Delete Budget');
+    expect(deleteButtons).toHaveLength(2); // One for Food, one for Transport
+
+    await userEvent.click(deleteButtons[0]); // Click delete for 'Food'
+
+    expect(props.onDeleteMonthlyBudget).toHaveBeenCalledTimes(1);
+    expect(props.onDeleteMonthlyBudget).toHaveBeenCalledWith('Food');
   });
 });
